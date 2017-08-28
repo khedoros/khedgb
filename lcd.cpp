@@ -953,7 +953,21 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 }
             }
             else if(!debug) {
-                SDL_RenderCopy(renderer,texture,NULL,NULL);
+                int ww,wh;
+                SDL_GetWindowSize(screen, &ww, &wh);
+                int bh = 0;
+                int bw = 0;
+                if(ww >= wh) {
+                    bh = wh;
+                    bw = ((wh*160)/144);
+                }
+                else {
+                    bw = ww;
+                    bh = ((ww*144)/160);
+                }
+                SDL_Rect dontstretch{(ww-bw)>>1, 0, bw, bh};
+                SDL_RenderCopy(renderer,texture,NULL,&dontstretch);
+
                 SDL_RenderPresent(renderer);
             }
             else { //Debug, but not SGB
@@ -1190,7 +1204,21 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 SDL_RenderCopy(renderer, texture, NULL, &debug_space);
             }
             else {
-                SDL_RenderCopy(renderer,texture,NULL,NULL);
+                int ww,wh;
+                SDL_GetWindowSize(screen, &ww, &wh);
+                int bh = 0;
+                int bw = 0;
+                if(bw >= bh) {
+                    bh = wh;
+                    bw = ((wh*160)/144);
+                }
+                else {
+                    bw = ww;
+                    bh = ((ww*144)/160);
+                }
+
+                SDL_Rect dontstretch{(ww-bw)>>1, 0, bw, bh};
+                SDL_RenderCopy(renderer,texture,NULL,&dontstretch);
             }
             SDL_RenderPresent(renderer);
         }
