@@ -268,7 +268,6 @@ private:
     uint16_t chan1_env_counter;    //Counts how many steps until envelope is clocked
     uint16_t chan1_sweep_counter;  //Counts how many steps until sweep is clocked
     uint16_t chan1_freq_shadow;    //Frequency shadow register used by sweep
-    uint8_t chan1_level;           //Current output level
     uint8_t chan1_duty_phase;      //Which waveform sample is it on
 
     //Channel 2, rectangle
@@ -279,7 +278,6 @@ private:
     uint16_t chan2_length_counter; //Counts how many steps until channel is silenced
     int16_t chan2_freq_counter;   //Counts how many steps until waveform is clocked
     uint16_t chan2_env_counter;    //Counts how many steps until envelope is clocked
-    uint8_t chan2_level;           //Current output level
     uint8_t chan2_duty_phase;      //Which waveform sample is it on
 
     //Channel 3, wave
@@ -306,7 +304,6 @@ private:
     bool chan4_active;
     int32_t chan4_freq_counter; //How many steps until lfsr is clocked
     uint16_t chan4_env_counter;
-    uint8_t chan4_level;
     uint16_t chan4_lfsr;         //Linear Feedback Shift Register for noise output
     int8_t lfsr_value;          //Current output value of LFSR
     int16_t chan4_length_counter; //Length to play
