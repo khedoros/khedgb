@@ -59,23 +59,23 @@ void decode(int prefix,int x,int y,int z,int data) {
 					break;
 				case 0x1:
 					//Different than Z80
-					printf("LD (a16), SP (diff)\n");
+					printf("LD ($%04x), SP (diff)\n",data);
 					break;
 				case 0x2:
 					//Different than Z80
 					printf("STOP 0 (diff)\n");
 					break;
 				case 0x3:
-					printf("JR r8\n");
+					printf("JR $%02x\n",data);
 					break;
 				default: /* 4..7 */
-					printf("JR %s, r8\n", cc[y-4]);
+					printf("JR %s, $%02x\n", cc[y-4], data);
 					break;
 				}
 				break;
 			case 0x1:
 				if(!q) {
-					printf("LD %s, nn\n",rp[p]);
+					printf("LD %s, $%04x\n",rp[p],data);
 				}
 				else {
 					printf("ADD HL, %s\n",rp[p]);
@@ -140,7 +140,7 @@ void decode(int prefix,int x,int y,int z,int data) {
 				printf("DEC %s\n", r[y]);
 				break;
 			case 0x6:
-				printf("LD %s, n\n", r[y]);
+				printf("LD %s, $%02x\n", r[y],data);
 				break;
 			case 0x7:
 				switch(y) {
@@ -188,16 +188,16 @@ void decode(int prefix,int x,int y,int z,int data) {
 			case 0x0:
 				switch(y) {
 				case 4:
-					printf("LD (FF00+n), A (diff)\n");
+					printf("LD (FF00+$%02x), A (diff)\n",data);
 					break;
 				case 5:
-					printf("ADD SP, dd (diff)\n");
+					printf("ADD SP, $%02x (diff)\n",data);
 					break;
 				case 6:
-					printf("LD A, (FF00+n) (diff)\n");
+					printf("LD A, (FF00+$%02x) (diff)\n",data);
 					break;
 				case 7:
-					printf("LD HL, SP+dd (diff)\n");
+					printf("LD HL, SP+$%02x (diff)\n",data);
 					break;
 				default:
 					printf("RET %s\n", cc[y]);
@@ -232,23 +232,23 @@ void decode(int prefix,int x,int y,int z,int data) {
 					printf("LD (FF00+C), A (diff)\n");
 					break;
 				case 0x5:
-					printf("LD (nn), A (diff)\n");
+					printf("LD ($%04x), A (diff)\n",data);
 					break;
 				case 0x6:
 					printf("LD A, (FF00+C) (diff)\n");
 					break;
 				case 0x7:
-					printf("LD A, (nn) (diff)\n");
+					printf("LD A, ($%04x) (diff)\n",data);
 					break;
 				default:
-					printf("JP %s, nn\n", cc[y]);
+					printf("JP %s, $%04x\n", cc[y],data);
 					break;
 				}
 				break;
 			case 0x3:
 				switch(y) {
 				case 0x0:
-					printf("JP nn\n");
+					printf("JP $%04x\n",data);
 					break;
 				case 0x1:
 					printf("CB Prefix\n");
@@ -270,7 +270,7 @@ void decode(int prefix,int x,int y,int z,int data) {
 					printf("---- (diff)\n");
 					break;
 				case 0x6:
-					printf("X: %d Y: %d Z: %d ",x,y,z);
+					//printf("X: %d Y: %d Z: %d ",x,y,z);
 					printf("DI\n");
 					break;
 				case 0x7:
@@ -280,7 +280,7 @@ void decode(int prefix,int x,int y,int z,int data) {
 				break;
 			case 0x4:
 				if(y<4) {
-					printf("CALL %s, nn\n", cc[y]);
+					printf("CALL %s, $%04x\n", cc[y],data);
 				}
 				else {
 					printf("---- (diff)\n");
@@ -293,7 +293,7 @@ void decode(int prefix,int x,int y,int z,int data) {
 				else {
 					switch(p) {
 					case 0x0:
-						printf("CALL nn\n");
+						printf("CALL $%04x\n",data);
 						break;
 					case 0x1: //Different from z80
 						//printf("DD Prefix\n");
@@ -311,7 +311,7 @@ void decode(int prefix,int x,int y,int z,int data) {
 				}
 				break;
 			case 0x6:
-				printf("%s n\n", alu[y]);
+				printf("%s $%02x\n", alu[y],data);
 				break;
 			case 0x7:
 				printf("RST %02X\n", y*8);

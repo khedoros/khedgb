@@ -28,4 +28,5 @@ class cpu {
     uint16_t sp, pc;
     static const uint8_t op_bytes[256];
     static const uint8_t op_times[256];
+    static const uint8_t op_times_extra[256];
 };
