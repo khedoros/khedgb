@@ -1,4 +1,3 @@
-extern "C" {
 #include<stdio.h>
 
 char ds[][4] =    {   "000",    "001", "010",    "011", "100", "101", "110","111"};
@@ -9,7 +8,7 @@ char cc[][3] =    {    "NZ",      "Z",  "NC",      "C",  "PO",  "PE",   "P",  "M
 char alu[][7]=    {"ADD A,", "ADC A,", "SUB", "SBC A,", "AND", "XOR",  "OR", "CP"};
 char rot[][5]=    {   "RLC",    "RRC",  "RL",     "RR", "SLA", "SRA", "SWAP","SRL"};
 
-void decode(int pre,int x,int y,int z);
+void decode(int pre,int x,int y,int z,int data);
 
 #ifdef STAND_ALONE_DECODE
 int main() {
@@ -25,7 +24,7 @@ int main() {
                                                x,y,z,
                                                       x*64+y*8+z,
                                                          x*64+y*8+z);
-				decode(0,x,y,z);
+				decode(0,x,y,z,0);
 			}
 		}
 	}
@@ -38,7 +37,7 @@ int main() {
                                                x,y,z,
                                                       x*64+y*8+z,
                                                          x*64+y*8+z);
-				decode(0xcb,x,y,z);
+				decode(0xcb,x,y,z,0);
 			}
 		}
 	}
@@ -46,7 +45,7 @@ int main() {
 }
 #endif
 
-void decode(int prefix,int x,int y,int z) {
+void decode(int prefix,int x,int y,int z,int data) {
 	int p,q;
 	p=y/2;
 	q=y%2;
@@ -338,5 +337,4 @@ void decode(int prefix,int x,int y,int z) {
 	else {
 		printf("Prefix \"0x%02x\" doesn't exist in the Game Boy's CPU.\n", prefix);
 	}
-}
 }

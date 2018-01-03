@@ -13,6 +13,7 @@ class cpu {
     cpu(memmap& bus, bool has_firmware=false);
     int run();
     int dec_and_exe(uint32_t opcode);
+    int execute(int pre,int x,int y,int z,int data);
     struct regpair {
         union {
             struct {

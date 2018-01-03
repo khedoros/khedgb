@@ -4,7 +4,7 @@
 #include<iostream>
 #include "cpu.h"
 
-extern "C" void decode(int pre,int x,int y,int z);
+void decode(int pre,int x,int y,int z,int data);
 
 cpu::cpu(memmap& b, bool has_firmware): bus(b) {
     if(has_firmware) {
@@ -34,11 +34,12 @@ int cpu::dec_and_exe(uint32_t opcode) {
     int prefix = 0;
     int op = 0;
     int cycles = 0;
+    int data = 0;
     std::cout<<std::hex<<opcode<<"\t";
     op = opcode & 0xff;
-    int x = (op&0xc0)>>(6);
-    int y = (op&0x38)>>(3);
-    int z = (op&0x7);
+    int x = (op&0xc0)>>(6); // 11000000
+    int y = (op&0x38)>>(3); // 00111000
+    int z = (op&0x7);       // 00000111
     if(op == 0xcb) {
         prefix = 0xcb;
         op = ((opcode&0xFF00)>>(8));
@@ -51,11 +52,24 @@ int cpu::dec_and_exe(uint32_t opcode) {
         cycles = op_times[op];
     }
     
-    decode(prefix,x,y,z);
+    if(bytes == 2 && !prefix) {
+        data = (opcode & 0xff00)>>(8);
+    }
+    else if(bytes == 3) {
+        data = (opcode & 0xffff00)>>(8);
+    }
+
+    decode(prefix,x,y,z,data);
+
+    cycles += execute(prefix,x,y,z,data);
 
     pc += bytes;
 
-    return cycles; //hehe, error
+    return cycles;
+}
+
+int cpu::execute(int pre,int x,int y,int z,int data) {
+    return 0;
 }
 
 //All CB-prefix ops are 2 bytes long and either 8 or 16 cycle instructions (memory operations take more time)
