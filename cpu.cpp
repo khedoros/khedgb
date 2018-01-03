@@ -6,7 +6,16 @@
 
 void decode(int pre,int x,int y,int z,int data);
 
-cpu::cpu(memmap& b, bool has_firmware): bus(b) {
+cpu::cpu(memmap& b, bool has_firmware): bus(b),
+r{&bc.hi, &bc.low, &de.hi, &de.low, &hl.hi, &hl.low, &dummy, &af.hi},
+rp{&bc.pair, &de.pair, &hl.pair, &sp},
+rp2{&bc.pair, &de.pair, &hl.pair, &af.pair}
+{
+    af.pair=0;
+    bc.pair=0;
+    de.pair=0;
+    hl.pair=0; 
+    sp=0;
     if(has_firmware) {
         pc = 0;
     }
@@ -43,6 +52,9 @@ int cpu::dec_and_exe(uint32_t opcode) {
     if(op == 0xcb) {
         prefix = 0xcb;
         op = ((opcode&0xFF00)>>(8));
+        x = (op&0xc0)>>(6); // 11000000
+        y = (op&0x38)>>(3); // 00111000
+        z = (op&0x7);       // 00000111
         bytes = 2;
         cycles = (z == 6) ? 16 : 8;
         bytes = 2;
@@ -59,7 +71,9 @@ int cpu::dec_and_exe(uint32_t opcode) {
         data = (opcode & 0xffff00)>>(8);
     }
 
+    printf("%04x ", pc);
     decode(prefix,x,y,z,data);
+    registers();
 
     cycles += execute(prefix,x,y,z,data);
 
@@ -69,7 +83,548 @@ int cpu::dec_and_exe(uint32_t opcode) {
 }
 
 int cpu::execute(int pre,int x,int y,int z,int data) {
-    return 0;
+    /*
+    char r[][5]  =    {     "B",      "C",   "D",      "E",   "H",   "L","(HL)",  "A"};
+    char rp[][3] =    {    "BC",     "DE",  "HL",     "SP"};
+    char rp2[][3]=    {    "BC",     "DE",  "HL",     "AF"};
+    */
+    char cc[][3] =    {    "NZ",      "Z",  "NC",      "C",  "PO",  "PE",   "P",  "M"};
+    char alu[][7]=    {"ADD A,", "ADC A,", "SUB", "SBC A,", "AND", "XOR",  "OR", "CP"};
+    char rot[][5]=    {   "RLC",    "RRC",  "RL",     "RR", "SLA", "SRA", "SWAP","SRL"};
+    int p,q;
+    p=y/2;
+    q=y%2;
+    int extra_cycles = 0;
+    bool condition=false;
+    if(!pre) {
+        if(x==0) {
+            switch(z) {
+            case 0x0:
+                switch(y) {
+                case 0x0: //NOP
+                    //printf("NOP\n");
+                    break;
+                case 0x1:
+                    //Different than Z80
+                    bus.map(data, &sp, 2, true);
+                    //printf("LD ($%04x), SP (diff)\n",data);
+                    break;
+                case 0x2:
+                    //Different than Z80
+                    printf("STOP 0 (diff)\n");
+                    break;
+                case 0x3:
+                    std::cout<<"Data: "<<data<<std::endl;
+                    data = extend(data);
+                    std::cout<<"Data: "<<data<<std::endl;
+                    pc += data;
+                    //printf("JR $%02x\n",data);
+                    std::cout<<"Jumping to "<<std::hex<<pc<<std::endl;
+                    break;
+                default: /* 4..7 */
+                    //std::cout<<"PC: "<<pc<<" Data: "<<data<<" PC+data: "<<pc+data<<std::endl;
+                    data = extend(data);
+                    //std::cout<<"PC: "<<pc<<" Data: "<<data<<" PC+data: "<<pc+data<<std::endl;
+                    switch(y-4) {
+                    case 0:
+                        if(!zero()) {
+                            pc = pc + data;
+                            condition = true;
+                        }
+                        break;
+                    case 1:
+                        if(zero()) {
+                            pc = pc + data;
+                            condition = true;
+                        }
+                        break;
+                    case 2:
+                        if(!carry()) {
+                            pc = pc + data;
+                            condition = true;
+                        }
+                        break;
+                    case 3:
+                        if(carry()) {
+                            pc = pc + data;
+                            condition = true;
+                        }
+                        break;
+                    }
+                    if(condition) extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
+                    //std::cout<<"Jumping to "<<std::hex<<pc<<std::endl;
+                    //printf("JR %s, $%02x\n", cc[y-4], data);
+                    break;
+                }
+                break;
+            case 0x1:
+                if(!q) {
+                    *rp[p] = data;
+                    //printf("LD %s, $%04x\n",rp[p],data);
+                }
+                else {
+                    printf("ADD HL, %s\n",rp[p]);
+                }
+                break;
+            case 0x2:
+                switch(p) {
+                case 0x0:
+                    if(!q) {
+                        bus.map(bc.pair, &af.hi, 1, true);
+                        //printf("LD (BC), A\n");
+                    }
+                    else {
+                        bus.map(bc.pair, &af.hi, 1, false);
+                        //printf("LD A, (BC)\n");
+                    }
+                    break;
+                case 0x1:
+                    if(!q) {
+                        bus.map(de.pair, &af.hi, 1, true);
+                        //printf("LD (DE), A\n");
+                    }
+                    else {
+                        bus.map(de.pair, &af.hi, 1, false);
+                        //printf("LD A, (DE)\n");
+                    }
+                    break;
+                case 0x2:
+                    if(!q) {
+                        //Different than z80
+                        //printf("LD (nn), HL\n");
+                        bus.map(hl.pair, &af.hi, 1, true);
+                        hl.pair++;
+                        //printf("LDI (HL), A (diff)\n");
+                    }
+                    else {
+                        //Different than z80
+                        //printf("LD HL, (nn)\n");
+                        bus.map(hl.pair, &af.hi, 1, false);
+                        hl.pair++;
+                        //printf("LDI A, (HL) (diff)\n");
+                    }
+                    break;
+                case 0x3:
+                    if(!q) {
+                        //Different than z80
+                        //printf("LD (nn), A\n");
+                        bus.map(hl.pair, &af.hi, 1, true);
+                        hl.pair--;
+                        //printf("LDD (HL), A (diff)\n");
+                    }
+                    else {
+                        //Different than z80
+                        //printf("LD A, (nn)\n");
+                        bus.map(hl.pair, &af.hi, 1, false);
+                        hl.pair--;
+                        //printf("LDD A, (HL) (diff)\n");
+                    }
+                    break;
+                }
+                break;
+            case 0x3:
+                if(!q) {
+                    printf("INC %s\n", rp[p]);
+                }
+                else {
+                    printf("DEC %s\n", rp[p]);
+                }
+                break;
+            case 0x4:
+                printf("INC %s\n", r[y]);
+                break;
+            case 0x5:
+                printf("DEC %s\n", r[y]);
+                break;
+            case 0x6:
+                if(y==6) {
+                    bus.map(hl.pair, &dummy, 1, false);
+                }
+                *r[y] = data;
+                if(y==6) {
+                    bus.map(hl.pair, &dummy, 1, true);
+                }
+                //printf("LD %s, $%02x\n", r[y],data);
+                break;
+            case 0x7:
+                switch(y) {
+                case 0x0:
+                    printf("RLCA\n");
+                    break;
+                case 0x1:
+                    printf("RRCA\n");
+                    break;
+                case 0x2:
+                    printf("RLA\n");
+                    break;
+                case 0x3:
+                    printf("RRA\n");
+                    break;
+                case 0x4:
+                    printf("DAA\n");
+                    break;
+                case 0x5:
+                    printf("CPL\n");
+                    break;
+                case 0x6:
+                    printf("SCF\n");
+                    break;
+                case 0x7:
+                    printf("CCF\n");
+                    break;
+                }
+                break;
+            }
+        }
+        else if(x==1) { //HALT and LD r,r' operations
+            if(y==6 && z==6) { //Copy from memory location to (same) memory location is replaced by HALT
+                printf("HALT\n");
+            }
+            else { //Fairly regular LD ops
+                if(z == 6) { //read from memory to register
+                    bus.map(hl.pair, &dummy, 1, false);
+                }
+                else if(y==6) { //write from register into memory
+                    bus.map(hl.pair, r[z], 1, true);
+                }
+
+                *r[y] = *r[z];
+                //printf("LD %s, %s\n", r[y], r[z]);
+            }
+        }
+        else if(x==2) { //ALU operations
+            if(z==6) {
+                bus.map(hl.pair,&dummy,1,false);
+            }
+            switch(y) {
+            case 0: //ADD
+                if((af.hi & 0xf) + (*(r[z]) & 0xf) > 0x10) {
+                    set(HALF_CARRY_FLAG);
+                }
+                else {
+                    clear(HALF_CARRY_FLAG);
+                }
+                if(uint16_t(af.hi) + uint16_t(*(r[z])) > 0x100) {
+                    set(CARRY_FLAG);
+                }
+                else {
+                    clear(CARRY_FLAG);
+                }
+                af.hi += *(r[z]);
+
+                clear(SUB_FLAG);
+                break;
+            case 1: //ADC
+                if((af.hi & 0xf) + (*(r[z]) & 0xf)  + carry() > 0x10) {
+                    set(HALF_CARRY_FLAG);
+                }
+                else {
+                    clear(HALF_CARRY_FLAG);
+                }
+                if(uint16_t(af.hi) + uint16_t(*(r[z])) + carry() > 0x100) {
+                    set(CARRY_FLAG);
+                }
+                else {
+                    clear(CARRY_FLAG);
+                }
+                af.hi += *(r[z]) + carry();
+                clear(SUB_FLAG);
+                break;
+            case 2: //SUB
+                if((af.hi & 0xf) - (*(r[z]) & 0xf) > 0x10) {
+                    set(HALF_CARRY_FLAG);
+                }
+                else {
+                    clear(HALF_CARRY_FLAG);
+                }
+                if(uint16_t(af.hi) - uint16_t(*(r[z])) > 0x100) {
+                    set(CARRY_FLAG);
+                }
+                else {
+                    clear(CARRY_FLAG);
+                }
+                af.hi -= *(r[z]);
+                set(SUB_FLAG);
+                break;
+            case 3: //SBC
+                if((af.hi & 0xf) - (*(r[z]) & 0xf)  - carry() > 0x10) {
+                    set(HALF_CARRY_FLAG);
+                }
+                else {
+                    clear(HALF_CARRY_FLAG);
+                }
+                if(uint16_t(af.hi) - uint16_t(*(r[z])) - carry() > 0x100) {
+                    set(CARRY_FLAG);
+                }
+                else {
+                    clear(CARRY_FLAG);
+                }
+                af.hi -= *(r[z]) - carry();
+                set(SUB_FLAG);
+                break;
+            case 4: //AND
+                af.hi &= *(r[z]);
+                clear(SUB_FLAG);
+                set(HALF_CARRY_FLAG);
+                clear(CARRY_FLAG);
+                break;
+            case 5: //XOR
+                af.hi ^= *(r[z]);
+                clear(SUB_FLAG);
+                clear(HALF_CARRY_FLAG);
+                clear(CARRY_FLAG);
+                break;
+            case 6: //OR
+                af.hi |= *(r[z]);
+                clear(SUB_FLAG);
+                clear(HALF_CARRY_FLAG);
+                clear(CARRY_FLAG);
+                break;
+            case 7: //CP
+                if((af.hi & 0xf) - (*(r[z]) & 0xf) > 0x10) {
+                    set(HALF_CARRY_FLAG);
+                }
+                else {
+                    clear(HALF_CARRY_FLAG);
+                }
+                if(uint16_t(af.hi) - uint16_t(*(r[z])) > 0x100) {
+                    set(CARRY_FLAG);
+                }
+                else {
+                    clear(CARRY_FLAG);
+                }
+                if(af.hi - (*r[z]) == 0) {
+                    set(ZERO_FLAG);
+                }
+                else {
+                    clear(ZERO_FLAG);
+                }
+                set(SUB_FLAG);
+                break;
+            }
+            if(y!=7) {
+                if(af.hi == 0) {
+                    set(ZERO_FLAG);
+                }
+                else {
+                    clear(ZERO_FLAG);
+                }
+            }
+            //printf("%s %s\n", alu[y], r[z]);
+        }
+        else if(x==3) {
+            switch(z) {
+            case 0x0:
+                switch(y) {
+                case 4:
+                    printf("LD (FF00+$%02x), A (diff)\n",data);
+                    break;
+                case 5:
+                    printf("ADD SP, $%02x (diff)\n",data);
+                    break;
+                case 6:
+                    printf("LD A, (FF00+$%02x) (diff)\n",data);
+                    break;
+                case 7:
+                    printf("LD HL, SP+$%02x (diff)\n",data);
+                    break;
+                default:
+                    printf("RET %s\n", cc[y]);
+                    break;
+                }
+                break;
+            case 0x1:
+                if(!q) {
+                    printf("POP %s\n", rp2[p]);
+                }
+                else {
+                    switch(p) {
+                    case 0x0:
+                        printf("RET\n");
+                        break;
+                    case 0x1: //Different from z80
+                        //printf("EXX\n");
+                        printf("RETI (diff)\n");
+                        break;
+                    case 0x2:
+                        pc = hl.pair;
+                        //printf("JP HL\n");
+                        break;
+                    case 0x3:
+                        sp = hl.pair;
+                        //printf("LD SP, HL\n");
+                        break;
+                    }
+                }
+                break;
+            case 0x2:
+                switch(y) {
+                case 0x4:
+                    bus.map(0xff00 + bc.low, &af.hi,1,true);
+                    //printf("LD (FF00+C), A (diff)\n");
+                    break;
+                case 0x5:
+                    bus.map(data,&af.hi,1,true);
+                    //printf("LD ($%04x), A (diff)\n",data);
+                    break;
+                case 0x6:
+                    bus.map(0xff00 + bc.low, &af.hi,1,false);
+                    //printf("LD A, (FF00+C) (diff)\n");
+                    break;
+                case 0x7:
+                    bus.map(data,&af.hi,1,false);
+                    //printf("LD A, ($%04x) (diff)\n",data);
+                    break;
+                default:
+                    switch(y-4) {
+                    case 0:
+                        if(!zero()) {
+                            pc = data;
+                            condition = true;
+                        }
+                        break;
+                    case 1:
+                        if(zero()) {
+                            pc = data;
+                            condition = true;
+                        }
+                        break;
+                    case 2:
+                        if(!carry()) {
+                            pc = data;
+                            condition = true;
+                        }
+                        break;
+                    case 3:
+                        if(carry()) {
+                            pc = data;
+                            condition = true;
+                        }
+                        break;
+                    }
+                    if(condition) extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
+                    //printf("JP %s, $%04x\n", cc[y],data);
+                    break;
+                }
+                break;
+            case 0x3:
+                switch(y) {
+                case 0x0:
+                    pc = data;
+                    //printf("JP $%04x\n",data);
+                    break;
+                case 0x1:
+                    printf("CB Prefix\n");
+                    break;
+                case 0x2: //Different from x80
+                    //printf("OUT (n), A\n");
+                    printf("---- (diff)\n");
+                    break;
+                case 0x3:
+                    //printf("IN A, (n)\n");
+                    printf("---- (diff)\n");
+                    break;
+                case 0x4: //Different from z80
+                    //printf("EX (SP), HL\n");
+                    printf("---- (diff)\n");
+                    break;
+                case 0x5: //Different from z80
+                    //printf("EX DE, HL\n");
+                    printf("---- (diff)\n");
+                    break;
+                case 0x6:
+                    //printf("X: %d Y: %d Z: %d ",x,y,z);
+                    printf("DI\n");
+                    break;
+                case 0x7:
+                    printf("EI\n");
+                    break;
+                }
+                break;
+            case 0x4:
+                if(y<4) {
+                    printf("CALL %s, $%04x\n", cc[y],data);
+                }
+                else {
+                    printf("---- (diff)\n");
+                }
+                break;
+            case 0x5:
+                if(!q) {
+                    printf("PUSH %s\n", rp2[p]);
+                }
+                else {
+                    switch(p) {
+                    case 0x0:
+                        printf("CALL $%04x\n",data);
+                        break;
+                    case 0x1: //Different from z80
+                        //printf("DD Prefix\n");
+                        printf("---- (diff)\n");
+                        break;
+                    case 0x2: //Different from z80
+                        //printf("ED Prefix\n");
+                        printf("---- (diff)\n");
+                        break;
+                    case 0x3: //Different from z80
+                        //printf("FD Prefix\n");
+                        printf("---- (diff)\n");
+                        break;
+                    }
+                }
+                break;
+            case 0x6:
+                printf("%s $%02x\n", alu[y],data);
+                break;
+            case 0x7:
+                printf("RST %02X\n", y*8);
+                break;
+            }
+        }
+        //printf("\n");
+    }
+    else if(pre==0xCB) {
+        if(x==0) {
+            printf("%s %s %s\n", rot[y], r[z], (y==6)?"(diff)":"");
+        }
+        else if(x==1) {
+            if(z==6) {
+                bus.map(hl.pair, &dummy, 1, false);
+            }
+            if((1<<(y)) & (*r[z])) {
+                clear(ZERO_FLAG);
+            }
+            else {
+                set(ZERO_FLAG);
+            }
+
+            //printf("BIT %02x, %s\n", y, r[z]);
+        }
+        else if(x==2) {
+            if(z==6) {
+                bus.map(hl.pair, &dummy, 1, false);
+            }
+            (*r[z]) &= (~(1<<(y)));
+            if(z==6) {
+                bus.map(hl.pair, &dummy, 1, true);
+            }
+            //printf("RES %02x, %s\n", y, r[z]);
+        }
+        else if(x==3) {
+            if(z==6) {
+                bus.map(hl.pair, &dummy, 1, false);
+            }
+            (*r[z]) |= (1<<(y));
+            if(z==6) {
+                bus.map(hl.pair, &dummy, 1, true);
+            }
+            //printf("SET %02x, %s\n", y, r[z]);
+        }
+    }
+    else {
+        printf("Prefix \"0x%02x\" doesn't exist in the Game Boy's CPU.\n", pre);
+    }
+    return extra_cycles;
 }
 
 //All CB-prefix ops are 2 bytes long and either 8 or 16 cycle instructions (memory operations take more time)
@@ -130,3 +685,11 @@ const uint8_t cpu::op_times_extra[256] =
      3,0,1,0,3,0,0,0,3,0,1,0,3,0,0,0,
      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+
+void cpu::registers() {
+    std::cout<<std::hex<<"A: "<<int(af.hi)<<" F: "<<int(af.low)<<
+                        " B: "<<int(bc.hi)<<" C: "<<int(bc.low)<<
+                        " D: "<<int(de.hi)<<" E: "<<int(de.low)<<
+                        " H: "<<int(hl.hi)<<" L: "<<int(hl.low)<<
+                        " PC: "<<pc<<" SP: "<<sp<<std::endl;
+}

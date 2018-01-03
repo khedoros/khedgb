@@ -4,7 +4,7 @@
 #include<fstream>
 #include<cstring>
 
-uint8_t memmap::dmg_firmware[256] = {
+const uint8_t memmap::dmg_firmware[256] = {
     0x31, 0xfe, 0xff, 0xaf, 0x21, 0xff, 0x9f, 0x32, 0xcb, 0x7c, 0x20, 0xfb, 0x21, 0x26, 0xff, 0x0e,
     0x11, 0x3e, 0x80, 0x32, 0xe2, 0x0c, 0x3e, 0xf3, 0xe2, 0x32, 0x3e, 0x77, 0x77, 0x3e, 0xfc, 0xe0,  
     0x47, 0x11, 0x04, 0x01, 0x21, 0x10, 0x80, 0x1a, 0xcd, 0x95, 0x00, 0xcd, 0x96, 0x00, 0x13, 0x7b,  
@@ -48,6 +48,32 @@ void memmap::map(int addr, void * val, int size, bool rw) {
             std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<std::endl;
         }
         else if(use_dmg) {
+//            std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from dmg_firmware["<<std::hex<<addr<<"] {";
+            for(int i=0;i<size;i++) {
+//                std::cout<<int(dmg_firmware[addr+i])<<", ";
+            }
+  //          std::cout<<"}"<<std::endl;
+            memcpy(val, &(dmg_firmware[addr]), size);
+        }
+        else {
+//            std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from rom["<<std::hex<<addr<<"] {";
+            for(int i=0;i<size;i++) {
+    //            std::cout<<int(rom[addr+i])<<", ";
+            }
+      //      std::cout<<"}"<<std::endl;
+            memcpy(val, &(rom[addr]), size);
+        }
+    }
+
+}
+/*
+//read: !rw, write: rw
+void memmap::map(int addr, void * const val, int size, bool rw) {
+    if(addr >= 0 && addr < 0x8000) {
+        if(rw) {
+            std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<std::endl;
+        }
+        else if(use_dmg) {
             std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from dmg_firmware["<<std::hex<<addr<<"] {";
             for(int i=0;i<size;i++) {
                 std::cout<<int(dmg_firmware[addr+i])<<", ";
@@ -66,7 +92,7 @@ void memmap::map(int addr, void * val, int size, bool rw) {
     }
 
 }
-
+*/
 /*
 0x0000-0x3FFF: Permanently-mapped ROM bank.
 0x4000-0x7FFF: Area for switchable ROM banks.
