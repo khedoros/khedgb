@@ -1,0 +1,99 @@
+//SHARP LR35902.
+//4MHz (4194304Hz) 
+
+#include<iostream>
+#include "cpu.h"
+
+extern "C" void decode(int pre,int x,int y,int z);
+
+cpu::cpu(memmap& b, bool has_firmware): bus(b) {
+    if(has_firmware) {
+        pc = 0;
+    }
+    else {
+        pc = 0x100;
+    }
+}
+
+int cpu::run() {
+    uint32_t opcode=0;
+    bool running=true;
+    int cycles=0;
+    while(running) {
+        bus.map(pc, &opcode, 3, false);
+        if(!dec_and_exe(opcode)) {
+            std::cout<<"No idea what to do with opcode "<<std::hex<<int(opcode)<<"."<<std::endl;
+            running = false;
+        }
+    }
+    return 0;
+}
+
+int cpu::dec_and_exe(uint32_t opcode) {
+    int bytes = 0;
+    int prefix = 0;
+    int op = 0;
+    int cycles = 0;
+    std::cout<<std::hex<<opcode<<"\t";
+    op = opcode & 0xff;
+    int x = (op&0xc0)>>(6);
+    int y = (op&0x38)>>(3);
+    int z = (op&0x7);
+    if(op == 0xcb) {
+        prefix = 0xcb;
+        op = ((opcode&0xFF00)>>(8));
+        bytes = 2;
+        cycles = (z == 6) ? 16 : 8;
+        bytes = 2;
+    }
+    else {
+        bytes = op_bytes[op];
+        cycles = op_times[op];
+    }
+    
+    decode(prefix,x,y,z);
+
+    pc += bytes;
+
+    return cycles; //hehe, error
+}
+
+//All CB-prefix ops are 2 bytes long and either 8 or 16 cycle instructions (memory operations take more time)
+const uint8_t cpu::op_bytes[256] = 
+    {1,3,1,1,1,1,2,1,3,1,1,1,1,1,2,1,
+     2,3,1,1,1,1,2,1,2,1,1,1,1,1,2,1,
+     2,3,1,1,1,1,2,1,2,1,1,1,1,1,2,1,
+     2,3,1,1,1,1,2,1,2,1,1,1,1,1,2,1,
+     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+     1,1,3,3,3,1,2,1,1,1,3,1,3,3,2,1,
+     1,1,3,0,3,1,2,1,1,1,3,0,3,0,2,1,
+     2,1,2,0,0,1,2,1,2,1,3,0,0,0,2,1,
+     2,1,2,1,0,1,2,1,2,1,3,1,0,0,2,1};
+
+
+//Times are in CPU cycles, not machine cycles. Machine cycles are 4x shorter.
+//The large numbers are conditionals; the first radix digit is "taken", the second is "not taken"
+const uint8_t cpu::op_times[256] = 
+    { 1,3, 2,2, 1,1,2,1, 5,2, 2,2, 1,1,2,1,
+      1,3, 2,2, 1,1,2,1, 3,2, 2,2, 1,1,2,1,
+     32,3, 2,2, 1,1,2,1,32,2, 2,2, 1,1,2,1,
+     32,3, 2,2, 3,3,3,1,32,2, 2,2, 1,1,2,1,
+      1,1, 1,1, 1,1,2,1, 1,1, 1,1, 1,1,2,1,
+      1,1, 1,1, 1,1,2,1, 1,1, 1,1, 1,1,2,1,
+      1,1, 1,1, 1,1,2,1, 1,1, 1,1, 1,1,2,1,
+      2,2, 2,2, 2,2,1,2, 1,1, 1,1, 1,1,2,1,
+      1,1, 1,1, 1,1,2,1, 1,1, 1,1, 1,1,2,1,
+      1,1, 1,1, 1,1,2,1, 1,1, 1,1, 1,1,2,1,
+      1,1, 1,1, 1,1,2,1, 1,1, 1,1, 1,1,2,1,
+      1,1, 1,1, 1,1,2,1, 1,1, 1,1, 1,1,2,1,
+     52,3,43,4,63,4,2,4,52,4,43,4,63,6,2,4,
+     52,3,43,0,63,4,2,4,52,4,43,0,63,0,2,4,
+      3,3, 2,0, 0,4,2,4, 4,1, 4,0, 0,0,2,4,
+      3,3, 2,1, 0,4,2,4, 3,2, 4,1, 0,0,2,4};
