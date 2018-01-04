@@ -53,4 +53,9 @@ class cpu {
     uint8_t * const r[8];
     uint16_t * const rp[4];
     uint16_t * const rp2[4];
+    bool int_called[4];
+    bool interrupts;
+    bool saved_interrupts;
+    bool halted;
+    bool stopped;
 };

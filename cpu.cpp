@@ -7,10 +7,14 @@
 void decode(int pre,int x,int y,int z,int data);
 
 cpu::cpu(memmap& b, bool has_firmware): bus(b),
-r{&bc.hi, &bc.low, &de.hi, &de.low, &hl.hi, &hl.low, &dummy, &af.hi},
-rp{&bc.pair, &de.pair, &hl.pair, &sp},
-rp2{&bc.pair, &de.pair, &hl.pair, &af.pair}
+        r{&bc.hi, &bc.low, &de.hi, &de.low, &hl.hi, &hl.low, &dummy, &af.hi},
+        rp{&bc.pair, &de.pair, &hl.pair, &sp},
+        rp2{&bc.pair, &de.pair, &hl.pair, &af.pair},
+        int_called{false, false, false, false}
 {
+    interrupts = false;
+    halted = false;
+    stopped = false;
     af.pair=0;
     bc.pair=0;
     de.pair=0;
@@ -44,7 +48,7 @@ int cpu::dec_and_exe(uint32_t opcode) {
     int op = 0;
     int cycles = 0;
     int data = 0;
-    std::cout<<std::hex<<opcode<<"\t";
+    //std::cout<<std::hex<<opcode<<"\t";
     op = opcode & 0xff;
     int x = (op&0xc0)>>(6); // 11000000
     int y = (op&0x38)>>(3); // 00111000
@@ -72,12 +76,16 @@ int cpu::dec_and_exe(uint32_t opcode) {
     }
 
     printf("%04x ", pc);
-    decode(prefix,x,y,z,data);
     registers();
+    printf("\t");
+    decode(prefix,x,y,z,data);
+    printf("\n");
 
+    if(!halted && !stopped) {
+        pc += bytes;
+    }
     cycles += execute(prefix,x,y,z,data);
 
-    pc += bytes;
 
     return cycles;
 }
@@ -111,48 +119,43 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 case 0x2:
                     //Different than Z80
+                    halted = true;
+                    stopped = true;
                     printf("STOP 0 (diff)\n");
                     break;
                 case 0x3:
-                    std::cout<<"Data: "<<data<<std::endl;
                     data = extend(data);
-                    std::cout<<"Data: "<<data<<std::endl;
                     pc += data;
                     //printf("JR $%02x\n",data);
-                    std::cout<<"Jumping to "<<std::hex<<pc<<std::endl;
                     break;
                 default: /* 4..7 */
-                    //std::cout<<"PC: "<<pc<<" Data: "<<data<<" PC+data: "<<pc+data<<std::endl;
                     data = extend(data);
-                    //std::cout<<"PC: "<<pc<<" Data: "<<data<<" PC+data: "<<pc+data<<std::endl;
                     switch(y-4) {
                     case 0:
                         if(!zero()) {
-                            pc = pc + data;
                             condition = true;
                         }
                         break;
                     case 1:
                         if(zero()) {
-                            pc = pc + data;
                             condition = true;
                         }
                         break;
                     case 2:
                         if(!carry()) {
-                            pc = pc + data;
                             condition = true;
                         }
                         break;
                     case 3:
                         if(carry()) {
-                            pc = pc + data;
                             condition = true;
                         }
                         break;
                     }
-                    if(condition) extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
-                    //std::cout<<"Jumping to "<<std::hex<<pc<<std::endl;
+                    if(condition) {
+                        pc = pc + data;
+                        extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
+                    }
                     //printf("JR %s, $%02x\n", cc[y-4], data);
                     break;
                 }
@@ -163,7 +166,23 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     //printf("LD %s, $%04x\n",rp[p],data);
                 }
                 else {
-                    printf("ADD HL, %s\n",rp[p]);
+                    if((hl.pair & 0xfff) + (*(rp[p]) & 0xfff) >= 0x1000) {
+                        set(HALF_CARRY_FLAG);
+                    }
+                    else {
+                        clear(HALF_CARRY_FLAG);
+                    }
+                    if(uint32_t(hl.pair) + uint32_t(*(rp[p])) >= 0x10000) {
+                        set(CARRY_FLAG);
+                    }
+                    else {
+                        clear(CARRY_FLAG);
+                    }
+                    hl.pair += *(rp[p]);
+
+                    clear(SUB_FLAG);
+
+                    //printf("ADD HL, %s\n",rp[p]);
                 }
                 break;
             case 0x2:
@@ -224,17 +243,35 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 break;
             case 0x3:
                 if(!q) {
-                    printf("INC %s\n", rp[p]);
+                    (*rp[p])++;
+                    //printf("INC %s\n", rp[p]);
                 }
                 else {
-                    printf("DEC %s\n", rp[p]);
+                    (*rp[p])--;
+                    //printf("DEC %s\n", rp[p]);
                 }
                 break;
             case 0x4:
-                printf("INC %s\n", r[y]);
+                if(y==6) bus.map(hl.pair, &dummy, 1, false);
+                (*r[y])++;
+                if(*r[y] == 0) set(ZERO_FLAG);
+                else           clear(ZERO_FLAG);
+                if((*r[y] & 0xf) == 0) set(HALF_CARRY_FLAG);
+                else                   clear(HALF_CARRY_FLAG);
+                clear(SUB_FLAG);
+                if(y==6) bus.map(hl.pair, &dummy, 1, true);
+                //printf("INC %s\n", r[y]);
                 break;
             case 0x5:
-                printf("DEC %s\n", r[y]);
+                if(y==6) bus.map(hl.pair, &dummy, 1, false);
+                (*r[y])--;
+                if(*r[y] == 0) set(ZERO_FLAG);
+                else           clear(ZERO_FLAG);
+                if((*r[y] & 0xf) == 0xf) set(HALF_CARRY_FLAG);
+                else                     clear(HALF_CARRY_FLAG);
+                set(SUB_FLAG);
+                if(y==6) bus.map(hl.pair, &dummy, 1, true);
+                //printf("DEC %s\n", r[y]);
                 break;
             case 0x6:
                 if(y==6) {
@@ -249,28 +286,89 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             case 0x7:
                 switch(y) {
                 case 0x0:
-                    printf("RLCA\n");
+                    if(af.hi & BIT7) {
+                        set(CARRY_FLAG);
+                    }
+                    else {
+                        clear(CARRY_FLAG);
+                    }
+                    clear(ZERO_FLAG);
+                    clear(SUB_FLAG);
+                    clear(HALF_CARRY_FLAG);
+                    af.hi<<=(1);
+                    af.hi+=carry();
+                    //printf("RLCA\n");
                     break;
                 case 0x1:
-                    printf("RRCA\n");
+                    if(af.hi & BIT0) {
+                        set(CARRY_FLAG);
+                    }
+                    else {
+                        clear(CARRY_FLAG);
+                    }
+                    clear(ZERO_FLAG);
+                    clear(SUB_FLAG);
+                    clear(HALF_CARRY_FLAG);
+                    af.hi>>=(1);
+                    af.hi+=carry()*BIT7;
+                    //printf("RRCA\n");
                     break;
                 case 0x2:
-                    printf("RLA\n");
+                    data = carry();
+                    if(af.hi & BIT7) {
+                        set(CARRY_FLAG);
+                    }
+                    else {
+                        clear(CARRY_FLAG);
+                    }
+                    clear(ZERO_FLAG);
+                    clear(SUB_FLAG);
+                    clear(HALF_CARRY_FLAG);
+                    af.hi<<=(1);
+                    af.hi+=data;
+                    //printf("RLA\n");
                     break;
                 case 0x3:
-                    printf("RRA\n");
+                    data = carry();
+                    if(af.hi & BIT0) {
+                        set(CARRY_FLAG);
+                    }
+                    else {
+                        clear(CARRY_FLAG);
+                    }
+                    clear(ZERO_FLAG);
+                    clear(SUB_FLAG);
+                    clear(HALF_CARRY_FLAG);
+                    af.hi>>=(1);
+                    af.hi+=data*BIT7;
+                    //printf("RRA\n");
                     break;
                 case 0x4:
+
                     printf("DAA\n");
                     break;
                 case 0x5:
-                    printf("CPL\n");
+                    set(HALF_CARRY_FLAG);
+                    set(SUB_FLAG);
+                    af.hi= ~(af.hi);
+                    //printf("CPL\n");
                     break;
                 case 0x6:
-                    printf("SCF\n");
+                    clear(HALF_CARRY_FLAG);
+                    clear(SUB_FLAG);
+                    set(CARRY_FLAG);
+                    //printf("SCF\n");
                     break;
                 case 0x7:
-                    printf("CCF\n");
+                    clear(HALF_CARRY_FLAG);
+                    clear(SUB_FLAG);
+                    if(carry()) {
+                        clear(CARRY_FLAG);
+                    }
+                    else {
+                        set(CARRY_FLAG);
+                    }
+                    //printf("CCF\n");
                     break;
                 }
                 break;
@@ -278,7 +376,8 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
         }
         else if(x==1) { //HALT and LD r,r' operations
             if(y==6 && z==6) { //Copy from memory location to (same) memory location is replaced by HALT
-                printf("HALT\n");
+                halted = true;
+                //printf("HALT\n");
             }
             else { //Fairly regular LD ops
                 if(z == 6) { //read from memory to register
@@ -298,13 +397,13 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             }
             switch(y) {
             case 0: //ADD
-                if((af.hi & 0xf) + (*(r[z]) & 0xf) > 0x10) {
+                if((af.hi & 0xf) + (*(r[z]) & 0xf) >= 0x10) {
                     set(HALF_CARRY_FLAG);
                 }
                 else {
                     clear(HALF_CARRY_FLAG);
                 }
-                if(uint16_t(af.hi) + uint16_t(*(r[z])) > 0x100) {
+                if(uint16_t(af.hi) + uint16_t(*(r[z])) >= 0x100) {
                     set(CARRY_FLAG);
                 }
                 else {
@@ -315,13 +414,13 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 clear(SUB_FLAG);
                 break;
             case 1: //ADC
-                if((af.hi & 0xf) + (*(r[z]) & 0xf)  + carry() > 0x10) {
+                if((af.hi & 0xf) + (*(r[z]) & 0xf)  + carry() >= 0x10) {
                     set(HALF_CARRY_FLAG);
                 }
                 else {
                     clear(HALF_CARRY_FLAG);
                 }
-                if(uint16_t(af.hi) + uint16_t(*(r[z])) + carry() > 0x100) {
+                if(uint16_t(af.hi) + uint16_t(*(r[z])) + carry() >= 0x100) {
                     set(CARRY_FLAG);
                 }
                 else {
@@ -331,13 +430,13 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 clear(SUB_FLAG);
                 break;
             case 2: //SUB
-                if((af.hi & 0xf) - (*(r[z]) & 0xf) > 0x10) {
+                if((af.hi & 0xf) - (*(r[z]) & 0xf) >= 0x10) {
                     set(HALF_CARRY_FLAG);
                 }
                 else {
                     clear(HALF_CARRY_FLAG);
                 }
-                if(uint16_t(af.hi) - uint16_t(*(r[z])) > 0x100) {
+                if(uint16_t(af.hi) - uint16_t(*(r[z])) >= 0x100) {
                     set(CARRY_FLAG);
                 }
                 else {
@@ -347,13 +446,13 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 set(SUB_FLAG);
                 break;
             case 3: //SBC
-                if((af.hi & 0xf) - (*(r[z]) & 0xf)  - carry() > 0x10) {
+                if((af.hi & 0xf) - (*(r[z]) & 0xf)  - carry() >= 0x10) {
                     set(HALF_CARRY_FLAG);
                 }
                 else {
                     clear(HALF_CARRY_FLAG);
                 }
-                if(uint16_t(af.hi) - uint16_t(*(r[z])) - carry() > 0x100) {
+                if(uint16_t(af.hi) - uint16_t(*(r[z])) - carry() >= 0x100) {
                     set(CARRY_FLAG);
                 }
                 else {
@@ -381,13 +480,13 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 clear(CARRY_FLAG);
                 break;
             case 7: //CP
-                if((af.hi & 0xf) - (*(r[z]) & 0xf) > 0x10) {
+                if((af.hi & 0xf) - (*(r[z]) & 0xf) >= 0x10) {
                     set(HALF_CARRY_FLAG);
                 }
                 else {
                     clear(HALF_CARRY_FLAG);
                 }
-                if(uint16_t(af.hi) - uint16_t(*(r[z])) > 0x100) {
+                if(uint16_t(af.hi) - uint16_t(*(r[z])) >= 0x100) {
                     set(CARRY_FLAG);
                 }
                 else {
@@ -417,34 +516,74 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             case 0x0:
                 switch(y) {
                 case 4:
-                    printf("LD (FF00+$%02x), A (diff)\n",data);
+                    bus.map(0xff00 + data, &af.hi, 1, true);
+                    //printf("LD (FF00+$%02x), A (diff)\n",data);
                     break;
                 case 5:
-                    printf("ADD SP, $%02x (diff)\n",data);
+                    data = extend(data);
+                    sp += data;
+                    //printf("ADD SP, $%02x (diff)\n",data);
                     break;
                 case 6:
-                    printf("LD A, (FF00+$%02x) (diff)\n",data);
+                    bus.map(0xff00 + data, &af.hi, 1, false);
+                    //printf("LD A, (FF00+$%02x) (diff)\n",data);
                     break;
                 case 7:
-                    printf("LD HL, SP+$%02x (diff)\n",data);
+                    data = extend(data);
+                    hl.pair = sp + data;
+                    //printf("LD HL, SP+$%02x (diff)\n",data);
                     break;
                 default:
-                    printf("RET %s\n", cc[y]);
+                    switch(y) {
+                    case 0:
+                        if(!zero()) {
+                            condition = true;
+                        }
+                        break;
+                    case 1:
+                        if(zero()) {
+                            condition = true;
+                        }
+                        break;
+                    case 2:
+                        if(!carry()) {
+                            condition = true;
+                        }
+                        break;
+                    case 3:
+                        if(carry()) {
+                            condition = true;
+                        }
+                        break;
+                    }
+                    if(condition) {
+                        bus.map(sp, &pc, 2, false);
+                        sp += 2;
+                        extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
+                    }
+                    //printf("RET %s\n", cc[y]);
                     break;
                 }
                 break;
             case 0x1:
                 if(!q) {
-                    printf("POP %s\n", rp2[p]);
+                    sp += 2;
+                    bus.map(sp-1, rp2[p], 2, false);
+                    //printf("POP %s\n", rp2[p]);
                 }
                 else {
                     switch(p) {
                     case 0x0:
-                        printf("RET\n");
+                        bus.map(sp, &pc, 2, false);
+                        sp += 2;
+                        //printf("RET\n");
                         break;
                     case 0x1: //Different from z80
                         //printf("EXX\n");
-                        printf("RETI (diff)\n");
+                        bus.map(sp, &pc, 2, false);
+                        sp+=2;
+                        interrupts = saved_interrupts;
+                        //printf("RETI (diff)\n");
                         break;
                     case 0x2:
                         pc = hl.pair;
@@ -479,30 +618,29 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     switch(y-4) {
                     case 0:
                         if(!zero()) {
-                            pc = data;
                             condition = true;
                         }
                         break;
                     case 1:
                         if(zero()) {
-                            pc = data;
                             condition = true;
                         }
                         break;
                     case 2:
                         if(!carry()) {
-                            pc = data;
                             condition = true;
                         }
                         break;
                     case 3:
                         if(carry()) {
-                            pc = data;
                             condition = true;
                         }
                         break;
                     }
-                    if(condition) extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
+                    if(condition) {
+                        pc = data;
+                        extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
+                    }
                     //printf("JP %s, $%04x\n", cc[y],data);
                     break;
                 }
@@ -534,16 +672,46 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 case 0x6:
                     //printf("X: %d Y: %d Z: %d ",x,y,z);
-                    printf("DI\n");
+                    interrupts = false;
+                    //printf("DI\n");
                     break;
                 case 0x7:
-                    printf("EI\n");
+                    interrupts = true;
+                    //printf("EI\n");
                     break;
                 }
                 break;
             case 0x4:
                 if(y<4) {
-                    printf("CALL %s, $%04x\n", cc[y],data);
+                    switch(y) {
+                    case 0:
+                        if(!zero()) {
+                            condition = true;
+                        }
+                        break;
+                    case 1:
+                        if(zero()) {
+                            condition = true;
+                        }
+                        break;
+                    case 2:
+                        if(!carry()) {
+                            condition = true;
+                        }
+                        break;
+                    case 3:
+                        if(carry()) {
+                            condition = true;
+                        }
+                        break;
+                    }
+                    if(condition) {
+                        bus.map(sp-2, &pc, 2, true);
+                        sp -= 2;
+                        pc = data;
+                        extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
+                    }
+                    //printf("CALL %s, $%04x\n", cc[y],data);
                 }
                 else {
                     printf("---- (diff)\n");
@@ -551,12 +719,17 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 break;
             case 0x5:
                 if(!q) {
-                    printf("PUSH %s\n", rp2[p]);
+                    bus.map(sp-2, rp2[p], 2, true);
+                    sp -= 2;
+                    //printf("PUSH %s\n", rp2[p]);
                 }
                 else {
                     switch(p) {
                     case 0x0:
-                        printf("CALL $%04x\n",data);
+                        bus.map(sp-2, &pc, 2, true);
+                        sp -= 2;
+                        pc = data;
+                        //printf("CALL $%04x\n",data);
                         break;
                     case 0x1: //Different from z80
                         //printf("DD Prefix\n");
@@ -574,10 +747,126 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 }
                 break;
             case 0x6:
-                printf("%s $%02x\n", alu[y],data);
+                switch(y) {
+                case 0: //ADD
+                    if((af.hi & 0xf) + (data & 0xf) >= 0x10) {
+                        set(HALF_CARRY_FLAG);
+                    }
+                    else {
+                        clear(HALF_CARRY_FLAG);
+                    }
+                    if(uint16_t(af.hi) + uint16_t(data) >= 0x100) {
+                        set(CARRY_FLAG);
+                    }
+                    else {
+                        clear(CARRY_FLAG);
+                    }
+                    af.hi += data;
+                    clear(SUB_FLAG);
+                    break;
+                case 1: //ADC
+                    if((af.hi & 0xf) + (data & 0xf)  + carry() >= 0x10) {
+                        set(HALF_CARRY_FLAG);
+                    }
+                    else {
+                        clear(HALF_CARRY_FLAG);
+                    }
+                    if(uint16_t(af.hi) + uint16_t(data) + carry() >= 0x100) {
+                        set(CARRY_FLAG);
+                    }
+                    else {
+                        clear(CARRY_FLAG);
+                    }
+                    af.hi += data + carry();
+                    clear(SUB_FLAG);
+                    break;
+                case 2: //SUB
+                    if((af.hi & 0xf) - (data & 0xf) >= 0x10) {
+                        set(HALF_CARRY_FLAG);
+                    }
+                    else {
+                        clear(HALF_CARRY_FLAG);
+                    }
+                    if(uint16_t(af.hi) - uint16_t(data) >= 0x100) {
+                        set(CARRY_FLAG);
+                    }
+                    else {
+                        clear(CARRY_FLAG);
+                    }
+                    af.hi -= data;
+                    set(SUB_FLAG);
+                    break;
+                case 3: //SBC
+                    if((af.hi & 0xf) - (data & 0xf)  - carry() >= 0x10) {
+                        set(HALF_CARRY_FLAG);
+                    }
+                    else {
+                        clear(HALF_CARRY_FLAG);
+                    }
+                    if(uint16_t(af.hi) - uint16_t(data) - carry() >= 0x100) {
+                        set(CARRY_FLAG);
+                    }
+                    else {
+                        clear(CARRY_FLAG);
+                    }
+                    af.hi -= (data + carry());
+                    set(SUB_FLAG);
+                    break;
+                case 4: //AND
+                    af.hi &= data;
+                    clear(SUB_FLAG);
+                    set(HALF_CARRY_FLAG);
+                    clear(CARRY_FLAG);
+                    break;
+                case 5: //XOR
+                    af.hi ^= data;
+                    clear(SUB_FLAG);
+                    clear(HALF_CARRY_FLAG);
+                    clear(CARRY_FLAG);
+                    break;
+                case 6: //OR
+                    af.hi |= data;
+                    clear(SUB_FLAG);
+                    clear(HALF_CARRY_FLAG);
+                    clear(CARRY_FLAG);
+                    break;
+                case 7: //CP
+                    if((af.hi & 0xf) - (data & 0xf) >= 0x10) {
+                        set(HALF_CARRY_FLAG);
+                    }
+                    else {
+                        clear(HALF_CARRY_FLAG);
+                    }
+                    if(uint16_t(af.hi) - uint16_t(data) >= 0x100) {
+                        set(CARRY_FLAG);
+                    }
+                    else {
+                        clear(CARRY_FLAG);
+                    }
+                    if(af.hi - (data == 0)) {
+                        set(ZERO_FLAG);
+                    }
+                    else {
+                        clear(ZERO_FLAG);
+                    }
+                    set(SUB_FLAG);
+                    break;
+                }
+                if(y!=7) {
+                    if(af.hi == 0) {
+                        set(ZERO_FLAG);
+                    }
+                    else {
+                        clear(ZERO_FLAG);
+                    }
+                }
+                //printf("%s $%02x\n", alu[y],data);
                 break;
             case 0x7:
-                printf("RST %02X\n", y*8);
+                bus.map(sp-2, &pc, 2, true);
+                sp -= 2;
+                pc = data * 8;
+                //printf("RST %02X\n", y*8);
                 break;
             }
         }
@@ -585,7 +874,78 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
     }
     else if(pre==0xCB) {
         if(x==0) {
-            printf("%s %s %s\n", rot[y], r[z], (y==6)?"(diff)":"");
+            if(z==6) {
+                bus.map(hl.pair, &dummy, 1, false);
+            }
+            switch(y) {
+            case 0: //RLC
+                if((*r[z]) & BIT7) {
+                    set(CARRY_FLAG);
+                }
+                else {
+                    clear(CARRY_FLAG);
+                }
+                clear(ZERO_FLAG);
+                clear(SUB_FLAG);
+                clear(HALF_CARRY_FLAG);
+                (*r[z])<<=(1);
+                (*r[z])+=carry();
+                break;
+            case 1: //RRC
+                if((*r[z]) & BIT0) {
+                    set(CARRY_FLAG);
+                }
+                else {
+                    clear(CARRY_FLAG);
+                }
+                clear(ZERO_FLAG);
+                clear(SUB_FLAG);
+                clear(HALF_CARRY_FLAG);
+                (*r[z])>>=(1);
+                (*r[z])+=carry()*BIT7;
+                break;
+            case 2: //RL
+                data = carry();
+                if((*r[z]) & BIT7) {
+                    set(CARRY_FLAG);
+                }
+                else {
+                    clear(CARRY_FLAG);
+                }
+                clear(ZERO_FLAG);
+                clear(SUB_FLAG);
+                clear(HALF_CARRY_FLAG);
+                (*r[z])<<=(1);
+                (*r[z])+=data;
+                break;
+            case 3: //RR
+                data = carry();
+                if((*r[z]) & BIT0) {
+                    set(CARRY_FLAG);
+                }
+                else {
+                    clear(CARRY_FLAG);
+                }
+                clear(ZERO_FLAG);
+                clear(SUB_FLAG);
+                clear(HALF_CARRY_FLAG);
+                (*r[z])>>=(1);
+                (*r[z])+=data*BIT7;
+                break;
+            case 4: //SLA
+                break;
+            case 5: //SRA
+                break;
+            case 6: //SWAP
+                break;
+            case 7: //SRL
+                break;
+            }
+            if(z==6) {
+                bus.map(hl.pair, &dummy, 1, false);
+            }
+            if(y>=4)
+                printf("%s %s %s\n", rot[y], r[z], (y==6)?"(diff)":"");
         }
         else if(x==1) {
             if(z==6) {
@@ -687,9 +1047,7 @@ const uint8_t cpu::op_times_extra[256] =
      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 void cpu::registers() {
-    std::cout<<std::hex<<"A: "<<int(af.hi)<<" F: "<<int(af.low)<<
-                        " B: "<<int(bc.hi)<<" C: "<<int(bc.low)<<
-                        " D: "<<int(de.hi)<<" E: "<<int(de.low)<<
-                        " H: "<<int(hl.hi)<<" L: "<<int(hl.low)<<
-                        " PC: "<<pc<<" SP: "<<sp<<std::endl;
+    printf("PC: %04x SP: %04x A: %02x F: %02x B: %02x C: %02x D: %02x E: %02x H: %02x L: %02x",
+            pc,sp,af.hi,af.low,bc.hi,bc.low,de.hi,de.low,hl.hi,hl.low);
 }
+
