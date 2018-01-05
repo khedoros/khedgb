@@ -23,7 +23,7 @@ const uint8_t memmap::dmg_firmware[256] = {
     0xf5, 0x06, 0x19, 0x78, 0x86, 0x23, 0x05, 0x20, 0xfb, 0x86, 0x20, 0xfe, 0x3e, 0x01, 0xe0, 0x50 }; 
                             
 
-memmap::memmap(const std::string& rom_filename) : use_dmg(true) {
+memmap::memmap(const std::string& rom_filename) : use_dmg(true), vram(0x2000), wram(0x2000), hram(0x7f) {
     std::ifstream in(rom_filename.c_str());
     if(in.is_open()) {
         size_t size = 0;
@@ -41,58 +41,91 @@ memmap::memmap(const std::string& rom_filename) : use_dmg(true) {
     }
 }
 
-//read: !rw, write: rw
-void memmap::map(int addr, void * val, int size, bool rw) {
+void memmap::read(int addr, void * val, int size) {
     if(addr >= 0 && addr < 0x8000) {
-        if(rw) {
-            std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<std::endl;
-        }
-        else if(use_dmg) {
-//            std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from dmg_firmware["<<std::hex<<addr<<"] {";
-            for(int i=0;i<size;i++) {
-//                std::cout<<int(dmg_firmware[addr+i])<<", ";
-            }
-  //          std::cout<<"}"<<std::endl;
-            memcpy(val, &(dmg_firmware[addr]), size);
-        }
-        else {
-//            std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from rom["<<std::hex<<addr<<"] {";
-            for(int i=0;i<size;i++) {
-    //            std::cout<<int(rom[addr+i])<<", ";
-            }
-      //      std::cout<<"}"<<std::endl;
-            memcpy(val, &(rom[addr]), size);
-        }
-    }
-
-}
-/*
-//read: !rw, write: rw
-void memmap::map(int addr, void * const val, int size, bool rw) {
-    if(addr >= 0 && addr < 0x8000) {
-        if(rw) {
-            std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<std::endl;
-        }
-        else if(use_dmg) {
-            std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from dmg_firmware["<<std::hex<<addr<<"] {";
+        if(use_dmg) {
+/*          std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from dmg_firmware["<<std::hex<<addr<<"] {";
             for(int i=0;i<size;i++) {
                 std::cout<<int(dmg_firmware[addr+i])<<", ";
             }
             std::cout<<"}"<<std::endl;
+*/
             memcpy(val, &(dmg_firmware[addr]), size);
         }
         else {
-            std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from rom["<<std::hex<<addr<<"] {";
+/*            std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from rom["<<std::hex<<addr<<"] {";
             for(int i=0;i<size;i++) {
                 std::cout<<int(rom[addr+i])<<", ";
             }
             std::cout<<"}"<<std::endl;
+*/      
             memcpy(val, &(rom[addr]), size);
         }
     }
+    else if (addr >= 0x8000 && addr < 0xa000) {
+        memcpy(val, &(vram[addr-0x8000]), size);
+    }
+    else if (addr >= 0xa000 && addr < 0xc000) {
+        std::cout<<"Read from external RAM: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+    }
+    else if (addr >= 0xc000 && addr < 0xe000) {
+        memcpy(val, &(wram[addr-0xc000]), size);
+    }
+    else if (addr >= 0xe000 && addr < 0xfe00) {
+        std::cerr<<"Read from forbidden zone! 0x"<<std::hex<<addr<<" bzzzzzzt"<<std::endl;
+    }
+    else if (addr >= 0xfe00 && addr < 0xff00) {
+        memcpy(val, &(oam[addr - 0xfe00]), size);
+    }
+    else if (addr >= 0xff00 && addr < 0xff80) {
+        std::cout<<"Read from mem-mapped hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+    }
+    else if (addr >= 0xff80 && addr < 0xffff) {
+        memcpy(val, &(hram[addr - 0xff80]), size);
+    }
+    else if (addr == 0xffff) {
+        std::cerr<<"Attempted read of write-only register?"<<std::endl;
+    }
+    else {
+        std::cerr<<"Water fog? Trying to read from 0x"<<std::hex<<addr<<" bzzzzzzt"<<std::endl;
+    }
 
 }
-*/
+
+void memmap::write(int addr, void * val, int size) {
+    if(addr >= 0 && addr < 0x8000) {
+        std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<" (mappers not implemented yet)"<<std::endl;
+    }
+    else if (addr >= 0x8000 && addr < 0xa000) {
+        memcpy(&(vram[addr-0x8000]), val, size);
+    }
+    else if (addr >= 0xa000 && addr < 0xc000) {
+        std::cout<<"Write to external RAM: 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<" (not implemented yet)"<<std::endl;
+    }
+    else if (addr >= 0xc000 && addr < 0xe000) {
+        memcpy(&(wram[addr-0xc000]), val, size);
+    }
+    else if (addr >= 0xe000 && addr < 0xfe00) {
+        std::cerr<<"Wrote to forbidden zone! 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<" bzzzzzzt"<<std::endl;
+    }
+    else if (addr >= 0xfe00 && addr < 0xff00) {
+        memcpy(&(oam[addr - 0xfe00]), val, size);
+    }
+    else if (addr >= 0xff00 && addr < 0xff80) {
+        std::cout<<"Write to mem-mapped hardware: 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<" (not implemented yet)"<<std::endl;
+    }
+    else if (addr >= 0xff80 && addr < 0xffff) {
+        memcpy(&(hram[addr - 0xff80]), val, size);
+    }
+    else if (addr == 0xffff) {
+        use_dmg = false;
+        std::cout<<"Enable or disable interrupts: "<<*((int *)val)<<std::endl;
+    }
+    else {
+        std::cerr<<"Water fog? Write to 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<" bzzzzzzt"<<std::endl;
+    }
+}
+
 /*
 0x0000-0x3FFF: Permanently-mapped ROM bank.
 0x4000-0x7FFF: Area for switchable ROM banks.

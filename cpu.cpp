@@ -10,7 +10,7 @@ cpu::cpu(memmap& b, bool has_firmware): bus(b),
         r{&bc.hi, &bc.low, &de.hi, &de.low, &hl.hi, &hl.low, &dummy, &af.hi},
         rp{&bc.pair, &de.pair, &hl.pair, &sp},
         rp2{&bc.pair, &de.pair, &hl.pair, &af.pair},
-        int_called{false, false, false, false}
+        int_called{false, false, false, false, false}
 {
     interrupts = false;
     halted = false;
@@ -33,11 +33,13 @@ int cpu::run() {
     bool running=true;
     int cycles=0;
     while(running) {
-        bus.map(pc, &opcode, 3, false);
-        if(!dec_and_exe(opcode)) {
+        bus.read(pc, &opcode, 3);
+        cycles = dec_and_exe(opcode);
+        if(!cycles) {
             std::cout<<"No idea what to do with opcode "<<std::hex<<int(opcode)<<"."<<std::endl;
             running = false;
         }
+        cycle+=cycles;
     }
     return 0;
 }
@@ -114,7 +116,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 case 0x1:
                     //Different than Z80
-                    bus.map(data, &sp, 2, true);
+                    bus.write(data, &sp, 2);
                     //printf("LD ($%04x), SP (diff)\n",data);
                     break;
                 case 0x2:
@@ -189,21 +191,21 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 switch(p) {
                 case 0x0:
                     if(!q) {
-                        bus.map(bc.pair, &af.hi, 1, true);
+                        bus.write(bc.pair, &af.hi, 1);
                         //printf("LD (BC), A\n");
                     }
                     else {
-                        bus.map(bc.pair, &af.hi, 1, false);
+                        bus.read(bc.pair, &af.hi, 1);
                         //printf("LD A, (BC)\n");
                     }
                     break;
                 case 0x1:
                     if(!q) {
-                        bus.map(de.pair, &af.hi, 1, true);
+                        bus.write(de.pair, &af.hi, 1);
                         //printf("LD (DE), A\n");
                     }
                     else {
-                        bus.map(de.pair, &af.hi, 1, false);
+                        bus.read(de.pair, &af.hi, 1);
                         //printf("LD A, (DE)\n");
                     }
                     break;
@@ -211,14 +213,14 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     if(!q) {
                         //Different than z80
                         //printf("LD (nn), HL\n");
-                        bus.map(hl.pair, &af.hi, 1, true);
+                        bus.write(hl.pair, &af.hi, 1);
                         hl.pair++;
                         //printf("LDI (HL), A (diff)\n");
                     }
                     else {
                         //Different than z80
                         //printf("LD HL, (nn)\n");
-                        bus.map(hl.pair, &af.hi, 1, false);
+                        bus.read(hl.pair, &af.hi, 1);
                         hl.pair++;
                         //printf("LDI A, (HL) (diff)\n");
                     }
@@ -227,14 +229,14 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     if(!q) {
                         //Different than z80
                         //printf("LD (nn), A\n");
-                        bus.map(hl.pair, &af.hi, 1, true);
+                        bus.write(hl.pair, &af.hi, 1);
                         hl.pair--;
                         //printf("LDD (HL), A (diff)\n");
                     }
                     else {
                         //Different than z80
                         //printf("LD A, (nn)\n");
-                        bus.map(hl.pair, &af.hi, 1, false);
+                        bus.read(hl.pair, &af.hi, 1);
                         hl.pair--;
                         //printf("LDD A, (HL) (diff)\n");
                     }
@@ -252,34 +254,31 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 }
                 break;
             case 0x4:
-                if(y==6) bus.map(hl.pair, &dummy, 1, false);
+                if(y==6) bus.read(hl.pair, &dummy, 1);
                 (*r[y])++;
                 if(*r[y] == 0) set(ZERO_FLAG);
                 else           clear(ZERO_FLAG);
                 if((*r[y] & 0xf) == 0) set(HALF_CARRY_FLAG);
                 else                   clear(HALF_CARRY_FLAG);
                 clear(SUB_FLAG);
-                if(y==6) bus.map(hl.pair, &dummy, 1, true);
+                if(y==6) bus.write(hl.pair, &dummy, 1);
                 //printf("INC %s\n", r[y]);
                 break;
             case 0x5:
-                if(y==6) bus.map(hl.pair, &dummy, 1, false);
+                if(y==6) bus.read(hl.pair, &dummy, 1);
                 (*r[y])--;
                 if(*r[y] == 0) set(ZERO_FLAG);
                 else           clear(ZERO_FLAG);
                 if((*r[y] & 0xf) == 0xf) set(HALF_CARRY_FLAG);
                 else                     clear(HALF_CARRY_FLAG);
                 set(SUB_FLAG);
-                if(y==6) bus.map(hl.pair, &dummy, 1, true);
+                if(y==6) bus.write(hl.pair, &dummy, 1);
                 //printf("DEC %s\n", r[y]);
                 break;
             case 0x6:
-                if(y==6) {
-                    bus.map(hl.pair, &dummy, 1, false);
-                }
                 *r[y] = data;
                 if(y==6) {
-                    bus.map(hl.pair, &dummy, 1, true);
+                    bus.write(hl.pair, &dummy, 1);
                 }
                 //printf("LD %s, $%02x\n", r[y],data);
                 break;
@@ -344,8 +343,62 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     //printf("RRA\n");
                     break;
                 case 0x4:
-
-                    printf("DAA\n");
+                    {
+                    uint8_t hi=(af.hi>>(4));
+                    uint8_t lo=(af.hi & 0xf);
+                    bool valid = true;
+                    if(!sub()) { //Addition operation
+                        if(!carry()) {
+                            if(!hc()) {
+                                if     (hi < 0xa && lo < 0xa) {af.hi += 0x00; clear(CARRY_FLAG);}
+                                else if(hi <   9 && lo >   9) {af.hi += 0x06; clear(CARRY_FLAG);}
+                                else if(hi >   9 && lo < 0xa) {af.hi += 0x60;   set(CARRY_FLAG);}
+                                else if(hi >   8 && lo >   9) {af.hi += 0x66;   set(CARRY_FLAG);}
+                                else valid = false;
+                            }
+                            else {
+                                if     (hi < 0xa && lo < 4)   {af.hi += 0x06; clear(CARRY_FLAG);}
+                                else if(hi >   9 && lo < 4)   {af.hi += 0x66;   set(CARRY_FLAG);}
+                                else valid = false;
+                            }
+                        }
+                        else {
+                            if(!hc()) {
+                                if     (hi < 3 && lo < 0xa) {af.hi += 0x60; set(CARRY_FLAG);}
+                                else if(hi < 3 && lo >   9) {af.hi += 0x66; set(CARRY_FLAG);}
+                                else valid = false;
+                            }
+                            else {
+                                if(hi < 4 && lo < 4) {af.hi += 0x60; set(CARRY_FLAG);}
+                                else valid = false;
+                            }
+                        }
+                    }
+                    else { //Subtraction operation
+                        if(!carry()) {
+                            if(!hc()) {
+                                if(hi < 0xa && lo < 0xa) {af.hi += 0x00; clear(CARRY_FLAG);}
+                                else valid = false;
+                            }
+                            else {
+                                if(hi <   9 && lo >   5) {af.hi += 0xfa; clear(CARRY_FLAG);}
+                                else valid = false;
+                            }
+                        }
+                        else {
+                            if(!hc()) {
+                                if(hi > 0x6 && lo < 0xa) {af.hi += 0xa0; set(CARRY_FLAG);}
+                                else valid = false;
+                            }
+                            else {
+                                if(hi > 0x5 && lo > 0x5) {af.hi += 0x9a; set(CARRY_FLAG);}
+                                else valid = false;
+                            }
+                        }
+                    }
+                    if(!valid) printf("DAA is confused.\n");
+                    }
+                    //printf("DAA\n");
                     break;
                 case 0x5:
                     set(HALF_CARRY_FLAG);
@@ -381,10 +434,10 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             }
             else { //Fairly regular LD ops
                 if(z == 6) { //read from memory to register
-                    bus.map(hl.pair, &dummy, 1, false);
+                    bus.read(hl.pair, &dummy, 1);
                 }
                 else if(y==6) { //write from register into memory
-                    bus.map(hl.pair, r[z], 1, true);
+                    bus.write(hl.pair, r[z], 1);
                 }
 
                 *r[y] = *r[z];
@@ -392,8 +445,8 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             }
         }
         else if(x==2) { //ALU operations
-            if(z==6) {
-                bus.map(hl.pair,&dummy,1,false);
+            if(z==6) { //These all have A as their destination, so there's no matching "write" call for memory operands here
+                bus.read(hl.pair,&dummy,1);
             }
             switch(y) {
             case 0: //ADD
@@ -516,7 +569,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             case 0x0:
                 switch(y) {
                 case 4:
-                    bus.map(0xff00 + data, &af.hi, 1, true);
+                    bus.write(0xff00 + data, &af.hi, 1);
                     //printf("LD (FF00+$%02x), A (diff)\n",data);
                     break;
                 case 5:
@@ -525,7 +578,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     //printf("ADD SP, $%02x (diff)\n",data);
                     break;
                 case 6:
-                    bus.map(0xff00 + data, &af.hi, 1, false);
+                    bus.read(0xff00 + data, &af.hi, 1);
                     //printf("LD A, (FF00+$%02x) (diff)\n",data);
                     break;
                 case 7:
@@ -557,7 +610,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                         break;
                     }
                     if(condition) {
-                        bus.map(sp, &pc, 2, false);
+                        bus.read(sp, &pc, 2);
                         sp += 2;
                         extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
                     }
@@ -567,20 +620,20 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 break;
             case 0x1:
                 if(!q) {
+                    bus.read(sp, rp2[p], 2);
                     sp += 2;
-                    bus.map(sp-1, rp2[p], 2, false);
                     //printf("POP %s\n", rp2[p]);
                 }
                 else {
                     switch(p) {
                     case 0x0:
-                        bus.map(sp, &pc, 2, false);
+                        bus.read(sp, &pc, 2);
                         sp += 2;
                         //printf("RET\n");
                         break;
                     case 0x1: //Different from z80
                         //printf("EXX\n");
-                        bus.map(sp, &pc, 2, false);
+                        bus.read(sp, &pc, 2);
                         sp+=2;
                         interrupts = saved_interrupts;
                         //printf("RETI (diff)\n");
@@ -599,19 +652,19 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             case 0x2:
                 switch(y) {
                 case 0x4:
-                    bus.map(0xff00 + bc.low, &af.hi,1,true);
+                    bus.write(0xff00 + bc.low, &af.hi,1);
                     //printf("LD (FF00+C), A (diff)\n");
                     break;
                 case 0x5:
-                    bus.map(data,&af.hi,1,true);
+                    bus.write(data,&af.hi,1);
                     //printf("LD ($%04x), A (diff)\n",data);
                     break;
                 case 0x6:
-                    bus.map(0xff00 + bc.low, &af.hi,1,false);
+                    bus.read(0xff00 + bc.low, &af.hi,1);
                     //printf("LD A, (FF00+C) (diff)\n");
                     break;
                 case 0x7:
-                    bus.map(data,&af.hi,1,false);
+                    bus.read(data,&af.hi,1);
                     //printf("LD A, ($%04x) (diff)\n",data);
                     break;
                 default:
@@ -706,7 +759,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                         break;
                     }
                     if(condition) {
-                        bus.map(sp-2, &pc, 2, true);
+                        bus.write(sp-2, &pc, 2);
                         sp -= 2;
                         pc = data;
                         extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
@@ -719,14 +772,14 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 break;
             case 0x5:
                 if(!q) {
-                    bus.map(sp-2, rp2[p], 2, true);
+                    bus.write(sp-2, rp2[p], 2);
                     sp -= 2;
                     //printf("PUSH %s\n", rp2[p]);
                 }
                 else {
                     switch(p) {
                     case 0x0:
-                        bus.map(sp-2, &pc, 2, true);
+                        bus.write(sp-2, &pc, 2);
                         sp -= 2;
                         pc = data;
                         //printf("CALL $%04x\n",data);
@@ -863,7 +916,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 //printf("%s $%02x\n", alu[y],data);
                 break;
             case 0x7:
-                bus.map(sp-2, &pc, 2, true);
+                bus.write(sp-2, &pc, 2);
                 sp -= 2;
                 pc = data * 8;
                 //printf("RST %02X\n", y*8);
@@ -875,7 +928,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
     else if(pre==0xCB) {
         if(x==0) {
             if(z==6) {
-                bus.map(hl.pair, &dummy, 1, false);
+                bus.read(hl.pair, &dummy, 1);
             }
             switch(y) {
             case 0: //RLC
@@ -885,11 +938,12 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 else {
                     clear(CARRY_FLAG);
                 }
-                clear(ZERO_FLAG);
                 clear(SUB_FLAG);
                 clear(HALF_CARRY_FLAG);
                 (*r[z])<<=(1);
                 (*r[z])+=carry();
+                if(*r[z]) clear(ZERO_FLAG);
+                else      set(ZERO_FLAG);
                 break;
             case 1: //RRC
                 if((*r[z]) & BIT0) {
@@ -898,11 +952,12 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 else {
                     clear(CARRY_FLAG);
                 }
-                clear(ZERO_FLAG);
                 clear(SUB_FLAG);
                 clear(HALF_CARRY_FLAG);
                 (*r[z])>>=(1);
                 (*r[z])+=carry()*BIT7;
+                if(*r[z]) clear(ZERO_FLAG);
+                else      set(ZERO_FLAG);
                 break;
             case 2: //RL
                 data = carry();
@@ -912,11 +967,12 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 else {
                     clear(CARRY_FLAG);
                 }
-                clear(ZERO_FLAG);
                 clear(SUB_FLAG);
                 clear(HALF_CARRY_FLAG);
                 (*r[z])<<=(1);
                 (*r[z])+=data;
+                if(*r[z]) clear(ZERO_FLAG);
+                else      set(ZERO_FLAG);
                 break;
             case 3: //RR
                 data = carry();
@@ -926,30 +982,67 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 else {
                     clear(CARRY_FLAG);
                 }
-                clear(ZERO_FLAG);
                 clear(SUB_FLAG);
                 clear(HALF_CARRY_FLAG);
                 (*r[z])>>=(1);
                 (*r[z])+=data*BIT7;
+                if(*r[z]) clear(ZERO_FLAG);
+                else      set(ZERO_FLAG);
                 break;
             case 4: //SLA
+                if((*r[z]) & BIT7) {
+                    set(CARRY_FLAG);
+                }
+                else {
+                    clear(CARRY_FLAG);
+                }
+                clear(SUB_FLAG);
+                clear(HALF_CARRY_FLAG);
+                (*r[z])<<=(1);
+                if(*r[z]) clear(ZERO_FLAG);
+                else      set(ZERO_FLAG);
                 break;
             case 5: //SRA
+                data = *r[z] & BIT7;
+                if((*r[z]) & BIT0) {
+                    set(CARRY_FLAG);
+                }
+                else {
+                    clear(CARRY_FLAG);
+                }
+                clear(SUB_FLAG);
+                clear(HALF_CARRY_FLAG);
+                (*r[z])>>=(1);
+                (*r[z])|=data;
+                if(*r[z]) clear(ZERO_FLAG);
+                else      set(ZERO_FLAG);
                 break;
             case 6: //SWAP
+
                 break;
             case 7: //SRL
+                if((*r[z]) & BIT0) {
+                    set(CARRY_FLAG);
+                }
+                else {
+                    clear(CARRY_FLAG);
+                }
+                clear(SUB_FLAG);
+                clear(HALF_CARRY_FLAG);
+                (*r[z])>>=(1);
+                if(*r[z]) clear(ZERO_FLAG);
+                else      set(ZERO_FLAG);
                 break;
             }
             if(z==6) {
-                bus.map(hl.pair, &dummy, 1, false);
+                bus.write(hl.pair, &dummy, 1);
             }
             if(y>=4)
                 printf("%s %s %s\n", rot[y], r[z], (y==6)?"(diff)":"");
         }
         else if(x==1) {
             if(z==6) {
-                bus.map(hl.pair, &dummy, 1, false);
+                bus.read(hl.pair, &dummy, 1);
             }
             if((1<<(y)) & (*r[z])) {
                 clear(ZERO_FLAG);
@@ -962,21 +1055,21 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
         }
         else if(x==2) {
             if(z==6) {
-                bus.map(hl.pair, &dummy, 1, false);
+                bus.read(hl.pair, &dummy, 1);
             }
             (*r[z]) &= (~(1<<(y)));
             if(z==6) {
-                bus.map(hl.pair, &dummy, 1, true);
+                bus.write(hl.pair, &dummy, 1);
             }
             //printf("RES %02x, %s\n", y, r[z]);
         }
         else if(x==3) {
             if(z==6) {
-                bus.map(hl.pair, &dummy, 1, false);
+                bus.read(hl.pair, &dummy, 1);
             }
             (*r[z]) |= (1<<(y));
             if(z==6) {
-                bus.map(hl.pair, &dummy, 1, true);
+                bus.write(hl.pair, &dummy, 1);
             }
             //printf("SET %02x, %s\n", y, r[z]);
         }

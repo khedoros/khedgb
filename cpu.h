@@ -26,6 +26,14 @@
 #define BIT6 0x40
 #define BIT7 0x80
 
+/*
+ * RST instructions: 0,1,2,3,4,5,6,7 go to 0000, 0008, 0010, 0018, 0020, 0028, 0030, and 0038
+ * interrupts are at: 0040: VBlank, which begins at line 144
+ *                    0048: LCD status interrupts (you can enable several different ones)
+ *                    0050: Timer interrupt  (bit 2 of IF register)
+ *                    0058: Serial interrupt (bit 3 of IF register)
+ *                    0060: Joypad interrupt (bit 4 of IF register)
+ */
 class cpu {
     public:
     cpu(memmap& bus, bool has_firmware=false);
@@ -53,9 +61,10 @@ class cpu {
     uint8_t * const r[8];
     uint16_t * const rp[4];
     uint16_t * const rp2[4];
-    bool int_called[4];
-    bool interrupts;
+    bool int_called[5];    //0xFF0F (should move this to memory map, I guess)
+    bool interrupts;       //Interrupt Master Enable
     bool saved_interrupts;
     bool halted;
     bool stopped;
+    int cycle;
 };
