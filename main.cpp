@@ -15,7 +15,8 @@ int main(int argc, char *argv[]) {
     cpu    proc(bus,true);
     int count = 0;
     while(count = proc.run()) {
-
+        std::cout<<"Frame: "<<proc.frame<<std::endl;
+        //bus.render(proc.frame);
     }
     return 0;
 }

@@ -23,7 +23,7 @@ const uint8_t memmap::dmg_firmware[256] = {
     0xf5, 0x06, 0x19, 0x78, 0x86, 0x23, 0x05, 0x20, 0xfb, 0x86, 0x20, 0xfe, 0x3e, 0x01, 0xe0, 0x50 }; 
                             
 
-memmap::memmap(const std::string& rom_filename) : use_dmg(true), vram(0x2000), wram(0x2000), hram(0x7f) {
+memmap::memmap(const std::string& rom_filename) : use_dmg(true), screen(), wram(0x2000), hram(0x7f) {
     std::ifstream in(rom_filename.c_str());
     if(in.is_open()) {
         size_t size = 0;
@@ -41,9 +41,10 @@ memmap::memmap(const std::string& rom_filename) : use_dmg(true), vram(0x2000), w
     }
 }
 
-void memmap::read(int addr, void * val, int size) {
+void memmap::read(int addr, void * val, int size, int cycle) {
+    //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
     if(addr >= 0 && addr < 0x8000) {
-        if(use_dmg) {
+        if(use_dmg && addr < 0x100) {
 /*          std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from dmg_firmware["<<std::hex<<addr<<"] {";
             for(int i=0;i<size;i++) {
                 std::cout<<int(dmg_firmware[addr+i])<<", ";
@@ -53,17 +54,18 @@ void memmap::read(int addr, void * val, int size) {
             memcpy(val, &(dmg_firmware[addr]), size);
         }
         else {
-/*            std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from rom["<<std::hex<<addr<<"] {";
+            /*
+            std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from rom["<<std::hex<<addr<<"] {";
             for(int i=0;i<size;i++) {
                 std::cout<<int(rom[addr+i])<<", ";
             }
             std::cout<<"}"<<std::endl;
-*/      
+            */
             memcpy(val, &(rom[addr]), size);
         }
     }
     else if (addr >= 0x8000 && addr < 0xa000) {
-        memcpy(val, &(vram[addr-0x8000]), size);
+        screen.read(addr, val, size, cycle);//memcpy(val, &(vram[addr-0x8000]), size);
     }
     else if (addr >= 0xa000 && addr < 0xc000) {
         std::cout<<"Read from external RAM: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
@@ -78,7 +80,34 @@ void memmap::read(int addr, void * val, int size) {
         memcpy(val, &(oam[addr - 0xfe00]), size);
     }
     else if (addr >= 0xff00 && addr < 0xff80) {
-        std::cout<<"Read from mem-mapped hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+        switch(addr) {
+        case 0xff44:
+            *((uint8_t *)val) = (cycle / 114);
+            break;
+        default:
+            if(addr < 0xff03) {
+                std::cout<<"Read from gamepad/link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            }
+            else if(addr > 0xff03 && addr < 0xff08) {
+                std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            }
+            else if(addr == 0xff0f) {
+                std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            }
+            else if(addr > 0xff0f && addr < 0xff3f) {
+                std::cout<<"Read from audio hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            }
+            else if(addr > 0xff3f && addr < 0xff4c) {
+                screen.read(addr, val, size, cycle);//memcpy(val, &(vram[addr-0x8000]), size);
+                //std::cout<<"Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            }
+            else if(addr > 0xff4e && addr < 0xff6c) {
+                std::cout<<"Read from CGB DMA/RAM: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            }
+            else {
+                std::cout<<"Read from unknown mem-mapped hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            }
+        }
     }
     else if (addr >= 0xff80 && addr < 0xffff) {
         memcpy(val, &(hram[addr - 0xff80]), size);
@@ -92,40 +121,70 @@ void memmap::read(int addr, void * val, int size) {
 
 }
 
-void memmap::write(int addr, void * val, int size) {
+void memmap::write(int addr, void * val, int size, int cycle) {
+    //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
     if(addr >= 0 && addr < 0x8000) {
-        std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<" (mappers not implemented yet)"<<std::endl;
+        std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (mappers not implemented yet)"<<std::endl;
     }
     else if (addr >= 0x8000 && addr < 0xa000) {
-        memcpy(&(vram[addr-0x8000]), val, size);
+        screen.write(addr, val, size, cycle);
+        //memcpy(&(vram[addr-0x8000]), val, size);
     }
     else if (addr >= 0xa000 && addr < 0xc000) {
-        std::cout<<"Write to external RAM: 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<" (not implemented yet)"<<std::endl;
+        std::cout<<"Write to external RAM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
     }
     else if (addr >= 0xc000 && addr < 0xe000) {
         memcpy(&(wram[addr-0xc000]), val, size);
     }
     else if (addr >= 0xe000 && addr < 0xfe00) {
-        std::cerr<<"Wrote to forbidden zone! 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<" bzzzzzzt"<<std::endl;
+        std::cerr<<"Wrote to forbidden zone! 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" bzzzzzzt"<<std::endl;
     }
     else if (addr >= 0xfe00 && addr < 0xff00) {
         memcpy(&(oam[addr - 0xfe00]), val, size);
     }
     else if (addr >= 0xff00 && addr < 0xff80) {
-        std::cout<<"Write to mem-mapped hardware: 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<" (not implemented yet)"<<std::endl;
+        if(addr < 0xff03) {
+            std::cout<<"Write to gamepad/link cable: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+        }
+        else if(addr > 0xff03 && addr < 0xff08) {
+            std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+        }
+        else if(addr == 0xff0f) {
+            std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+        }
+        else if(addr > 0xff0f && addr < 0xff3f) {
+            std::cout<<"Write to audio hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+        }
+        else if(addr > 0xff3f && addr < 0xff4c) {
+            screen.write(addr, val, size, cycle);
+            //std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+        }
+        else if(addr > 0xff4e && addr < 0xff6c) {
+            if(addr == 0xff50) {
+                use_dmg = false;
+            }
+            else {
+                std::cout<<"Write to CGB DMA/RAM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+            }
+        }
+        else {
+            std::cout<<"Write to unknown mem-mapped hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+        }
     }
     else if (addr >= 0xff80 && addr < 0xffff) {
         memcpy(&(hram[addr - 0xff80]), val, size);
     }
     else if (addr == 0xffff) {
-        use_dmg = false;
-        std::cout<<"Enable or disable interrupts: "<<*((int *)val)<<std::endl;
+        std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
     }
     else {
-        std::cerr<<"Water fog? Write to 0x"<<std::hex<<addr<<" = 0x"<<*((int *)val)<<" bzzzzzzt"<<std::endl;
+        std::cerr<<"Water fog? Write to 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" bzzzzzzt"<<std::endl;
     }
 }
 
+void memmap::render(int frame) {
+    screen.render(frame);
+}
 /*
 0x0000-0x3FFF: Permanently-mapped ROM bank.
 0x4000-0x7FFF: Area for switchable ROM banks.

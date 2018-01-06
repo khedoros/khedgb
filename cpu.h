@@ -38,6 +38,11 @@ class cpu {
     public:
     cpu(memmap& bus, bool has_firmware=false);
     int run();
+    bool halted;
+    bool stopped;
+    int cycle;
+    int frame;
+    private:
     int dec_and_exe(uint32_t opcode);
     int execute(int pre,int x,int y,int z,int data);
     void registers();
@@ -64,7 +69,4 @@ class cpu {
     bool int_called[5];    //0xFF0F (should move this to memory map, I guess)
     bool interrupts;       //Interrupt Master Enable
     bool saved_interrupts;
-    bool halted;
-    bool stopped;
-    int cycle;
 };

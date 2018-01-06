@@ -2,6 +2,7 @@
 #include<cstdint>
 #include "mapper.h"
 #include "rom.h"
+#include "lcd.h"
 #include<string>
 #include<vector>
 
@@ -10,12 +11,13 @@ public:
     memmap(const std::string& filename);
     //read: rw==false, write: rw==true
 //    void map(int addr, void * val, int size, bool rw);
-    void read(int addr, void * val, int size);
-    void write(int addr, void * val, int size);
+    void read(int addr, void * val, int size, int cycle);
+    void write(int addr, void * val, int size, int cycle);
     //void map(int addr, void * const val, int size, bool rw);
+    void  render(int f);
 private:
+    lcd screen;
     std::vector<uint8_t> rom;   
-    std::vector<uint8_t> vram;
     std::vector<uint8_t> wram;
     std::vector<uint8_t> hram;
     std::vector<uint8_t> oam;
