@@ -6,6 +6,15 @@
 #include<string>
 #include<vector>
 
+enum INT_TYPE {
+    VBLANK,
+    LCDSTAT,
+    TIMER,
+    SERIAL,
+    JOYPAD,
+    NONE
+};
+
 class memmap {
 public:
     memmap(const std::string& filename);
@@ -13,8 +22,22 @@ public:
 //    void map(int addr, void * val, int size, bool rw);
     void read(int addr, void * val, int size, int cycle);
     void write(int addr, void * val, int size, int cycle);
+    INT_TYPE get_interrupt();
     //void map(int addr, void * const val, int size, bool rw);
     void  render(int f);
+    struct int_flags {
+        union {
+            struct {
+                unsigned vblank:1;
+                unsigned lcdstat:1;
+                unsigned timer:1;
+                unsigned serial:1;
+                unsigned joypad:1;
+                unsigned unused:3;
+            };
+            uint8_t reg;
+        };
+    };
 private:
     lcd screen;
     std::vector<uint8_t> rom;   
@@ -23,6 +46,9 @@ private:
     std::vector<uint8_t> oam;
     static const uint8_t dmg_firmware[256];
     bool use_dmg;
+
+    int_flags int_enabled; //0xffff interrupt enable/disable flags
+    int_flags int_requested; //0xff0f interrupt requested flags
 };
 /*
  * 0x0000-0x3FFF: Permanently-mapped ROM bank.

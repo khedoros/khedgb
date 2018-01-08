@@ -3,6 +3,7 @@
 #include<iostream>
 #include<fstream>
 #include<cstring>
+#include<cassert>
 
 const uint8_t memmap::dmg_firmware[256] = {
     0x31, 0xfe, 0xff, 0xaf, 0x21, 0xff, 0x9f, 0x32, 0xcb, 0x7c, 0x20, 0xfb, 0x21, 0x26, 0xff, 0x0e,
@@ -23,7 +24,9 @@ const uint8_t memmap::dmg_firmware[256] = {
     0xf5, 0x06, 0x19, 0x78, 0x86, 0x23, 0x05, 0x20, 0xfb, 0x86, 0x20, 0xfe, 0x3e, 0x01, 0xe0, 0x50 }; 
                             
 
-memmap::memmap(const std::string& rom_filename) : use_dmg(true), screen(), wram(0x2000), hram(0x7f) {
+memmap::memmap(const std::string& rom_filename) : use_dmg(true), screen(), wram(0x2000), hram(0x7f),
+                                                  int_enabled{false,false,false,false,false},
+                                                  int_requested{false,false,false,false,false} {
     std::ifstream in(rom_filename.c_str());
     if(in.is_open()) {
         size_t size = 0;
@@ -76,7 +79,7 @@ void memmap::read(int addr, void * val, int size, int cycle) {
     else if (addr >= 0xe000 && addr < 0xfe00) {
         std::cerr<<"Read from forbidden zone! 0x"<<std::hex<<addr<<" bzzzzzzt"<<std::endl;
     }
-    else if (addr >= 0xfe00 && addr < 0xff00) {
+    else if (addr >= 0xfe00 && addr < 0xfea0) {
         memcpy(val, &(oam[addr - 0xfe00]), size);
     }
     else if (addr >= 0xff00 && addr < 0xff80) {
@@ -139,7 +142,7 @@ void memmap::write(int addr, void * val, int size, int cycle) {
     else if (addr >= 0xe000 && addr < 0xfe00) {
         std::cerr<<"Wrote to forbidden zone! 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" bzzzzzzt"<<std::endl;
     }
-    else if (addr >= 0xfe00 && addr < 0xff00) {
+    else if (addr >= 0xfe00 && addr < 0xfea0) {
         memcpy(&(oam[addr - 0xfe00]), val, size);
     }
     else if (addr >= 0xff00 && addr < 0xff80) {
@@ -150,7 +153,9 @@ void memmap::write(int addr, void * val, int size, int cycle) {
             std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         }
         else if(addr == 0xff0f) {
-            std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+            assert(size == 1);
+            int_requested.reg = *((uint8_t *)val);
+            //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         }
         else if(addr > 0xff0f && addr < 0xff3f) {
             std::cout<<"Write to audio hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
@@ -175,7 +180,9 @@ void memmap::write(int addr, void * val, int size, int cycle) {
         memcpy(&(hram[addr - 0xff80]), val, size);
     }
     else if (addr == 0xffff) {
-        std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+        assert(size == 1);
+        int_enabled.reg = *((uint8_t *)val);
+        //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
     }
     else {
         std::cerr<<"Water fog? Write to 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" bzzzzzzt"<<std::endl;
@@ -184,6 +191,15 @@ void memmap::write(int addr, void * val, int size, int cycle) {
 
 void memmap::render(int frame) {
     screen.render(frame);
+}
+
+INT_TYPE memmap::get_interrupt() {
+    if(int_enabled.vblank && int_requested.vblank)        {int_requested.vblank = 0;  return VBLANK; }
+    else if(int_enabled.lcdstat && int_requested.lcdstat) {int_requested.lcdstat = 0; return LCDSTAT;}
+    else if(int_enabled.timer && int_requested.timer)     {int_requested.timer = 0;   return TIMER;  }
+    else if(int_enabled.serial && int_requested.serial)   {int_requested.serial = 0;  return SERIAL; }
+    else if(int_enabled.joypad && int_requested.joypad)   {int_requested.joypad = 0;  return JOYPAD; }
+    else {return NONE;}
 }
 /*
 0x0000-0x3FFF: Permanently-mapped ROM bank.

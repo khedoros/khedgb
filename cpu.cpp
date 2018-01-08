@@ -9,8 +9,7 @@ void decode(int pre,int x,int y,int z,int data);
 cpu::cpu(memmap& b, bool has_firmware): bus(b),
         r{&bc.hi, &bc.low, &de.hi, &de.low, &hl.hi, &hl.low, &dummy, &af.hi},
         rp{&bc.pair, &de.pair, &hl.pair, &sp},
-        rp2{&bc.pair, &de.pair, &hl.pair, &af.pair},
-        int_called{false, false, false, false, false}
+        rp2{&bc.pair, &de.pair, &hl.pair, &af.pair}
 {
     interrupts = false;
     halted = false;
@@ -644,7 +643,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                         //printf("EXX\n");
                         bus.read(sp, &pc, 2, cycle);
                         sp+=2;
-                        interrupts = saved_interrupts;
+                        interrupts = true;
                         //printf("RETI (diff)\n");
                         break;
                     case 0x2:
