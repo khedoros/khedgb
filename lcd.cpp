@@ -61,6 +61,7 @@ void lcd::read(int addr, void * val, int size, int cycle) {
 }
 
 void lcd::render(int frame) {
+    return;
     bool zero=true;
     for(int i=0;i<0x2000;i++) {
         if(vram[i]) zero = false;
