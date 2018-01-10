@@ -2,11 +2,20 @@
 
 #include<vector>
 #include<string>
+#include<cstring>
 #include<cstdint>
+
+class mapper {
+    public:
+        mapper();
+        virtual uint32_t map(int addr, int cycle);
+        virtual void write(int addr, void * val, int size, int cycle);
+    protected:
+};
 
 class rom {
     public:
-        virtual rom(const std::string& rom_filename, const std::string& firmware_filename);
+        rom(const std::string& rom_filename, const std::string& firmware_filename);
         virtual void read(int addr, void * val, int size, int cycle);
         virtual void write(int addr, void * val, int size, int cycle);
 
@@ -27,35 +36,43 @@ class rom {
             uint8_t rom_ver;      //014c
             size_t filesize;
         };
-
+        bool firmware;
     protected:
         void disable_firmware();
         std::vector<uint8_t> firmware_data;
         std::vector<uint8_t> rom_data;
         std::vector<uint8_t> rom_backup;
+        std::vector<uint8_t> cram;
         header h;
         mapper * map;
-        bool firmware;
-};
-
-class mapper {
-    public:
-        virtual mapper();
-        virtual uint32_t map(int addr, int cycle);
-        virtual void write(int addr, void * val, int size, int cycle);
-    protected:
 };
 
 class mbc1_rom: public mapper {
+    public:
+        mbc1_rom();
+        virtual uint32_t map(int addr, int cycle);
+        virtual void write(int addr, void * val, int size, int cycle);
 };
 
 class mbc2_rom: public mapper {
+    public:
+        mbc2_rom();
+        virtual uint32_t map(int addr, int cycle);
+        virtual void write(int addr, void * val, int size, int cycle);
 };
 
 class mbc3_rom: public mapper {
+    public:
+        mbc3_rom();
+        virtual uint32_t map(int addr, int cycle);
+        virtual void write(int addr, void * val, int size, int cycle);
 };
 
 class mbc5_rom: public mapper {
+    public:
+        mbc5_rom();
+        virtual uint32_t map(int addr, int cycle);
+        virtual void write(int addr, void * val, int size, int cycle);
 };
 
 /*

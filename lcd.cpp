@@ -61,11 +61,18 @@ void lcd::read(int addr, void * val, int size, int cycle) {
 }
 
 void lcd::render(int frame) {
-    return;
     bool zero=true;
-    for(int i=0;i<0x2000;i++) {
+    for(int i=0;i<0x1800;i++) {
         if(vram[i]) zero = false;
     }
+    zero = true;
+    if(!zero) { std::cout<<"Some tiles defined. ";}
+    for(int i=0x1800;i<0x2000;i++) {
+        if(vram[i]) zero = false;
+    }
+    if(!zero) {std::cout<<"Some BG map defined. "<<std::endl;;}
+    return;
+
     if(zero) return;
     std::ofstream vid((std::to_string(frame)+".pgm").c_str());
     vid<<"P5\n256 256\n3\n";

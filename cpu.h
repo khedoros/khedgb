@@ -43,7 +43,7 @@
 
 class cpu {
 public:
-    cpu(memmap& bus, bool has_firmware=false);
+    cpu(memmap * bus, bool has_firmware=false);
     int run();
     bool halted;
     bool stopped;
@@ -68,7 +68,7 @@ private:
             uint16_t pair;
         };
     };
-    memmap bus;
+    memmap * bus;
     regpair af, bc, de, hl;
     uint8_t dummy;
     uint16_t sp, pc;

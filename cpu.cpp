@@ -6,7 +6,7 @@
 
 void decode(int pre,int x,int y,int z,int data);
 
-cpu::cpu(memmap& b, bool has_firmware): bus(b),
+cpu::cpu(memmap * b, bool has_firmware): bus(b),
         r{&bc.hi, &bc.low, &de.hi, &de.low, &hl.hi, &hl.low, &dummy, &af.hi},
         rp{&bc.pair, &de.pair, &hl.pair, &sp},
         rp2{&bc.pair, &de.pair, &hl.pair, &af.pair}
@@ -34,7 +34,7 @@ int cpu::run() {
     bool running=true;
     int cycles=0;
     while(running) {
-        bus.read(pc, &opcode, 3, cycle);
+        bus->read(pc, &opcode, 3, cycle);
         cycles = dec_and_exe(opcode);
         if(!cycles) {
             std::cout<<"No idea what to do with opcode "<<std::hex<<int(opcode)<<"."<<std::endl;
@@ -49,7 +49,7 @@ int cpu::run() {
             running = false;
         }
     }
-    bus.render(frame);
+    bus->render(frame);
     return cycle+17556;
 }
 
@@ -86,10 +86,10 @@ int cpu::dec_and_exe(uint32_t opcode) {
         data = (opcode & 0xffff00)>>(8);
     }
 
-    //registers();
-    //printf("\t");
-    //decode(prefix,x,y,z,data);
-    //printf("\n");
+    registers();
+    printf("\t");
+    decode(prefix,x,y,z,data);
+    printf("\n");
 
     if(!halted && !stopped) {
         pc += bytes;
@@ -124,7 +124,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 case 0x1:
                     //Different than Z80
-                    bus.write(data, &sp, 2, cycle);
+                    bus->write(data, &sp, 2, cycle);
                     //printf("LD ($%04x), SP (diff)\n",data);
                     break;
                 case 0x2:
@@ -199,21 +199,21 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 switch(p) {
                 case 0x0:
                     if(!q) {
-                        bus.write(bc.pair, &af.hi, 1, cycle);
+                        bus->write(bc.pair, &af.hi, 1, cycle);
                         //printf("LD (BC), A\n");
                     }
                     else {
-                        bus.read(bc.pair, &af.hi, 1, cycle);
+                        bus->read(bc.pair, &af.hi, 1, cycle);
                         //printf("LD A, (BC)\n");
                     }
                     break;
                 case 0x1:
                     if(!q) {
-                        bus.write(de.pair, &af.hi, 1, cycle);
+                        bus->write(de.pair, &af.hi, 1, cycle);
                         //printf("LD (DE), A\n");
                     }
                     else {
-                        bus.read(de.pair, &af.hi, 1, cycle);
+                        bus->read(de.pair, &af.hi, 1, cycle);
                         //printf("LD A, (DE)\n");
                     }
                     break;
@@ -221,14 +221,14 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     if(!q) {
                         //Different than z80
                         //printf("LD (nn), HL\n");
-                        bus.write(hl.pair, &af.hi, 1, cycle);
+                        bus->write(hl.pair, &af.hi, 1, cycle);
                         hl.pair++;
                         //printf("LDI (HL), A (diff)\n");
                     }
                     else {
                         //Different than z80
                         //printf("LD HL, (nn)\n");
-                        bus.read(hl.pair, &af.hi, 1, cycle);
+                        bus->read(hl.pair, &af.hi, 1, cycle);
                         hl.pair++;
                         //printf("LDI A, (HL) (diff)\n");
                     }
@@ -237,14 +237,14 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     if(!q) {
                         //Different than z80
                         //printf("LD (nn), A\n");
-                        bus.write(hl.pair, &af.hi, 1, cycle);
+                        bus->write(hl.pair, &af.hi, 1, cycle);
                         hl.pair--;
                         //printf("LDD (HL), A (diff)\n");
                     }
                     else {
                         //Different than z80
                         //printf("LD A, (nn)\n");
-                        bus.read(hl.pair, &af.hi, 1, cycle);
+                        bus->read(hl.pair, &af.hi, 1, cycle);
                         hl.pair--;
                         //printf("LDD A, (HL) (diff)\n");
                     }
@@ -262,31 +262,31 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 }
                 break;
             case 0x4:
-                if(y==6) bus.read(hl.pair, &dummy, 1, cycle);
+                if(y==6) bus->read(hl.pair, &dummy, 1, cycle);
                 (*r[y])++;
                 if(*r[y] == 0) set(ZERO_FLAG);
                 else           clear(ZERO_FLAG);
                 if((*r[y] & 0xf) == 0) set(HALF_CARRY_FLAG);
                 else                   clear(HALF_CARRY_FLAG);
                 clear(SUB_FLAG);
-                if(y==6) bus.write(hl.pair, &dummy, 1, cycle);
+                if(y==6) bus->write(hl.pair, &dummy, 1, cycle);
                 //printf("INC %s\n", r[y]);
                 break;
             case 0x5:
-                if(y==6) bus.read(hl.pair, &dummy, 1, cycle);
+                if(y==6) bus->read(hl.pair, &dummy, 1, cycle);
                 (*r[y])--;
                 if(*r[y] == 0) set(ZERO_FLAG);
                 else           clear(ZERO_FLAG);
                 if((*r[y] & 0xf) == 0xf) set(HALF_CARRY_FLAG);
                 else                     clear(HALF_CARRY_FLAG);
                 set(SUB_FLAG);
-                if(y==6) bus.write(hl.pair, &dummy, 1, cycle);
+                if(y==6) bus->write(hl.pair, &dummy, 1, cycle);
                 //printf("DEC %s\n", r[y]);
                 break;
             case 0x6:
                 *r[y] = data;
                 if(y==6) {
-                    bus.write(hl.pair, &dummy, 1, cycle);
+                    bus->write(hl.pair, &dummy, 1, cycle);
                 }
                 //printf("LD %s, $%02x\n", r[y],data);
                 break;
@@ -442,10 +442,10 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             }
             else { //Fairly regular LD ops
                 if(z == 6) { //read from memory to register
-                    bus.read(hl.pair, &dummy, 1, cycle);
+                    bus->read(hl.pair, &dummy, 1, cycle);
                 }
                 else if(y==6) { //write from register into memory
-                    bus.write(hl.pair, r[z], 1, cycle);
+                    bus->write(hl.pair, r[z], 1, cycle);
                 }
 
                 *r[y] = *r[z];
@@ -454,7 +454,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
         }
         else if(x==2) { //ALU operations
             if(z==6) { //These all have A as their destination, so there's no matching "write" call for memory operands here
-                bus.read(hl.pair,&dummy,1, cycle);
+                bus->read(hl.pair,&dummy,1, cycle);
             }
             switch(y) {
             case 0: //ADD
@@ -577,7 +577,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             case 0x0:
                 switch(y) {
                 case 4:
-                    bus.write(0xff00 + data, &af.hi, 1, cycle);
+                    bus->write(0xff00 + data, &af.hi, 1, cycle);
                     //printf("LD (FF00+$%02x), A (diff)\n",data);
                     break;
                 case 5:
@@ -586,7 +586,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     //printf("ADD SP, $%02x (diff)\n",data);
                     break;
                 case 6:
-                    bus.read(0xff00 + data, &af.hi, 1, cycle);
+                    bus->read(0xff00 + data, &af.hi, 1, cycle);
                     //printf("LD A, (FF00+$%02x) (diff)\n",data);
                     break;
                 case 7:
@@ -618,7 +618,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                         break;
                     }
                     if(condition) {
-                        bus.read(sp, &pc, 2, cycle);
+                        bus->read(sp, &pc, 2, cycle);
                         sp += 2;
                         extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
                     }
@@ -628,20 +628,20 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 break;
             case 0x1:
                 if(!q) {
-                    bus.read(sp, rp2[p], 2, cycle);
+                    bus->read(sp, rp2[p], 2, cycle);
                     sp += 2;
                     //printf("POP %s\n", rp2[p]);
                 }
                 else {
                     switch(p) {
                     case 0x0:
-                        bus.read(sp, &pc, 2, cycle);
+                        bus->read(sp, &pc, 2, cycle);
                         sp += 2;
                         //printf("RET\n");
                         break;
                     case 0x1: //Different from z80
                         //printf("EXX\n");
-                        bus.read(sp, &pc, 2, cycle);
+                        bus->read(sp, &pc, 2, cycle);
                         sp+=2;
                         interrupts = true;
                         //printf("RETI (diff)\n");
@@ -660,19 +660,19 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             case 0x2:
                 switch(y) {
                 case 0x4:
-                    bus.write(0xff00 + bc.low, &af.hi,1, cycle);
+                    bus->write(0xff00 + bc.low, &af.hi,1, cycle);
                     //printf("LD (FF00+C), A (diff)\n");
                     break;
                 case 0x5:
-                    bus.write(data,&af.hi,1, cycle);
+                    bus->write(data,&af.hi,1, cycle);
                     //printf("LD ($%04x), A (diff)\n",data);
                     break;
                 case 0x6:
-                    bus.read(0xff00 + bc.low, &af.hi,1, cycle);
+                    bus->read(0xff00 + bc.low, &af.hi,1, cycle);
                     //printf("LD A, (FF00+C) (diff)\n");
                     break;
                 case 0x7:
-                    bus.read(data,&af.hi,1, cycle);
+                    bus->read(data,&af.hi,1, cycle);
                     //printf("LD A, ($%04x) (diff)\n",data);
                     break;
                 default:
@@ -767,7 +767,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                         break;
                     }
                     if(condition) {
-                        bus.write(sp-2, &pc, 2, cycle);
+                        bus->write(sp-2, &pc, 2, cycle);
                         sp -= 2;
                         pc = data;
                         extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
@@ -780,14 +780,14 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 break;
             case 0x5:
                 if(!q) {
-                    bus.write(sp-2, rp2[p], 2, cycle);
+                    bus->write(sp-2, rp2[p], 2, cycle);
                     sp -= 2;
                     //printf("PUSH %s\n", rp2[p]);
                 }
                 else {
                     switch(p) {
                     case 0x0:
-                        bus.write(sp-2, &pc, 2, cycle);
+                        bus->write(sp-2, &pc, 2, cycle);
                         sp -= 2;
                         pc = data;
                         //printf("CALL $%04x\n",data);
@@ -924,7 +924,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 //printf("%s $%02x\n", alu[y],data);
                 break;
             case 0x7:
-                bus.write(sp-2, &pc, 2, cycle);
+                bus->write(sp-2, &pc, 2, cycle);
                 sp -= 2;
                 pc = data * 8;
                 //printf("RST %02X\n", y*8);
@@ -936,7 +936,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
     else if(pre==0xCB) {
         if(x==0) {
             if(z==6) {
-                bus.read(hl.pair, &dummy, 1, cycle);
+                bus->read(hl.pair, &dummy, 1, cycle);
             }
             switch(y) {
             case 0: //RLC
@@ -1043,14 +1043,14 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 break;
             }
             if(z==6) {
-                bus.write(hl.pair, &dummy, 1, cycle);
+                bus->write(hl.pair, &dummy, 1, cycle);
             }
             if(y>=4)
                 printf("%s %s %s\n", rot[y], r[z], (y==6)?"(diff)":"");
         }
         else if(x==1) {
             if(z==6) {
-                bus.read(hl.pair, &dummy, 1, cycle);
+                bus->read(hl.pair, &dummy, 1, cycle);
             }
             if((1<<(y)) & (*r[z])) {
                 clear(ZERO_FLAG);
@@ -1063,21 +1063,21 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
         }
         else if(x==2) {
             if(z==6) {
-                bus.read(hl.pair, &dummy, 1, cycle);
+                bus->read(hl.pair, &dummy, 1, cycle);
             }
             (*r[z]) &= (~(1<<(y)));
             if(z==6) {
-                bus.write(hl.pair, &dummy, 1, cycle);
+                bus->write(hl.pair, &dummy, 1, cycle);
             }
             //printf("RES %02x, %s\n", y, r[z]);
         }
         else if(x==3) {
             if(z==6) {
-                bus.read(hl.pair, &dummy, 1, cycle);
+                bus->read(hl.pair, &dummy, 1, cycle);
             }
             (*r[z]) |= (1<<(y));
             if(z==6) {
-                bus.write(hl.pair, &dummy, 1, cycle);
+                bus->write(hl.pair, &dummy, 1, cycle);
             }
             //printf("SET %02x, %s\n", y, r[z]);
         }

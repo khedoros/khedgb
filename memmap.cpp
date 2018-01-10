@@ -1,5 +1,6 @@
 #include<cstdint>
 #include "memmap.h"
+#include "rom.h"
 #include<iostream>
 #include<fstream>
 #include<cstring>
@@ -24,48 +25,19 @@ const uint8_t memmap::dmg_firmware[256] = {
     0xf5, 0x06, 0x19, 0x78, 0x86, 0x23, 0x05, 0x20, 0xfb, 0x86, 0x20, 0xfe, 0x3e, 0x01, 0xe0, 0x50 }; 
                             
 
-memmap::memmap(const std::string& rom_filename) : use_dmg(true), screen(), wram(0x2000), hram(0x7f),
+memmap::memmap(const std::string& rom_filename, const std::string& fw_file) : 
+                                                  screen(), cart(rom_filename, fw_file),
+                                                  wram(0x2000), hram(0x7f), oam(0xa0),
                                                   int_enabled{false,false,false,false,false},
-                                                  int_requested{false,false,false,false,false} {
-    std::ifstream in(rom_filename.c_str());
-    if(in.is_open()) {
-        size_t size = 0;
-        in.seekg(0, std::ios::end);
-        size = in.tellg();
-        in.seekg(0, std::ios::beg);
-        std::cout<<"Opened "<<rom_filename<<", found a file of "<<size<<" bytes."<<std::endl;
-        rom.resize(size);
-        in.read(reinterpret_cast<char *>(&(rom[0])), size);
-        in.close();
-    }
-    else {
-        std::cerr<<"Couldn;t open "<<rom_filename<<"."<<std::endl;
-        rom.resize(0x8000);
-    }
+                                                  int_requested{false,false,false,false,false} 
+{
+
 }
 
 void memmap::read(int addr, void * val, int size, int cycle) {
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
     if(addr >= 0 && addr < 0x8000) {
-        if(use_dmg && addr < 0x100) {
-/*          std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from dmg_firmware["<<std::hex<<addr<<"] {";
-            for(int i=0;i<size;i++) {
-                std::cout<<int(dmg_firmware[addr+i])<<", ";
-            }
-            std::cout<<"}"<<std::endl;
-*/
-            memcpy(val, &(dmg_firmware[addr]), size);
-        }
-        else {
-            /*
-            std::cout<<"Trying to copy "<<std::dec<<size<<" bytes from rom["<<std::hex<<addr<<"] {";
-            for(int i=0;i<size;i++) {
-                std::cout<<int(rom[addr+i])<<", ";
-            }
-            std::cout<<"}"<<std::endl;
-            */
-            memcpy(val, &(rom[addr]), size);
-        }
+        cart.read(addr, val, size, cycle);
     }
     else if (addr >= 0x8000 && addr < 0xa000) {
         screen.read(addr, val, size, cycle);//memcpy(val, &(vram[addr-0x8000]), size);
@@ -126,8 +98,9 @@ void memmap::read(int addr, void * val, int size, int cycle) {
 
 void memmap::write(int addr, void * val, int size, int cycle) {
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
-    if(addr >= 0 && addr < 0x8000) {
-        std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (mappers not implemented yet)"<<std::endl;
+    if(addr >= 0 && addr < 0x8000 || addr == 0xff50) {
+        //std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (mappers not implemented yet)"<<std::endl;
+        cart.write(addr,val,size,cycle);
     }
     else if (addr >= 0x8000 && addr < 0xa000) {
         screen.write(addr, val, size, cycle);
@@ -164,13 +137,8 @@ void memmap::write(int addr, void * val, int size, int cycle) {
             screen.write(addr, val, size, cycle);
             //std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         }
-        else if(addr > 0xff4e && addr < 0xff6c) {
-            if(addr == 0xff50) {
-                use_dmg = false;
-            }
-            else {
+        else if(addr > 0xff4e && addr < 0xff6c) { //0xff50 is handled up above
                 std::cout<<"Write to CGB DMA/RAM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
-            }
         }
         else {
             std::cout<<"Write to unknown mem-mapped hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
@@ -201,6 +169,11 @@ INT_TYPE memmap::get_interrupt() {
     else if(int_enabled.joypad && int_requested.joypad)   {int_requested.joypad = 0;  return JOYPAD; }
     else {return NONE;}
 }
+
+bool memmap::has_firmware() {
+    return cart.firmware;
+}
+
 /*
 0x0000-0x3FFF: Permanently-mapped ROM bank.
 0x4000-0x7FFF: Area for switchable ROM banks.

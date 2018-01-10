@@ -1,6 +1,5 @@
 #pragma once
 #include<cstdint>
-#include "mapper.h"
 #include "rom.h"
 #include "lcd.h"
 #include<string>
@@ -17,7 +16,7 @@ enum INT_TYPE {
 
 class memmap {
 public:
-    memmap(const std::string& filename);
+    memmap(const std::string& filename, const std::string& fw_file);
     //read: rw==false, write: rw==true
 //    void map(int addr, void * val, int size, bool rw);
     void read(int addr, void * val, int size, int cycle);
@@ -25,6 +24,7 @@ public:
     INT_TYPE get_interrupt();
     //void map(int addr, void * const val, int size, bool rw);
     void  render(int f);
+    bool has_firmware();
     struct int_flags {
         union {
             struct {
@@ -40,12 +40,11 @@ public:
     };
 private:
     lcd screen;
-    std::vector<uint8_t> rom;   
+    rom cart;
     std::vector<uint8_t> wram;
     std::vector<uint8_t> hram;
     std::vector<uint8_t> oam;
     static const uint8_t dmg_firmware[256];
-    bool use_dmg;
 
     int_flags int_enabled; //0xffff interrupt enable/disable flags
     int_flags int_requested; //0xff0f interrupt requested flags
