@@ -2,7 +2,7 @@
 #include<fstream>
 #include<iostream>
 
-rom::rom(const std::string& rom_filename, const std::string& firmware_filename = "") : cram(0x2000) {
+rom::rom(const std::string& rom_filename, const std::string& firmware_filename = "") : cram(0x2000), valid(false) {
     firmware = false;
     //Take input of the actual ROM data
     std::ifstream in(rom_filename.c_str());
@@ -12,6 +12,11 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
         size = in.tellg();
         in.seekg(0, std::ios::beg);
         std::cout<<"Opened "<<rom_filename<<", found a file of "<<size<<" bytes."<<std::endl;
+        if(size > 8 * 1024 * 1024) {
+            std::cerr<<"That's larger than I'd expect any real Game Boy ROM to be. Exiting."<<std::endl;
+            rom_data.resize(0x8000, 0x10);
+            return;
+        }
         rom_data.resize(size);
         h.filesize = size;
         in.read(reinterpret_cast<char *>(&(rom_data[0])), size);
@@ -55,7 +60,7 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
     }
 
     //Read Game title
-    memcpy(&(rom_data[0x134]), &(h.title[0]), 16);
+    memcpy(&(h.title[0]), &(rom_data[0x134]), 16);
     h.title[16] = 0;
     for(int i=0;i<16;i++) {
         if(h.title[i] < 32 || h.title[i] > 126) {
@@ -92,15 +97,6 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
         case 9:
             h.has_ram = true;  h.has_bat = true;  h.has_rtc = false; h.has_rumble = false; h.has_sensor = false; h.mapper = MAP_NONE;
             break;
-        case 0xb:
-            h.has_ram = false; h.has_bat = false; h.has_rtc = false; h.has_rumble = false; h.has_sensor = false; h.mapper = MAP_MMM01;
-            break;
-        case 0xc:
-            h.has_ram = true;  h.has_bat = false; h.has_rtc = false; h.has_rumble = false; h.has_sensor = false; h.mapper = MAP_MMM01;
-            break;
-        case 0xd:
-            h.has_ram = true;  h.has_bat = true;  h.has_rtc = false; h.has_rumble = false; h.has_sensor = false; h.mapper = MAP_MMM01;
-            break;
         case 0xf:
             h.has_ram = false; h.has_bat = true;  h.has_rtc = true;  h.has_rumble = false; h.has_sensor = false; h.mapper = MAP_MBC3;
             break;
@@ -134,30 +130,59 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
         case 0x1e:
             h.has_ram = true;  h.has_bat = true;  h.has_rtc = false; h.has_rumble = true;  h.has_sensor = false; h.mapper = MAP_MBC5;
             break;
-        case 0x20:
-            h.has_ram = false; h.has_bat = false; h.has_rtc = false; h.has_rumble = false; h.has_sensor = false; h.mapper = MAP_MBC6;
-            break;
-        case 0x22:
-            h.has_ram = true;  h.has_bat = true;  h.has_rtc = false; h.has_rumble = true;  h.has_sensor = true;  h.mapper = MAP_MBC7;
-            break;
         default:
             std::cerr<<"Cart type "<<std::hex<<int(h.cart_type)<<" will probably never be supported :-("<<std::endl;
+            h.mapper = MAP_UNSUPPORTED;
+            return;
     }
     
-    /*
-    uint8_t rom_size;     //0148
-    uint8_t ram_size;     //0149
-    uint8_t old_lic;      //014b old license code. Needs to be 0x33 for SGB support.
-    uint8_t rom_ver;      //014c
+    uint8_t rom_size = rom_data[0x148];
+    uint8_t ram_size = rom_data[0x149];
+    if(rom_size >= 0 && rom_size < 9) {
+        h.rom_size = rom_sizes[rom_size];
+    }
+    if(ram_size >=0 && ram_size < 6) {
+        h.ram_size = ram_sizes[ram_size];
+        if((!h.has_ram && ram_size != 0) || (h.has_ram && ram_size == 0)) {
+            std::cerr<<"Specified as having no RAM, but non-zero RAM size. Weird."<<std::endl;
+        }
+    }
 
-*/
+    if(h.rom_size != h.filesize) {
+        std::cerr<<"Filesize: "<<std::dec<<h.filesize<<" Claimed rom size: "<<h.rom_size<<" (oopsie!)"<<std::endl;
+        return;
+    }
 
-    h.rom_size = 0; //We'll deal with this later :-)
+    h.rom_ver = rom_data[0x14c];
 
+    std::cout<<"Filename: "<<rom_filename<<" Internal name: "<<h.title<<std::endl;
+    std::cout<<"ROM size: "<<h.rom_size<<" bytes RAM size: "<<((h.mapper==MAP_MBC2)?256:h.ram_size)<<" bytes Mapper name: "<<mapper_names[h.mapper]<<std::endl;
+    std::cout<<"Features: "<<((h.has_ram)?"[RAM] ":"")<<((h.has_bat)?"[BATTERY] ":"")<<((h.has_rtc)?"[TIMER] ":"")<<((h.has_rumble)?"[RUMBLE] ":"")<<((h.has_sensor)?"[TILT/LIGHT] ":"")<<std::endl;
 
+    switch(h.mapper) {
+        case MAP_NONE:
+            map = new mapper();
+            break;
+        case MAP_MBC1:
+            map = new mbc1_rom();
+            break;
+        case MAP_MBC2:
+            map = new mbc2_rom();
+            break;
+        case MAP_MBC3:
+            map = new mbc3_rom();
+            break;
+        case MAP_MBC5:
+            map = new mbc5_rom();
+            break;
+        default: return;
+    }
+
+    valid = true;
 
 }
 
+//TODO: Replace this with mapper implementation
 void rom::read(int addr, void * val, int size, int cycle) {
     if(addr < 0x8000) {
         memcpy(val, &(rom_data[addr]), size);
@@ -167,6 +192,7 @@ void rom::read(int addr, void * val, int size, int cycle) {
     }
 }
 
+//TODO: Replace this with mapper implementation
 void rom::write(int addr, void * val, int size, int cycle) {
     if(addr == 0xff50) memcpy(reinterpret_cast<char *>(&rom_data[0]), reinterpret_cast<char *>(&rom_backup[0]), 256);
     else if(addr >= 0xa000 && addr < 0xc000) {
@@ -176,3 +202,38 @@ void rom::write(int addr, void * val, int size, int cycle) {
         std::cout<<"Mapper stuff for the future ;-)"<<std::endl;
     }
 }
+
+std::string rom::mapper_names[6] = {"None", "MBC1", "MBC2", "MBC3", "MBC5", "Unsupported"};
+uint32_t rom::rom_sizes[9] = {32*1024, 64*1024, 128*1024, 256*1024, 512*1024, 1024*1024, 2048*1024, 4096*1024, 8192*1024};
+uint32_t rom::ram_sizes[6] = {0, 2048, 8192, 32768, 131072, 65536};
+
+mapper::mapper() {}
+uint32_t mapper::map(int addr, int cycle) {
+    return 0;
+}
+void mapper::write(int addr, void * val, int size, int cycle) {}
+
+mbc1_rom::mbc1_rom() {}
+uint32_t mbc1_rom::map(int addr, int cycle) {
+    return 0;
+}
+void mbc1_rom::write(int addr, void * val, int size, int cycle) {}
+
+mbc2_rom::mbc2_rom() {}
+uint32_t mbc2_rom::map(int addr, int cycle) {
+    return 0;
+}
+void mbc2_rom::write(int addr, void * val, int size, int cycle) {}
+
+mbc3_rom::mbc3_rom() {}
+uint32_t mbc3_rom::map(int addr, int cycle) {
+    return 0;
+}
+void mbc3_rom::write(int addr, void * val, int size, int cycle) {}
+
+mbc5_rom::mbc5_rom() {}
+uint32_t mbc5_rom::map(int addr, int cycle) {
+    return 0;
+}
+void mbc5_rom::write(int addr, void * val, int size, int cycle) {}
+

@@ -5,6 +5,15 @@
 #include<cstring>
 #include<cstdint>
 
+enum map_type {
+    MAP_NONE,
+    MAP_MBC1,
+    MAP_MBC2,
+    MAP_MBC3,
+    MAP_MBC5,
+    MAP_UNSUPPORTED
+};
+
 class mapper {
     public:
         mapper();
@@ -24,19 +33,25 @@ class rom {
             uint8_t cgb_flag;     //Bit7: Color, Bit6: *only* color (if present with bit7) 0143
             bool support_sgb;     //0146
             uint8_t cart_type;    //0147
-            uint8_t mapper;       //part of 0147
+            map_type mapper;       //part of 0147
             bool has_ram;         //part of 0147
             bool has_bat;         //part of 0147
             bool has_rtc;         //part of 0147
             bool has_rumble;      //part of 0147
             bool has_sensor;      //part of 0147
-            uint8_t rom_size;     //0148
-            uint8_t ram_size;     //0149
+            uint32_t rom_size;     //0148
+            uint32_t ram_size;     //0149
             uint8_t old_lic;      //014b old license code. Needs to be 0x33 for SGB support.
             uint8_t rom_ver;      //014c
             size_t filesize;
         };
         bool firmware;
+        bool valid;
+
+        static std::string mapper_names[6];
+        static uint32_t rom_sizes[9];
+        static uint32_t ram_sizes[6];
+        
     protected:
         void disable_firmware();
         std::vector<uint8_t> firmware_data;
