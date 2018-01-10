@@ -18,6 +18,7 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
         in.seekg(0, std::ios::beg);
         rom_backup.resize(256);
         in.read(reinterpret_cast<char *>(&(rom_backup[0])), 256);
+        in.close();
     }
     else {
         std::cerr<<"Couldn't open "<<rom_filename<<"."<<std::endl;
