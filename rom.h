@@ -16,10 +16,15 @@ enum map_type {
 
 class mapper {
     public:
-        mapper();
-        virtual uint32_t map(int addr, int cycle);
-        virtual void write(int addr, void * val, int size, int cycle);
+        mapper(int rom_size, int ram_size, bool has_bat); 
+        virtual uint32_t map_rom(uint32_t addr, int cycle);
+        virtual uint32_t map_ram(uint32_t addr, int cycle);
+        virtual void write(uint32_t addr, void * val, int size, int cycle);
     protected:
+        bool has_bat;
+        bool has_rtc;
+        uint32_t romsize;
+        uint32_t ramsize;
 };
 
 class rom {
@@ -64,30 +69,54 @@ class rom {
 
 class mbc1_rom: public mapper {
     public:
-        mbc1_rom();
-        virtual uint32_t map(int addr, int cycle);
-        virtual void write(int addr, void * val, int size, int cycle);
+        mbc1_rom(int rom_size, int ram_size, bool has_bat);
+        virtual uint32_t map_rom(uint32_t addr, int cycle);
+        virtual uint32_t map_ram(uint32_t addr, int cycle);
+        virtual void write(uint32_t addr, void * val, int size, int cycle);
+    private:
+        bool ram_enabled;
+        bool mode; //0=rom banking, 1=ram banking
+        union banknum {
+            struct {
+                unsigned lower:5;
+                unsigned upper:2;
+                unsigned unused_rom:1;
+            };
+            struct {
+                unsigned unused_ram:5;
+                unsigned ram_bank:2;
+                unsigned unused_ram2:1;
+            };
+            struct {
+                unsigned rom_bank:7;
+                unsigned unused_rom1:1;
+            };
+        };
+        banknum bank; //
 };
 
 class mbc2_rom: public mapper {
     public:
-        mbc2_rom();
-        virtual uint32_t map(int addr, int cycle);
-        virtual void write(int addr, void * val, int size, int cycle);
+        mbc2_rom(uint32_t rom_size, bool has_bat);
+        virtual uint32_t map_rom(uint32_t addr, int cycle);
+        virtual uint32_t map_ram(uint32_t addr, int cycle);
+        virtual void write(uint32_t addr, void * val, int size, int cycle);
 };
 
 class mbc3_rom: public mapper {
     public:
-        mbc3_rom();
-        virtual uint32_t map(int addr, int cycle);
-        virtual void write(int addr, void * val, int size, int cycle);
+        mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc);
+        virtual uint32_t map_rom(uint32_t addr, int cycle);
+        virtual uint32_t map_ram(uint32_t addr, int cycle);
+        virtual void write(uint32_t addr, void * val, int size, int cycle);
 };
 
 class mbc5_rom: public mapper {
     public:
-        mbc5_rom();
-        virtual uint32_t map(int addr, int cycle);
-        virtual void write(int addr, void * val, int size, int cycle);
+        mbc5_rom(int rom_size, int ram_size, bool has_bat, bool has_rumble);
+        virtual uint32_t map_rom(uint32_t addr, int cycle);
+        virtual uint32_t map_ram(uint32_t addr, int cycle);
+        virtual void write(uint32_t addr, void * val, int size, int cycle);
 };
 
 /*
