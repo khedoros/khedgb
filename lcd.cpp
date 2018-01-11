@@ -129,3 +129,21 @@ void lcd::render(int frame) {
     vid.close();
     return;
 }
+
+bool lcd::interrupt_triggered(uint32_t frame, uint32_t cycle) {
+    if(((LYC & status) != 0) && (lyc == cycle/114) && frame > lyc_last_frame) {
+        lyc_last_frame = frame;
+        return true;
+    }
+
+    if((M2 & status) != 0) {
+        printf("Warning: M2 interrupt set, but not implemented\n");
+    }
+    if((M1 & status) != 0) {
+        printf("Warning: M1 interrupt set, but not implemented\n");
+    }
+    if((M0 & status) != 0) {
+        printf("Warning: M0 interrupt set, but not implemented\n");
+    }
+    return false;
+}

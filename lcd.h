@@ -18,25 +18,32 @@
  * ff4b: WX R/W  (window scroll x - 7)
  */
 
+enum lcd_ints {
+    LYC = 0x40,
+    M2  = 0x20,
+    M1  = 0x10,
+    M0  = 0x08
+};
+
 class lcd {
 public:
     lcd();
     void write(int addr, void * val, int size, int cycle);
     void read(int addr, void * val, int size, int cycle);
     void render(int frame);
+    bool interrupt_triggered(uint32_t frame, uint32_t cycle);
 private:
     std::vector<uint8_t> vram;
-    struct dmgpal {
-        union {
-            struct {
-                unsigned p0:2;
-                unsigned p1:2;
-                unsigned p2:2;
-                unsigned p3:2;
-            };
-            uint8_t pal;
+    union dmgpal {
+        struct {
+            unsigned p0:2;
+            unsigned p1:2;
+            unsigned p2:2;
+            unsigned p3:2;
         };
+        uint8_t pal;
     };
+
     uint8_t control;     //0xff40
     uint8_t status;      //0xff41
     uint8_t bg_scroll_y; //0xff42
@@ -49,4 +56,6 @@ private:
 
     uint8_t win_scroll_y;//0xff4a
     uint8_t win_scroll_x;//0xff4b
+
+    uint32_t lyc_last_frame;
 };

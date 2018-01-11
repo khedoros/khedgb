@@ -96,6 +96,7 @@ int cpu::dec_and_exe(uint32_t opcode) {
     }
     cycles += execute(prefix,x,y,z,data);
 
+    call_interrupts();
 
     return cycles;
 }
@@ -1152,3 +1153,33 @@ void cpu::registers() {
             pc,af.hi,bc.hi,bc.low,de.hi,de.low,hl.hi,hl.low,sp,af.low);
 }
 
+void cpu::call_interrupts() {
+    INT_TYPE interrupt = bus->get_interrupt(frame, cycle);
+    bool call = true;
+    uint16_t to_run = pc;
+    switch(interrupt) {
+        case VBLANK: to_run = VBL_INT_ADDR;
+            break;
+        case LCDSTAT: to_run = LCD_INT_ADDR;
+            break;
+        case TIMER: to_run = TIM_INT_ADDR;
+            break;
+        case SERIAL: to_run = SER_INT_ADDR;
+            break;
+        case JOYPAD: to_run = JOY_INT_ADDR;
+            break;
+        default:
+            call = false;
+    }
+    if(call) {
+        //push pc
+        bus->write(sp-2, &pc, 2, cycle);
+        sp -= 2;
+
+        //DI
+        interrupts = false;
+
+        //Jump to interrupt handler
+        pc = to_run;
+    }
+}

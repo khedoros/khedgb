@@ -29,7 +29,8 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
                                                   screen(), cart(rom_filename, fw_file),
                                                   wram(0x2000), hram(0x7f), oam(0xa0),
                                                   int_enabled{false,false,false,false,false},
-                                                  int_requested{false,false,false,false,false} 
+                                                  int_requested{false,false,false,false,false},
+                                                  last_int_frame(0)
 {
 
 }
@@ -169,7 +170,23 @@ void memmap::render(int frame) {
     screen.render(frame);
 }
 
-INT_TYPE memmap::get_interrupt() {
+INT_TYPE memmap::get_interrupt(uint32_t frame, uint32_t cycle) {
+    //VBLANK
+    if(frame > last_int_frame && cycle >= 144*114) {int_requested.vblank = 1; last_int_frame = frame;}
+
+    //LCDSTAT
+    if(screen.interrupt_triggered(frame, cycle)) {int_requested.lcdstat = 1;}
+
+    //TIMER
+    if(int_enabled.timer) { printf("Warning: timer interrupt enabled, but not implemented yet.\n");}
+
+    //SERIAL
+    if(int_enabled.serial) { printf("Warning: serial interrupt enabled, but not implemented yet.\n");}
+
+    //JOYPAD
+    if(int_enabled.joypad) { printf("Warning: joypad interrupt enabled, but not implemented yet.\n");}
+
+    printf("get_interrupt requested: %02X enabled: %02X to fire: %02X\n", int_requested.reg, int_enabled.reg, (int_enabled.reg & int_requested.reg));
     if(int_enabled.vblank && int_requested.vblank)        {int_requested.vblank = 0;  return VBLANK; }
     else if(int_enabled.lcdstat && int_requested.lcdstat) {int_requested.lcdstat = 0; return LCDSTAT;}
     else if(int_enabled.timer && int_requested.timer)     {int_requested.timer = 0;   return TIMER;  }

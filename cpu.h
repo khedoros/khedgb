@@ -57,7 +57,7 @@ private:
     void registers();
 
     INT_TYPE check_interrupts();
-    void call_interrupt(INT_TYPE i);
+    void call_interrupts();
 
     struct regpair {
         union {
