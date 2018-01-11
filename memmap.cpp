@@ -43,7 +43,8 @@ void memmap::read(int addr, void * val, int size, int cycle) {
         screen.read(addr, val, size, cycle);//memcpy(val, &(vram[addr-0x8000]), size);
     }
     else if (addr >= 0xa000 && addr < 0xc000) {
-        std::cout<<"Read from external RAM: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+        cart.read(addr, val, size, cycle);
+        //std::cout<<"Read from external RAM: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
     }
     else if (addr >= 0xc000 && addr < 0xe000) {
         memcpy(val, &(wram[addr-0xc000]), size);
@@ -90,8 +91,12 @@ void memmap::read(int addr, void * val, int size, int cycle) {
     else if (addr == 0xffff) {
         std::cerr<<"Attempted read of write-only register?"<<std::endl;
     }
+    else if (addr >= 0xffa0 && addr < 0xff00) {
+        //"Not useable" RAM area; apparently returns 0 on DMG, 0 and random values on CGB
+        memset(val, 0, size);
+    }
     else {
-        std::cerr<<"Water fog? Trying to read from 0x"<<std::hex<<addr<<" bzzzzzzt"<<std::endl;
+        //std::cerr<<"Water fog? Trying to read from 0x"<<std::hex<<addr<<" bzzzzzzt"<<std::endl;
     }
 
 }
@@ -107,7 +112,8 @@ void memmap::write(int addr, void * val, int size, int cycle) {
         //memcpy(&(vram[addr-0x8000]), val, size);
     }
     else if (addr >= 0xa000 && addr < 0xc000) {
-        std::cout<<"Write to external RAM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+        //std::cout<<"Write to external RAM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+        cart.write(addr, val, size, cycle);
     }
     else if (addr >= 0xc000 && addr < 0xe000) {
         memcpy(&(wram[addr-0xc000]), val, size);
@@ -128,6 +134,7 @@ void memmap::write(int addr, void * val, int size, int cycle) {
         else if(addr == 0xff0f) {
             assert(size == 1);
             int_requested.reg = *((uint8_t *)val);
+            printf("Interrupts requested: %02X\n",int_requested.reg);
             //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         }
         else if(addr > 0xff0f && addr < 0xff3f) {
@@ -150,10 +157,11 @@ void memmap::write(int addr, void * val, int size, int cycle) {
     else if (addr == 0xffff) {
         assert(size == 1);
         int_enabled.reg = *((uint8_t *)val);
+        printf("Interrupts enabled: %02X\n",int_enabled.reg);
         //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
     }
     else {
-        std::cerr<<"Water fog? Write to 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" bzzzzzzt"<<std::endl;
+        //std::cerr<<"Water fog? Write to 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" bzzzzzzt"<<std::endl;
     }
 }
 
