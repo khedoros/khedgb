@@ -101,6 +101,9 @@ class mbc2_rom: public mapper {
         virtual uint32_t map_rom(uint32_t addr, int cycle);
         virtual uint32_t map_ram(uint32_t addr, int cycle);
         virtual void write(uint32_t addr, void * val, int size, int cycle);
+    private:
+        bool ram_enabled;
+        unsigned banknum:4;
 };
 
 class mbc3_rom: public mapper {

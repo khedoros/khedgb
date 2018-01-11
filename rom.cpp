@@ -280,11 +280,11 @@ uint32_t mbc1_rom::map_ram(uint32_t addr, int cycle) {
     return addr;
 }
 void mbc1_rom::write(uint32_t addr, void * val, int size, int cycle) {
-    if(addr<0x2000 && (*((char *)(val)) == 0x0a)) ram_enabled = true;
+    if(addr<0x2000 && (*((char *)val) == 0x0a)) ram_enabled = true;
     else if(addr<0x2000) ram_enabled = false;
-    else if(addr >= 0x2000 && addr < 0x4000) bank.lower = *(((char *)(val)));
-    else if(addr >= 0x4000 && addr < 0x6000) bank.upper = *(((char *)(val)));
-    else mode = *(((char *)(val)));
+    else if(addr >= 0x2000 && addr < 0x4000) bank.lower = *(((char *)val));
+    else if(addr >= 0x4000 && addr < 0x6000) bank.upper = *(((char *)val));
+    else mode = *(((char *)val));
 }
 
 
@@ -292,12 +292,19 @@ void mbc1_rom::write(uint32_t addr, void * val, int size, int cycle) {
 //MBC2 mapper
 mbc2_rom::mbc2_rom(uint32_t rom_size, bool has_bat) : mapper(rom_size, 512, has_bat) {}
 uint32_t mbc2_rom::map_rom(uint32_t addr, int cycle) {
-    return 0;
+    return  addr + (uint32_t(banknum) * 0x4000) - 0x4000;
 }
 uint32_t mbc2_rom::map_ram(uint32_t addr, int cycle) {
-    return 0;
+    addr -= 0xa000;
+    if(addr >= ramsize || !ram_enabled) {
+        return 0xffffff;
+    }
+    return addr;
 }
-void mbc2_rom::write(uint32_t addr, void * val, int size, int cycle) {}
+void mbc2_rom::write(uint32_t addr, void * val, int size, int cycle) {
+    if(addr < 0x2000 && (addr & 0x100) == 0x100) banknum = *(((char *)val));
+    else if(addr >= 0x2000 && addr < 0x4000 && (addr & 0x100) == 0) ram_enabled = *(((char *)val));
+}
 
 
 
