@@ -1,7 +1,8 @@
 #pragma once
 
 #include<cstdint>
-#include<vector>
+//#include<vector>
+#include "util.h"
 
 /*
  * ff40: LCD control R/W (various settings)
@@ -28,12 +29,13 @@ enum lcd_ints {
 class lcd {
 public:
     lcd();
+    void dump_tiles();
     void write(int addr, void * val, int size, int cycle);
     void read(int addr, void * val, int size, int cycle);
     void render(int frame);
     bool interrupt_triggered(uint32_t frame, uint32_t cycle);
 private:
-    std::vector<uint8_t> vram;
+    Vect<uint8_t> vram;
     union dmgpal {
         struct {
             unsigned p0:2;
@@ -44,7 +46,21 @@ private:
         uint8_t pal;
     };
 
-    uint8_t control;     //0xff40
+    union control_reg {
+        struct {
+            unsigned priority:1;
+            unsigned sprite_enable:1;
+            unsigned sprite_size:1;
+            unsigned bg_map:1;
+            unsigned tile_addr_mode:1;
+            unsigned window_enable:1;
+            unsigned window_map:1;
+            unsigned display_enable:1;
+        };
+        uint8_t val;
+    };
+
+    control_reg control; //0xff40
     uint8_t status;      //0xff41
     uint8_t bg_scroll_y; //0xff42
     uint8_t bg_scroll_x; //0xff43
@@ -58,4 +74,10 @@ private:
     uint8_t win_scroll_x;//0xff4b
 
     uint32_t lyc_last_frame;
+    uint32_t lyc_last_line;
+    uint32_t m1_last_frame;
+    uint32_t m2_last_line;
+    uint32_t m2_last_frame;
+    uint32_t m0_last_line;
+    uint32_t m0_last_frame;
 };

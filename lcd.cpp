@@ -5,18 +5,21 @@
 #include<fstream>
 #include<string>
 
-lcd::lcd() : vram(0x2000), lyc(0), control(0), status(0), bg_scroll_x(0), bg_scroll_y(0) {
+lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0), m1_last_frame(0), m2_last_line(0), m2_last_frame(0), m0_last_line(0), m0_last_frame(0) {
+    control.val = 0;
+    vram.resize(0x2000);
 }
 
 void lcd::write(int addr, void * val, int size, int cycle) {
-    assert(size==1);
+    //assert(size==1);
+    if(size > 1) return;
     if(addr >= 0x8000 && addr < 0xa000) {
         memcpy(&(vram[addr-0x8000]), val, size);
     }
     else {
         switch(addr) {
             case 0xff40:
-                control = *((uint8_t *)val);
+                control.val = *((uint8_t *)val);
                 break;
             case 0xff41:
                 status = (*((uint8_t *)val)) & 0xf8;
@@ -54,7 +57,8 @@ void lcd::write(int addr, void * val, int size, int cycle) {
 }
 
 void lcd::read(int addr, void * val, int size, int cycle) {
-    assert(size==1);
+    if(size > 1) return;
+    //assert(size==1);
     if(addr >= 0x8000 && addr < 0xa000) {
         memcpy(val, &(vram[addr-0x8000]), size);
     }
@@ -101,15 +105,24 @@ void lcd::render(int frame) {
     for(int i=0x1800;i<0x2000;i++) {
         if(vram[i]) zero = false;
     }
-    if(!zero) {std::cout<<"Some BG map defined. "<<std::endl;;}
-    else    return;
+    if(!zero) {std::cout<<"Some BG map defined. "<<std::endl;}
 
+    std::cout<<"PPU: Priority: "<<control.priority<<
+                    " sprites on : "<<control.sprite_enable<<
+                    " sprite size: "<<control.sprite_size<<
+                    " bg map: "<<control.bg_map<<
+                    " tile addr mode: "<<control.tile_addr_mode<<
+                    " window enable: "<<control.window_enable<<
+                    " window map: "<<control.window_map<<
+                    " display on: "<<control.display_enable<<std::endl;
     std::ofstream vid((std::to_string(frame)+".pgm").c_str());
     vid<<"P5\n256 256\n3\n";
     uint8_t buffer[256][256];
+    uint32_t bgbase = 0x1800;
+    if(control.bg_map) bgbase = 0x1c00;
     for(int xtile=0;xtile<32;xtile++) {
         for(int ytile=0;ytile<32;ytile++) {
-            int tilenum = vram[0x1800+ytile*32+xtile];
+            int tilenum = vram[bgbase+ytile*32+xtile];
             int base = tilenum*16;
             for(int yp=0;yp<8;yp++) {
                 int b1=vram[base+yp*2];
@@ -131,19 +144,64 @@ void lcd::render(int frame) {
 }
 
 bool lcd::interrupt_triggered(uint32_t frame, uint32_t cycle) {
-    if(((LYC & status) != 0) && (lyc == cycle/114) && frame > lyc_last_frame) {
-        lyc_last_frame = frame;
+    int line = cycle / 114;
+
+    //Line co-incidence
+    //Trigger interrupt if it's activated, the line matches, and either it hasn't been triggered this frame, or it was moved up to a later line
+    if(((LYC & status) != 0) && (lyc == line) && (frame > lyc_last_frame || line > lyc_last_line)) {
+        lyc_last_frame = frame; //Don't trigger twice in one frame
+        lyc_last_line = line;   //But go ahead and do it, if it's on a later line
         return true;
     }
 
-    if((M2 & status) != 0) {
-        printf("Warning: M2 interrupt set, but not implemented\n");
+    //V-Blank
+    //Trigger interrupt if it's activated, the GB is in vsync, and it hasn't been triggered this frame.
+    if((M1 & status) != 0 && line >= 144 && frame > m1_last_frame) {
+        m1_last_frame = frame;
+        return true;
     }
-    if((M1 & status) != 0) {
-        printf("Warning: M1 interrupt set, but not implemented\n");
+
+    int line_cycle = cycle % 114;
+
+    //Line start, reading from OAM
+    //Trigger if before vsync, in cycle 0-19 
+    if((M2 & status) != 0 && line < 144 && line_cycle < 20 && (m2_last_frame < frame || m2_last_line < line)) {
+        m2_last_line = line;
+        m2_last_frame = frame;
+        return true;
     }
-    if((M0 & status) != 0) {
-        printf("Warning: M0 interrupt set, but not implemented\n");
+
+    //H-Blank
+    if((M0 & status) != 0 && line < 144 && line_cycle >= (20+43) && (m0_last_frame < frame || m0_last_line < line)) {
+        m0_last_line = line;
+        return true;
+        //printf("Warning: M0 interrupt set, but not implemented\n");
     }
+
     return false;
+}
+
+void lcd::dump_tiles() {
+    std::ofstream vid(std::string("frame-dead.pgm").c_str());
+    vid<<"P5\n192 128\n3\n";
+    uint8_t buffer[192][128];
+    for(int xtile=0;xtile<24;xtile++) {
+        for(int ytile=0;ytile<16;ytile++) {
+            int base = (xtile + ytile * 24)*16;
+            for(int yp=0;yp<8;yp++) {
+                int b1=vram[base+yp*2];
+                int shift=128;
+                for(int xp=0;xp<8;xp++) {
+                    int c=(b1 & shift)/shift;
+                    assert(c==0||c==1||c==2||c==3);
+                    buffer[xtile*8+xp][ytile*8+yp]=c;
+                    shift/=2;
+                }
+            }
+        }
+    }
+    for(int i=0;i<192;i++) {
+        vid.write(reinterpret_cast<char *>(&buffer[i][0]),128);
+    }
+    vid.close();
 }

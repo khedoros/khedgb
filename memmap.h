@@ -3,7 +3,6 @@
 #include "rom.h"
 #include "lcd.h"
 #include<string>
-#include<vector>
 
 enum INT_TYPE {
     NONE = 0,
@@ -17,6 +16,7 @@ enum INT_TYPE {
 class memmap {
 public:
     memmap(const std::string& filename, const std::string& fw_file);
+    void dump_tiles();
     //read: rw==false, write: rw==true
 //    void map(int addr, void * val, int size, bool rw);
     void read(int addr, void * val, int size, int cycle);
@@ -42,9 +42,9 @@ public:
 private:
     lcd screen;
     rom cart;
-    std::vector<uint8_t> wram;
-    std::vector<uint8_t> hram;
-    std::vector<uint8_t> oam;
+    Vect<uint8_t> wram;
+    Vect<uint8_t> hram;
+    Vect<uint8_t> oam;
     static const uint8_t dmg_firmware[256];
 
     int_flags int_enabled; //0xffff interrupt enable/disable flags

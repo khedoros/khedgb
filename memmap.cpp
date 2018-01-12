@@ -27,12 +27,18 @@ const uint8_t memmap::dmg_firmware[256] = {
 
 memmap::memmap(const std::string& rom_filename, const std::string& fw_file) : 
                                                   screen(), cart(rom_filename, fw_file),
-                                                  wram(0x2000), hram(0x7f), oam(0xa0),
                                                   int_enabled{false,false,false,false,false},
                                                   int_requested{false,false,false,false,false},
                                                   last_int_frame(0)
 {
+    wram.resize(0x2000);
+    hram.resize(0x7f);
+    oam.resize(0xa0);
 
+}
+
+void memmap::dump_tiles() {
+    screen.dump_tiles();
 }
 
 void memmap::read(int addr, void * val, int size, int cycle) {
@@ -60,6 +66,10 @@ void memmap::read(int addr, void * val, int size, int cycle) {
     }
     else if (addr >= 0xff00 && addr < 0xff80) {
         switch(addr) {
+        case 0xff00:
+            *((uint8_t *)val) = 0xff;
+            printf("Stubbed out read to gamepad (not implemented yet)\n");
+            break;
         case 0xff44:
             *((uint8_t *)val) = (cycle / 114);
             break;
@@ -71,7 +81,8 @@ void memmap::read(int addr, void * val, int size, int cycle) {
                 std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             }
             else if(addr == 0xff0f) {
-                std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+                *((uint8_t *)val) = int_requested.reg;
+                //std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             }
             else if(addr > 0xff0f && addr < 0xff3f) {
                 std::cout<<"Read from audio hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
@@ -92,7 +103,8 @@ void memmap::read(int addr, void * val, int size, int cycle) {
         memcpy(val, &(hram[addr - 0xff80]), size);
     }
     else if (addr == 0xffff) {
-        std::cerr<<"Attempted read of write-only register?"<<std::endl;
+        //std::cerr<<"Attempted read of write-only register?"<<std::endl;
+        *((uint8_t *)val) = int_enabled.reg;
     }
     else if (addr >= 0xffa0 && addr < 0xff00) {
         //"Not useable" RAM area; apparently returns 0 on DMG, 0 and random values on CGB
@@ -139,7 +151,7 @@ void memmap::write(int addr, void * val, int size, int cycle) {
         else if(addr == 0xff0f) {
             assert(size == 1);
             int_requested.reg = *((uint8_t *)val);
-            printf("Interrupts requested: %02X\n",int_requested.reg);
+            //printf("Interrupts requested: %02X\n",int_requested.reg);
             //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         }
         else if(addr > 0xff0f && addr < 0xff3f) {
@@ -162,7 +174,7 @@ void memmap::write(int addr, void * val, int size, int cycle) {
     else if (addr == 0xffff) {
         assert(size == 1);
         int_enabled.reg = *((uint8_t *)val);
-        printf("Interrupts enabled: %02X\n",int_enabled.reg);
+        //printf("Interrupts enabled: %02X\n",int_enabled.reg);
         //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
     }
     else {
@@ -176,7 +188,7 @@ void memmap::render(int frame) {
 
 INT_TYPE memmap::get_interrupt() {
 
-    printf("get_interrupt requested: %02X enabled: %02X to fire: %02X\n", int_requested.reg, int_enabled.reg, (int_enabled.reg & int_requested.reg));
+    //printf("get_interrupt requested: %02X enabled: %02X to fire: %02X\n", int_requested.reg, int_enabled.reg, (int_enabled.reg & int_requested.reg));
     if(int_enabled.vblank && int_requested.vblank)        {int_requested.vblank = 0;  return VBLANK; }
     else if(int_enabled.lcdstat && int_requested.lcdstat) {int_requested.lcdstat = 0; return LCDSTAT;}
     else if(int_enabled.timer && int_requested.timer)     {int_requested.timer = 0;   return TIMER;  }
@@ -187,10 +199,16 @@ INT_TYPE memmap::get_interrupt() {
 
 void memmap::update_interrupts(uint32_t frame, uint32_t cycle) {
     //VBLANK
-    if(frame > last_int_frame && cycle >= 144*114) {int_requested.vblank = 1; last_int_frame = frame; printf("vbl set active, frame %d, cycle %d\n", frame, cycle);}
+    if(frame > last_int_frame && cycle >= 144*114) {
+        int_requested.vblank = 1; 
+        last_int_frame = frame; 
+        //printf("vbl set active, frame %d, cycle %d\n", frame, cycle);
+    }
 
     //LCDSTAT
-    if(screen.interrupt_triggered(frame, cycle)) {int_requested.lcdstat = 1;}
+    if(screen.interrupt_triggered(frame, cycle)) {
+        int_requested.lcdstat = 1;
+    }
 
     /*
     //TIMER

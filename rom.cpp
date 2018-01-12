@@ -2,7 +2,8 @@
 #include<fstream>
 #include<iostream>
 
-rom::rom(const std::string& rom_filename, const std::string& firmware_filename = "") : cram(0), valid(false) {
+rom::rom(const std::string& rom_filename, const std::string& firmware_filename = "") : valid(false) {
+    cram.resize(0);
     firmware = false;
     //Take input of the actual ROM data
     std::ifstream in(rom_filename.c_str());

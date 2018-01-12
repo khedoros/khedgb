@@ -1,9 +1,10 @@
 #pragma once
 
-#include<vector>
+//#include<vector>
 #include<string>
 #include<cstring>
 #include<cstdint>
+#include "util.h"
 
 enum map_type {
     MAP_NONE,
@@ -59,10 +60,10 @@ class rom {
         
     protected:
         void disable_firmware();
-        std::vector<uint8_t> firmware_data;
-        std::vector<uint8_t> rom_data;
-        std::vector<uint8_t> rom_backup;
-        std::vector<uint8_t> cram;
+        Vect<uint8_t> firmware_data;
+        Vect<uint8_t> rom_data;
+        Vect<uint8_t> rom_backup;
+        Vect<uint8_t> cram;
         header h;
         mapper * map;
 };

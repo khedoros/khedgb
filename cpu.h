@@ -57,7 +57,7 @@ private:
     void registers();
 
     INT_TYPE check_interrupts();
-    void call_interrupts();
+    bool call_interrupts(); //Returns true if an interrupt is called
 
     struct regpair {
         union {

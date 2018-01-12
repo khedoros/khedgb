@@ -26,6 +26,7 @@ cpu::cpu(memmap * b, bool has_firmware): bus(b),
     }
     else {
         pc = 0x100;
+        sp = 0xfffe;
     }
 }
 
@@ -94,13 +95,13 @@ int cpu::dec_and_exe(uint32_t opcode) {
     if(!halted && !stopped) {
         pc += bytes;
     }
-    if(halted) printf("Halted!\n");
-    if(stopped) printf("Stopped!\n");
+
     cycles += execute(prefix,x,y,z,data);
 
     bus->update_interrupts(frame,cycle+cycles);
     if(interrupts) { //IME
-        call_interrupts();
+        bool called = call_interrupts();
+        if(called) cycles += 5;
     }
 
     return cycles;
@@ -1032,7 +1033,13 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 else      set(ZERO_FLAG);
                 break;
             case 6: //SWAP
-
+                if(!(*r[z])) set(ZERO_FLAG);
+                else clear(ZERO_FLAG);
+                {
+                    uint8_t top=(((*r[z])&0xf0)>>(4));
+                    uint8_t bottom=(((*r[z])&0x0f)<<(4));
+                    *r[z]=(top|bottom);
+                }
                 break;
             case 7: //SRL
                 if((*r[z]) & BIT0) {
@@ -1051,8 +1058,9 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             if(z==6) {
                 bus->write(hl.pair, &dummy, 1, cycle);
             }
+            /*
             if(y>=4)
-                printf("%s %s %s\n", rot[y], r[z], (y==6)?"(diff)":"");
+                printf("%s %s %s\n", rot[y], r[z], (y==6)?"(diff)":"");*/
         }
         else if(x==1) {
             if(z==6) {
@@ -1158,7 +1166,7 @@ void cpu::registers() {
             pc,af.hi,bc.hi,bc.low,de.hi,de.low,hl.hi,hl.low,sp,af.low);
 }
 
-void cpu::call_interrupts() {
+bool cpu::call_interrupts() {
     INT_TYPE interrupt = bus->get_interrupt();
     bool call = true;
     uint16_t to_run = pc;
@@ -1189,4 +1197,5 @@ void cpu::call_interrupts() {
         //Jump to interrupt handler
         pc = to_run;
     }
+    return call;
 }
