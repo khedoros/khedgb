@@ -21,7 +21,8 @@ public:
 //    void map(int addr, void * val, int size, bool rw);
     void read(int addr, void * val, int size, int cycle);
     void write(int addr, void * val, int size, int cycle);
-    INT_TYPE get_interrupt(uint32_t frame, uint32_t cycle);
+    INT_TYPE get_interrupt();
+    void update_interrupts(uint32_t frame, uint32_t cycle);
     //void map(int addr, void * const val, int size, bool rw);
     void  render(int f);
     bool has_firmware();

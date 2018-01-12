@@ -51,7 +51,9 @@ void memmap::read(int addr, void * val, int size, int cycle) {
         memcpy(val, &(wram[addr-0xc000]), size);
     }
     else if (addr >= 0xe000 && addr < 0xfe00) {
-        std::cerr<<"Read from forbidden zone! 0x"<<std::hex<<addr<<" bzzzzzzt"<<std::endl;
+        addr -= 0x2000;
+        memcpy(val, &(wram[addr-0xc000]), size);
+        //std::cerr<<"Read from forbidden zone! 0x"<<std::hex<<addr<<" bzzzzzzt"<<std::endl;
     }
     else if (addr >= 0xfe00 && addr < 0xfea0) {
         memcpy(val, &(oam[addr - 0xfe00]), size);
@@ -119,8 +121,10 @@ void memmap::write(int addr, void * val, int size, int cycle) {
     else if (addr >= 0xc000 && addr < 0xe000) {
         memcpy(&(wram[addr-0xc000]), val, size);
     }
-    else if (addr >= 0xe000 && addr < 0xfe00) {
-        std::cerr<<"Wrote to forbidden zone! 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" bzzzzzzt"<<std::endl;
+    else if (addr >= 0xe000 && addr < 0xfe00) { //"ECHO RAM"
+        addr -= 0x2000;
+        memcpy(&(wram[addr-0xc000]), val, size);
+        //std::cerr<<"Wrote to forbidden zone! 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" bzzzzzzt"<<std::endl;
     }
     else if (addr >= 0xfe00 && addr < 0xfea0) {
         memcpy(&(oam[addr - 0xfe00]), val, size);
@@ -170,21 +174,7 @@ void memmap::render(int frame) {
     screen.render(frame);
 }
 
-INT_TYPE memmap::get_interrupt(uint32_t frame, uint32_t cycle) {
-    //VBLANK
-    if(frame > last_int_frame && cycle >= 144*114) {int_requested.vblank = 1; last_int_frame = frame;}
-
-    //LCDSTAT
-    if(screen.interrupt_triggered(frame, cycle)) {int_requested.lcdstat = 1;}
-
-    //TIMER
-    if(int_enabled.timer) { printf("Warning: timer interrupt enabled, but not implemented yet.\n");}
-
-    //SERIAL
-    if(int_enabled.serial) { printf("Warning: serial interrupt enabled, but not implemented yet.\n");}
-
-    //JOYPAD
-    if(int_enabled.joypad) { printf("Warning: joypad interrupt enabled, but not implemented yet.\n");}
+INT_TYPE memmap::get_interrupt() {
 
     printf("get_interrupt requested: %02X enabled: %02X to fire: %02X\n", int_requested.reg, int_enabled.reg, (int_enabled.reg & int_requested.reg));
     if(int_enabled.vblank && int_requested.vblank)        {int_requested.vblank = 0;  return VBLANK; }
@@ -193,6 +183,25 @@ INT_TYPE memmap::get_interrupt(uint32_t frame, uint32_t cycle) {
     else if(int_enabled.serial && int_requested.serial)   {int_requested.serial = 0;  return SERIAL; }
     else if(int_enabled.joypad && int_requested.joypad)   {int_requested.joypad = 0;  return JOYPAD; }
     else {return NONE;}
+}
+
+void memmap::update_interrupts(uint32_t frame, uint32_t cycle) {
+    //VBLANK
+    if(frame > last_int_frame && cycle >= 144*114) {int_requested.vblank = 1; last_int_frame = frame; printf("vbl set active, frame %d, cycle %d\n", frame, cycle);}
+
+    //LCDSTAT
+    if(screen.interrupt_triggered(frame, cycle)) {int_requested.lcdstat = 1;}
+
+    /*
+    //TIMER
+    if(int_enabled.timer) { printf("Warning: timer interrupt enabled, but not implemented yet.\n");}
+
+    //SERIAL
+    if(int_enabled.serial) { printf("Warning: serial interrupt enabled, but not implemented yet.\n");}
+
+    //JOYPAD
+    if(int_enabled.joypad) { printf("Warning: joypad interrupt enabled, but not implemented yet.\n");}
+    */
 }
 
 bool memmap::has_firmware() {

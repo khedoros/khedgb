@@ -94,9 +94,14 @@ int cpu::dec_and_exe(uint32_t opcode) {
     if(!halted && !stopped) {
         pc += bytes;
     }
+    if(halted) printf("Halted!\n");
+    if(stopped) printf("Stopped!\n");
     cycles += execute(prefix,x,y,z,data);
 
-    call_interrupts();
+    bus->update_interrupts(frame,cycle+cycles);
+    if(interrupts) { //IME
+        call_interrupts();
+    }
 
     return cycles;
 }
@@ -1154,7 +1159,7 @@ void cpu::registers() {
 }
 
 void cpu::call_interrupts() {
-    INT_TYPE interrupt = bus->get_interrupt(frame, cycle);
+    INT_TYPE interrupt = bus->get_interrupt();
     bool call = true;
     uint16_t to_run = pc;
     switch(interrupt) {
@@ -1172,6 +1177,8 @@ void cpu::call_interrupts() {
             call = false;
     }
     if(call) {
+        halted = false;
+        stopped = false;
         //push pc
         bus->write(sp-2, &pc, 2, cycle);
         sp -= 2;
