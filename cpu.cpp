@@ -364,15 +364,19 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     uint8_t lo=(af.hi & 0xf);
                     bool valid = true;
                     uint8_t diff = 0;
-                    if(lo>9||hc()) diff = 6;
-                    if(hi>9||carry()) {
+                    if(lo>9||hc()) diff = 6; //lower nibble needs correction
+                    if(hi>9||carry()) {      //Higher nibble needs correction
                         diff += 0x60;
                         set(CARRY_FLAG);
                     }
-                    else {
+                    else if(hi>8 && (lo > 9 || hc())) { //Higher nibble *will* need correction after carry from corrected lower nibble
+                        diff += 0x60;
+                        set(CARRY_FLAG);
+                    }
+                    else { //Nothing corrected in the upper nibble
                         clear(CARRY_FLAG);
                     }
-                    if(!sub()) {
+                    if(!sub()) { //Apply the diff. Add it, if the last op was add, subtract if last was sub.
                         af.hi += diff;
                     }
                     else {
