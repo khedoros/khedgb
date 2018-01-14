@@ -363,6 +363,24 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     uint8_t hi=(af.hi>>(4));
                     uint8_t lo=(af.hi & 0xf);
                     bool valid = true;
+                    uint8_t diff = 0;
+                    if(lo>9||hc()) diff = 6;
+                    if(hi>9||carry()) {
+                        diff += 0x60;
+                        set(CARRY_FLAG);
+                    }
+                    else {
+                        clear(CARRY_FLAG);
+                    }
+                    if(!sub()) {
+                        af.hi += diff;
+                    }
+                    else {
+                        af.hi -= diff;
+                    }
+
+                    /*  This is the version of the instruction that I came up with based on official docs. 
+                     *  The current version is much cleaner and easier to understand. It certainly seems like it has the same output, too.
                     if(!sub()) { //Addition operation
                         if(!carry()) {
                             if(!hc()) {
@@ -412,7 +430,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                             }
                         }
                     }
-                    if(!valid) printf("DAA is confused.\n");
+                    if(!valid) printf("DAA is confused.\n");*/
                     }
                     //printf("DAA\n");
                     break;
