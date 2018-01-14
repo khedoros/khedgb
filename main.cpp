@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     int count = 0;
     while(count = proc.run()) {
         std::cout<<"Frame: "<<proc.frame<<std::endl;
-        if(proc.frame == 2000) break;
+        //if(proc.frame == 2000) break;
         //bus.render(proc.frame);
     }
     bus.dump_tiles();

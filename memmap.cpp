@@ -95,7 +95,8 @@ void memmap::read(int addr, void * val, int size, int cycle) {
                 std::cout<<"Read from CGB DMA/RAM: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             }
             else {
-                std::cout<<"Read from unknown mem-mapped hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+                memset(val, 0xff, size);
+                std::cout<<"Read from unknown mem-mapped hardware: 0x"<<std::hex<<addr<<" (assuming it would read 0xff)"<<std::endl;
             }
         }
     }
@@ -158,7 +159,18 @@ void memmap::write(int addr, void * val, int size, int cycle) {
             std::cout<<"Write to audio hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         }
         else if(addr > 0xff3f && addr < 0xff4c) {
-            screen.write(addr, val, size, cycle);
+            if(addr == 0xff46) { //OAM DMA
+                int dat = 0; //uint16_t(*((uint8_t *)val)) * 0x100;
+                if(dat < 0xf100) {
+                //dat is between 0x00 and 0xf1, so that covers: ROM (00 to 7f), vram (80 to 9f), cram (a0-bf), wram (c0-df), wram_echo (e0-f1)
+                    uint8_t temp[0xa0];
+                    read(dat, (void *)(&temp[0]), 0xa0, cycle);
+                    write((int)0xfe00, (void *)(&temp[0]), 0xa0, cycle);
+                }
+            }
+            else {
+                screen.write(addr, val, size, cycle);
+            }
             //std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         }
         else if(addr > 0xff4e && addr < 0xff6c) { //0xff50 is handled up above

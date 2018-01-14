@@ -50,7 +50,8 @@ int cpu::run() {
             running = false;
         }
     }
-    bus->render(frame);
+    if(!(frame % 10))
+        bus->render(frame);
     return cycle+17556;
 }
 
@@ -933,7 +934,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             case 0x7:
                 bus->write(sp-2, &pc, 2, cycle);
                 sp -= 2;
-                pc = data * 8;
+                pc = y * 8;
                 //printf("RST %02X\n", y*8);
                 break;
             }
