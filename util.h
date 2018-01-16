@@ -1,6 +1,8 @@
 #pragma once
 #include<vector>
 
+class memmap;
+
 namespace util {
 template<typename T>
 class RangeCheckVector : public std::vector<T> {
@@ -14,6 +16,7 @@ class RangeCheckVector : public std::vector<T> {
         }
 };
 
+void process_events(memmap * bus);
 }
 
 #define Vect util::RangeCheckVector

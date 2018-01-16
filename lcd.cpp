@@ -8,6 +8,43 @@
 lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0), m1_last_frame(0), m2_last_line(0), m2_last_frame(0), m0_last_line(0), m0_last_frame(0) {
     control.val = 0;
     vram.resize(0x2000);
+
+    /* Initialize the SDL library */
+    screen = SDL_CreateWindow("KhedGB",
+            SDL_WINDOWPOS_CENTERED,
+            SDL_WINDOWPOS_CENTERED,
+            320, 288,
+            SDL_WINDOW_RESIZABLE);
+    if ( screen == NULL ) {
+        fprintf(stderr, "Couldn't set 320x240x8 video mode: %s\nStarting without video output.\n",
+                SDL_GetError());
+        //exit(1);
+        return;
+    }
+
+    SDL_SetWindowMinimumSize(screen, 320, 288);
+    cur_x_res=160;
+    cur_y_res=144;
+
+    renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED/*|SDL_RENDERER_PRESENTVSYNC*/);
+    //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
+    //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE|SDL_RENDERER_PRESENTVSYNC);
+    //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE/*|SDL_RENDERER_PRESENTVSYNC*/);
+    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,SDL_TEXTUREACCESS_STREAMING,160,144);
+
+    assert(renderer && texture);
+
+    buffer = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
+    overlay = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
+    lps = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
+    hps = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
+    win = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
+    bg = SDL_CreateRGBSurface(0,512,512,8,0,0,0,0);
+
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+    SDL_RenderClear(renderer);
+    SDL_RenderPresent(renderer);
+
 }
 
 void lcd::write(int addr, void * val, int size, int cycle) {

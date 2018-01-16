@@ -2,6 +2,7 @@
 
 #include<cstdint>
 //#include<vector>
+#include<SDL2/SDL.h>
 #include "util.h"
 
 /*
@@ -34,6 +35,7 @@ public:
     void read(int addr, void * val, int size, int cycle);
     void render(int frame);
     bool interrupt_triggered(uint32_t frame, uint32_t cycle);
+
 private:
     Vect<uint8_t> vram;
     union dmgpal {
@@ -80,4 +82,20 @@ private:
     uint32_t m2_last_frame;
     uint32_t m0_last_line;
     uint32_t m0_last_frame;
+
+    int cur_x_res;
+    int cur_y_res;
+
+    SDL_Window * screen;
+    SDL_Renderer * renderer;
+
+    SDL_Surface * buffer; //Output buffer
+    SDL_Texture * texture; //Texture used for output
+
+    SDL_Surface * overlay; //overlay surface
+    SDL_Surface * lps; //Low-priority sprite compositing buffer
+    SDL_Surface * bg; //Background compositing buffer
+    SDL_Surface * win; //Floating window compositing buffer
+    SDL_Surface * hps; //High-priority sprite compositing buffer
+
 };
