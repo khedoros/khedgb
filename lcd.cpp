@@ -116,6 +116,7 @@ void lcd::render(int frame) {
                     " window map: "<<control.window_map<<
                     " display on: "<<control.display_enable<<std::endl;
     std::ofstream vid((std::to_string(frame)+".pgm").c_str());
+    //std::ofstream vid("frame.pgm");
     vid<<"P5\n256 256\n3\n";
     uint8_t buffer[256][256];
     uint32_t bgbase = 0x1800;
@@ -123,14 +124,18 @@ void lcd::render(int frame) {
     for(int xtile=0;xtile<32;xtile++) {
         for(int ytile=0;ytile<32;ytile++) {
             int tilenum = vram[bgbase+ytile*32+xtile];
+            if(control.tile_addr_mode) {
+                tilenum = 256 + int8_t(tilenum);
+            }
             int base = tilenum*16;
             for(int yp=0;yp<8;yp++) {
                 int b1=vram[base+yp*2];
+                int b2=vram[base+yp*2+1];
                 int shift=128;
                 for(int xp=0;xp<8;xp++) {
-                    int c=(b1 & shift)/shift;
+                    int c=(b1 & shift)/shift + 2*((b2&shift)/shift);
                     assert(c==0||c==1||c==2||c==3);
-                    buffer[ytile*8+yp][xtile*8+xp]=c;
+                    buffer[ytile*8+yp][xtile*8+xp]=3-c;
                     shift/=2;
                 }
             }
@@ -184,24 +189,25 @@ bool lcd::interrupt_triggered(uint32_t frame, uint32_t cycle) {
 void lcd::dump_tiles() {
     std::ofstream vid(std::string("frame-dead.pgm").c_str());
     vid<<"P5\n192 128\n3\n";
-    uint8_t buffer[192][128];
-    for(int xtile=0;xtile<24;xtile++) {
-        for(int ytile=0;ytile<16;ytile++) {
-            int base = (xtile + ytile * 24)*16;
+    uint8_t buffer[128][192];
+    for(int ytile=0;ytile<16;ytile++) {
+        for(int xtile=0;xtile<24;xtile++) {
+            int base = (xtile *16 + ytile)*16;
             for(int yp=0;yp<8;yp++) {
                 int b1=vram[base+yp*2];
+                int b2=vram[base+yp*2+1];
                 int shift=128;
                 for(int xp=0;xp<8;xp++) {
-                    int c=(b1 & shift)/shift;
+                    int c=(b1 & shift)/shift + 2*((b2 & shift)/shift);
                     assert(c==0||c==1||c==2||c==3);
-                    buffer[xtile*8+xp][ytile*8+yp]=c;
+                    buffer[ytile*8+yp][xtile*8+xp]=3-c;
                     shift/=2;
                 }
             }
         }
     }
-    for(int i=0;i<192;i++) {
-        vid.write(reinterpret_cast<char *>(&buffer[i][0]),128);
+    for(int i=0;i<128;i++) {
+        vid.write(reinterpret_cast<char *>(&buffer[i][0]),192);
     }
     vid.close();
 }

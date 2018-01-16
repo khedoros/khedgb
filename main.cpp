@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
         std::cout<<"Frame: "<<proc.frame<<std::endl;
         //if(proc.frame == 2000) break;
         //bus.render(proc.frame);
+        //bus.dump_tiles();
     }
-    bus.dump_tiles();
     return 0;
 }

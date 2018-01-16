@@ -50,7 +50,7 @@ int cpu::run() {
             running = false;
         }
     }
-    if(!(frame % 10))
+    if(!(frame % 100))
         bus->render(frame);
     return cycle+17556;
 }
@@ -571,13 +571,13 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 clear(CARRY_FLAG);
                 break;
             case 7: //CP
-                if((af.hi & 0xf) - (*(r[z]) & 0xf) >= 0x10) {
+                if(uint8_t(uint8_t(af.hi & 0xf) - uint8_t(*(r[z]) & 0xf)) >= 0x10) {
                     set(HALF_CARRY_FLAG);
                 }
                 else {
                     clear(HALF_CARRY_FLAG);
                 }
-                if(uint16_t(af.hi) - uint16_t(*(r[z])) >= 0x100) {
+                if(uint16_t(uint16_t(af.hi) - uint16_t(*(r[z]))) >= 0x100) {
                     set(CARRY_FLAG);
                 }
                 else {
@@ -922,13 +922,13 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     clear(CARRY_FLAG);
                     break;
                 case 7: //CP
-                    if((af.hi & 0xf) - (data & 0xf) >= 0x10) {
+                    if(uint8_t(uint8_t(af.hi & 0xf) - uint8_t(data & 0xf)) >= 0x10) {
                         set(HALF_CARRY_FLAG);
                     }
                     else {
                         clear(HALF_CARRY_FLAG);
                     }
-                    if(uint16_t(af.hi) - uint16_t(data) >= 0x100) {
+                    if(uint16_t(uint16_t(af.hi) - uint16_t(data)) >= 0x100) {
                         set(CARRY_FLAG);
                     }
                     else {
