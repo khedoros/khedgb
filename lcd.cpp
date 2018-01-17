@@ -6,7 +6,7 @@
 #include<string>
 
 lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0), m1_last_frame(0), m2_last_line(0), m2_last_frame(0), m0_last_line(0), m0_last_frame(0) {
-    control.val = 0;
+    control.val = 0x91;
     vram.resize(0x2000);
 
     /* Initialize the SDL library */
@@ -132,6 +132,7 @@ void lcd::read(int addr, void * val, int size, int cycle) {
 }
 
 void lcd::render(int frame) {
+    return;
     bool zero=true;
     for(int i=0;i<0x1800;i++) {
         if(vram[i]) zero = false;

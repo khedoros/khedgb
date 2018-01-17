@@ -144,6 +144,15 @@ void memmap::write(int addr, void * val, int size, int cycle) {
     }
     else if (addr >= 0xff00 && addr < 0xff80) {
         if(addr < 0xff03) {
+            if(addr == 0xff01) {
+                link_data = *((uint8_t *)val);
+            }
+            else if(addr == 0xff02) {
+                int cmd = *((uint8_t *)val);
+                if(cmd == 0x81) {
+                    std::cout<<"Blarg: "<<link_data<<std::endl;
+                }
+            }
             std::cout<<"Write to gamepad/link cable: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         }
         else if(addr > 0xff03 && addr < 0xff08) {

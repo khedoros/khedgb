@@ -50,6 +50,7 @@ private:
     int_flags int_enabled; //0xffff interrupt enable/disable flags
     int_flags int_requested; //0xff0f interrupt requested flags
     uint32_t last_int_frame;
+    uint8_t link_data;
 };
 /*
  * 0x0000-0x3FFF: Permanently-mapped ROM bank.

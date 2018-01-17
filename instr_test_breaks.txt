@@ -1,0 +1,7 @@
+Blarg: 01-special  0x27 is DAA
+Blarg: 03-op sp,hl  E8 is ADD SP, r8    F8 is LD HL, SP+r8
+Blarg: 04-op r,imm  CE is ADC A, d8   DE is SBC A, d8
+Blarg: 07-jr,jp,call,ret,rst  C2 is JP NZ,a16    CA is JP Z,a16     D2 is JP NC,a16   DA is JP C,a16
+Blarg: 09-op r,r  88-8F are ADC A,B  98-9F are SBC A,B    CB30-37 are SWAP reg
+Blarg: 10-bit ops  CB40-CB7F are BIT x,reg
+Blarg: 11-op a,(hl)  8E is ADC A,(HL)    9E is SBC A,(HL)  27 is DAA
