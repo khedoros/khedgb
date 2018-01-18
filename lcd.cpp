@@ -118,11 +118,20 @@ void lcd::read(int addr, void * val, int size, int cycle) {
                 if(lyc == line) {
                     mode += 4;
                 }
-                *((uint8_t *)val) = mode | status;
+                *((uint8_t *)val) = mode | status | 0x80;
                 }
                 break;
             case 0xff42:
                 *((uint8_t *)val) = bg_scroll_y;
+                break;
+            case 0xff43:
+                *((uint8_t *)val) = bg_scroll_x;
+                break;
+            case 0xff4a:
+                *((uint8_t *)val) = win_scroll_y;
+                break;
+            case 0xff4b:
+                *((uint8_t *)val) = win_scroll_x;
                 break;
             default:
                 std::cout<<"Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;

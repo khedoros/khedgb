@@ -258,6 +258,10 @@ mbc1_rom::mbc1_rom(int rom_size, int ram_size, bool has_bat) : mapper(rom_size, 
     bank.rom_bank = 1; //also sets RAM bank to 0
 }
 uint32_t mbc1_rom::map_rom(uint32_t addr, int cycle) {
+    if(addr<0x4000) {
+        return addr;
+    }
+
     addr -= 0x4000;
     if(!mode) { //ROM banking
         addr+=(uint32_t(bank.rom_bank) * 0x4000);
