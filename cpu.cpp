@@ -123,48 +123,48 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
     int extra_cycles = 0;
     bool condition=false;
     if(!pre) {
-        if(x==0) {
+        if(x==0) { //0x00 - 0x3f
             switch(z) {
             case 0x0:
                 switch(y) {
-                case 0x0: //NOP
+                case 0x0: //NOP 0x00
                     //printf("NOP\n");
                     break;
-                case 0x1:
+                case 0x1: //0x08
                     //Different than Z80
                     bus->write(data, &sp, 2, cycle);
                     //printf("LD ($%04x), SP (diff)\n",data);
                     break;
-                case 0x2:
+                case 0x2: //0x10
                     //Different than Z80
                     halted = true;
                     stopped = true;
-                    printf("STOP 0 (diff)\n");
+                    //printf("STOP 0 (diff)\n");
                     break;
-                case 0x3:
+                case 0x3: //0x18
                     data = extend(data);
                     pc += data;
                     //printf("JR $%02x\n",data);
                     break;
-                default: /* 4..7 */
+                default: // 4..7 conditional relative jumps, 0x20, 0x28, 0x30, 0x38
                     data = extend(data);
                     switch(y-4) {
-                    case 0:
+                    case 0: //0x20
                         if(!zero()) {
                             condition = true;
                         }
                         break;
-                    case 1:
+                    case 1: //0x28
                         if(zero()) {
                             condition = true;
                         }
                         break;
-                    case 2:
+                    case 2: //0x30
                         if(!carry()) {
                             condition = true;
                         }
                         break;
-                    case 3:
+                    case 3: //0x38
                         if(carry()) {
                             condition = true;
                         }
@@ -179,18 +179,18 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 }
                 break;
             case 0x1:
-                if(!q) {
+                if(!q) { //16-bit loads, 0x01, 0x11, 0x21, 0x31
                     *rp[p] = data;
                     //printf("LD %s, $%04x\n",rp[p],data);
                 }
-                else {
+                else { //16-bit adds, 0x09, 0x19, 0x29, 0x39
                     if((hl.pair & 0xfff) + (*(rp[p]) & 0xfff) >= 0x1000) {
                         set(HALF_CARRY_FLAG);
                     }
                     else {
                         clear(HALF_CARRY_FLAG);
                     }
-                    if(uint32_t(hl.pair) + uint32_t(*(rp[p])) >= 0x10000) {
+                    if(uint32_t(uint32_t(hl.pair) + uint32_t(*(rp[p]))) >= 0x10000) {
                         set(CARRY_FLAG);
                     }
                     else {
@@ -204,36 +204,36 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 }
                 break;
             case 0x2:
-                switch(p) {
-                case 0x0:
-                    if(!q) {
+                switch(p) { //Memory reads+writes, 0x02, 0x0a, 0x12, 0x1a, 0x22, 0x2a, 0x32, 0x3a
+                case 0x0: 
+                    if(!q) { //0x02
                         bus->write(bc.pair, &af.hi, 1, cycle);
                         //printf("LD (BC), A\n");
                     }
-                    else {
+                    else { //0x0a
                         bus->read(bc.pair, &af.hi, 1, cycle);
                         //printf("LD A, (BC)\n");
                     }
                     break;
                 case 0x1:
-                    if(!q) {
+                    if(!q) { //0x12
                         bus->write(de.pair, &af.hi, 1, cycle);
                         //printf("LD (DE), A\n");
                     }
-                    else {
+                    else { //0x1a
                         bus->read(de.pair, &af.hi, 1, cycle);
                         //printf("LD A, (DE)\n");
                     }
                     break;
                 case 0x2:
-                    if(!q) {
+                    if(!q) { //0x22
                         //Different than z80
                         //printf("LD (nn), HL\n");
                         bus->write(hl.pair, &af.hi, 1, cycle);
                         hl.pair++;
                         //printf("LDI (HL), A (diff)\n");
                     }
-                    else {
+                    else { //0x2a
                         //Different than z80
                         //printf("LD HL, (nn)\n");
                         bus->read(hl.pair, &af.hi, 1, cycle);
@@ -242,14 +242,14 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     }
                     break;
                 case 0x3:
-                    if(!q) {
+                    if(!q) { //0x32
                         //Different than z80
                         //printf("LD (nn), A\n");
                         bus->write(hl.pair, &af.hi, 1, cycle);
                         hl.pair--;
                         //printf("LDD (HL), A (diff)\n");
                     }
-                    else {
+                    else { //0x3a
                         //Different than z80
                         //printf("LD A, (nn)\n");
                         bus->read(hl.pair, &af.hi, 1, cycle);
@@ -259,48 +259,48 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 }
                 break;
-            case 0x3:
-                if(!q) {
+            case 0x3: //16-bit increments and decrements, 0x03, 0x0b, 0x13, 0x1b, 0x23, 0x2b, 0x3a, 0x3b
+                if(!q) { //increments, 0x03, 0x13, 0x23, 0x33
                     (*rp[p])++;
                     //printf("INC %s\n", rp[p]);
                 }
-                else {
+                else { //decrements, 0x0b, 0x1b, 0x2b, 0x3b
                     (*rp[p])--;
                     //printf("DEC %s\n", rp[p]);
                 }
                 break;
-            case 0x4:
-                if(y==6) bus->read(hl.pair, &dummy, 1, cycle);
+            case 0x4: //8-bit increments, 0x04, 0x0c, 0x14, 0x1c, 0x24, 0x2c, 0x34, 0x3c
+                if(y==6) bus->read(hl.pair, &dummy, 1, cycle); //0x34 (x=0,y=6,z=4) is a memory increment
                 (*r[y])++;
-                if(*r[y] == 0) set(ZERO_FLAG);
-                else           clear(ZERO_FLAG);
-                if((*r[y] & 0xf) == 0) set(HALF_CARRY_FLAG);
-                else                   clear(HALF_CARRY_FLAG);
+                if((*r[y]) == 0) set(ZERO_FLAG);
+                else             clear(ZERO_FLAG);
+                if(((*r[y]) & 0xf) == 0) set(HALF_CARRY_FLAG); //0xf+1=0x10, so the bottom nibble produced a carry during the increment
+                else                     clear(HALF_CARRY_FLAG);
                 clear(SUB_FLAG);
-                if(y==6) bus->write(hl.pair, &dummy, 1, cycle);
+                if(y==6) bus->write(hl.pair, &dummy, 1, cycle); //0x34 (x=0,y=6,z=4) is a memory increment
                 //printf("INC %s\n", r[y]);
                 break;
-            case 0x5:
-                if(y==6) bus->read(hl.pair, &dummy, 1, cycle);
+            case 0x5: //8-bit memory decrements, 0x05, 0x0d, 0x15, 0x1d, 0x25, 0x2d, 0x35, 0x3d
+                if(y==6) bus->read(hl.pair, &dummy, 1, cycle); //0x35 (x=0,y=6,z=5) is a memory decrement
                 (*r[y])--;
-                if(*r[y] == 0) set(ZERO_FLAG);
-                else           clear(ZERO_FLAG);
-                if((*r[y] & 0xf) == 0xf) set(HALF_CARRY_FLAG);
-                else                     clear(HALF_CARRY_FLAG);
+                if((*r[y]) == 0) set(ZERO_FLAG);
+                else             clear(ZERO_FLAG);
+                if(((*r[y]) & 0xf) == 0xf) set(HALF_CARRY_FLAG); //0x10-1=0x0f, so the bottom nibble needed to borrow during the decrement
+                else                       clear(HALF_CARRY_FLAG);
                 set(SUB_FLAG);
-                if(y==6) bus->write(hl.pair, &dummy, 1, cycle);
+                if(y==6) bus->write(hl.pair, &dummy, 1, cycle); //0x35 (x=0,y=6,z=5) is a memory decrement
                 //printf("DEC %s\n", r[y]);
                 break;
-            case 0x6:
+            case 0x6: //8-bit immediate value loads, 0x06,0x0e,0x16,0x1e,0x26,0x2e,0x36,0x3e
                 *r[y] = data;
                 if(y==6) {
                     bus->write(hl.pair, &dummy, 1, cycle);
                 }
                 //printf("LD %s, $%02x\n", r[y],data);
                 break;
-            case 0x7:
-                switch(y) {
-                case 0x0:
+            case 0x7: 
+                switch(y) { //Some rotates and random flag operations, 0x07, 0x0f, 0x17, 0x1f, 0x27, 0x2f, 0x37, 0x3f
+                case 0x0: //RLCA: rotate left, putting bit7 into carry, 0x07
                     if(af.hi & BIT7) {
                         set(CARRY_FLAG);
                     }
@@ -314,7 +314,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     af.hi+=carry();
                     //printf("RLCA\n");
                     break;
-                case 0x1:
+                case 0x1: //RRCA: rotate right, putting bit0 into carry, 0x0f
                     if(af.hi & BIT0) {
                         set(CARRY_FLAG);
                     }
@@ -328,7 +328,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     af.hi+=carry()*BIT7;
                     //printf("RRCA\n");
                     break;
-                case 0x2:
+                case 0x2: //RLA: rotate left, taking carry into bit0, and putting bit7 into carry, 0x17
                     data = carry();
                     if(af.hi & BIT7) {
                         set(CARRY_FLAG);
@@ -343,7 +343,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     af.hi+=data;
                     //printf("RLA\n");
                     break;
-                case 0x3:
+                case 0x3: //RRA: rotate right, taking carry into bit7, and putting bit0 into carry, 0x1f
                     data = carry();
                     if(af.hi & BIT0) {
                         set(CARRY_FLAG);
@@ -358,7 +358,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     af.hi+=data*BIT7;
                     //printf("RRA\n");
                     break;
-                case 0x4:
+                case 0x4: //DAA: assuming last add/sub op was done on packed BCD values, correct the sum back to BCD, 0x27
                     {
                     uint8_t hi=(af.hi>>(4));
                     uint8_t lo=(af.hi & 0xf);
@@ -382,6 +382,10 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     else {
                         af.hi -= diff;
                     }
+
+                    if(af.hi == 0) set(ZERO_FLAG);
+                    else           clear(ZERO_FLAG);
+                    clear(HALF_CARRY_FLAG);
 
                     /*  This is the version of the instruction that I came up with based on official docs. 
                      *  The current version is much cleaner and easier to understand. It certainly seems like it has the same output, too.
@@ -438,19 +442,19 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     }
                     //printf("DAA\n");
                     break;
-                case 0x5:
+                case 0x5: //CPL, complement A register, 0x2f
                     set(HALF_CARRY_FLAG);
                     set(SUB_FLAG);
                     af.hi= ~(af.hi);
                     //printf("CPL\n");
                     break;
-                case 0x6:
+                case 0x6: //SCF, set carry flag, 0x37
                     clear(HALF_CARRY_FLAG);
                     clear(SUB_FLAG);
                     set(CARRY_FLAG);
                     //printf("SCF\n");
                     break;
-                case 0x7:
+                case 0x7: //CCF, complement carry flag, 0x3f
                     clear(HALF_CARRY_FLAG);
                     clear(SUB_FLAG);
                     if(carry()) {
@@ -465,12 +469,12 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 break;
             }
         }
-        else if(x==1) { //HALT and LD r,r' operations
-            if(y==6 && z==6) { //Copy from memory location to (same) memory location is replaced by HALT
+        else if(x==1) { //HALT and LD r,r' operations  0x40 - 0x7f
+            if(y==6 && z==6) { //Copy from memory location to (same) memory location is replaced by HALT, 0x76
                 halted = true;
                 //printf("HALT\n");
             }
-            else { //Fairly regular LD ops
+            else { //Fairly regular LD ops, 0x40 - 0x7f, except for 0x76
                 if(z == 6) { //read from memory to register
                     bus->read(hl.pair, &dummy, 1, cycle);
                 }
@@ -482,19 +486,19 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 //printf("LD %s, %s\n", r[y], r[z]);
             }
         }
-        else if(x==2) { //ALU operations
+        else if(x==2) { //ALU operations 0x80-0xbf
             if(z==6) { //These all have A as their destination, so there's no matching "write" call for memory operands here
                 bus->read(hl.pair,&dummy,1, cycle);
             }
             switch(y) {
-            case 0: //ADD
-                if((af.hi & 0xf) + (*(r[z]) & 0xf) >= 0x10) {
+            case 0: //ADD, no carry, 0x80 - 0x87
+                if((af.hi & 0xf) + ((*(r[z])) & 0xf) >= 0x10) {
                     set(HALF_CARRY_FLAG);
                 }
                 else {
                     clear(HALF_CARRY_FLAG);
                 }
-                if(uint16_t(af.hi) + uint16_t(*(r[z])) >= 0x100) {
+                if(uint16_t(uint16_t(af.hi) + uint16_t(*(r[z]))) >= 0x100) {
                     set(CARRY_FLAG);
                 }
                 else {
@@ -503,31 +507,32 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 af.hi += *(r[z]);
 
                 clear(SUB_FLAG);
+
                 break;
-            case 1: //ADC
-                if((af.hi & 0xf) + (*(r[z]) & 0xf)  + carry() >= 0x10) {
+            case 1: //ADC, with carry, 0x88 - 0x8f
+                if((af.hi & 0xf) + ((*(r[z])) & 0xf)  + carry() >= 0x10) {
                     set(HALF_CARRY_FLAG);
                 }
                 else {
                     clear(HALF_CARRY_FLAG);
                 }
-                if(uint16_t(af.hi) + uint16_t(*(r[z])) + carry() >= 0x100) {
+                if(uint16_t(uint16_t(af.hi) + uint16_t(*(r[z])) + uint16_t(carry())) >= 0x100) {
                     set(CARRY_FLAG);
                 }
                 else {
                     clear(CARRY_FLAG);
                 }
-                af.hi += *(r[z]) + carry();
+                af.hi += ((*(r[z])) + carry());
                 clear(SUB_FLAG);
                 break;
-            case 2: //SUB
-                if((af.hi & 0xf) - (*(r[z]) & 0xf) >= 0x10) {
+            case 2: //SUB, without borrow, 0x90 - 0x97
+                if((af.hi & 0xf) < ((*(r[z])) & 0xf)) {
                     set(HALF_CARRY_FLAG);
                 }
                 else {
                     clear(HALF_CARRY_FLAG);
                 }
-                if(uint16_t(af.hi) - uint16_t(*(r[z])) >= 0x100) {
+                if(uint16_t(uint16_t(af.hi) < uint16_t(*(r[z])))) {
                     set(CARRY_FLAG);
                 }
                 else {
@@ -536,54 +541,55 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 af.hi -= *(r[z]);
                 set(SUB_FLAG);
                 break;
-            case 3: //SBC
-                if((af.hi & 0xf) - (*(r[z]) & 0xf)  - carry() >= 0x10) {
+            case 3: //SBC, with borrow, 0x98 - 0x9f
+                if((af.hi & 0xf) < (((*(r[z])) & 0xf) + carry())) {
                     set(HALF_CARRY_FLAG);
                 }
                 else {
                     clear(HALF_CARRY_FLAG);
                 }
-                if(uint16_t(af.hi) - uint16_t(*(r[z])) - carry() >= 0x100) {
+                if(uint16_t(af.hi) < uint16_t(uint16_t(*(r[z])) + uint16_t(carry()))) {
                     set(CARRY_FLAG);
                 }
                 else {
                     clear(CARRY_FLAG);
                 }
-                af.hi -= *(r[z]) - carry();
+                af.hi -= *(r[z]);
+                af.hi -= carry();
                 set(SUB_FLAG);
                 break;
-            case 4: //AND
+            case 4: //AND, logical and, 0xa0 - 0xa7
                 af.hi &= *(r[z]);
                 clear(SUB_FLAG);
                 set(HALF_CARRY_FLAG);
                 clear(CARRY_FLAG);
                 break;
-            case 5: //XOR
+            case 5: //XOR, logical xor, 0xa8 - 0xaf
                 af.hi ^= *(r[z]);
                 clear(SUB_FLAG);
                 clear(HALF_CARRY_FLAG);
                 clear(CARRY_FLAG);
                 break;
-            case 6: //OR
+            case 6: //OR, logical or, 0xb0 - 0xb7
                 af.hi |= *(r[z]);
                 clear(SUB_FLAG);
                 clear(HALF_CARRY_FLAG);
                 clear(CARRY_FLAG);
                 break;
-            case 7: //CP
-                if(uint8_t(uint8_t(af.hi & 0xf) - uint8_t(*(r[z]) & 0xf)) >= 0x10) {
+            case 7: //CP, comparison by subtraction, 0xb8 - 0xbf
+                if((af.hi & 0xf) < ((*(r[z])) & 0xf)) {
                     set(HALF_CARRY_FLAG);
                 }
                 else {
                     clear(HALF_CARRY_FLAG);
                 }
-                if(uint16_t(uint16_t(af.hi) - uint16_t(*(r[z]))) >= 0x100) {
+                if(af.hi < (*(r[z]))) {
                     set(CARRY_FLAG);
                 }
                 else {
                     clear(CARRY_FLAG);
                 }
-                if(af.hi - (*r[z]) == 0) {
+                if(af.hi == (*r[z])) {
                     set(ZERO_FLAG);
                 }
                 else {
@@ -602,46 +608,52 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             }
             //printf("%s %s\n", alu[y], r[z]);
         }
-        else if(x==3) {
+        else if(x==3) { //0xc0 - 0xff
             switch(z) {
-            case 0x0:
+            case 0x0: //3 weird LD commands, 1 weird ADD, 4 conditional returns
                 switch(y) {
-                case 4:
-                    bus->write(0xff00 + data, &af.hi, 1, cycle);
+                case 4: //Write A to high memory address, 0xe0
+                    bus->write(0xff00 + uint16_t(data), &af.hi, 1, cycle);
                     //printf("LD (FF00+$%02x), A (diff)\n",data);
                     break;
-                case 5:
+                case 5://add 8-bit signed to SP, 0xe8
                     data = extend(data);
                     sp += data;
+                    clear(ZERO_FLAG);
+                    clear(SUB_FLAG);
                     //printf("ADD SP, $%02x (diff)\n",data);
+                    //TODO: Figure out correct carry behavior with this instruction
                     break;
-                case 6:
-                    bus->read(0xff00 + data, &af.hi, 1, cycle);
+                case 6: //Read from high memory address to A, 0xf0
+                    bus->read(0xff00 + uint16_t(data), &af.hi, 1, cycle);
                     //printf("LD A, (FF00+$%02x) (diff)\n",data);
                     break;
-                case 7:
+                case 7: //Transfer SP+8-bit signed to HL, 0xf8
                     data = extend(data);
                     hl.pair = sp + data;
+                    clear(ZERO_FLAG);
+                    clear(SUB_FLAG);
+                    //TODO: Figure out correct carry behavior with this instruction
                     //printf("LD HL, SP+$%02x (diff)\n",data);
                     break;
                 default:
                     switch(y) {
-                    case 0:
+                    case 0: //return if not zero, 0xc0
                         if(!zero()) {
                             condition = true;
                         }
                         break;
-                    case 1:
+                    case 1: //return if zero, 0xc8
                         if(zero()) {
                             condition = true;
                         }
                         break;
-                    case 2:
+                    case 2: //return if not carry, 0xd0
                         if(!carry()) {
                             condition = true;
                         }
                         break;
-                    case 3:
+                    case 3: //return if carry, 0xd8
                         if(carry()) {
                             condition = true;
                         }
@@ -656,52 +668,55 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 }
                 break;
-            case 0x1:
-                if(!q) {
+            case 0x1: //Weird POPs, RETs, and JPs 0xc1, 0xc9, 0xd1, 0xd9, 0xe1, 0xe9
+                if(!q) { //16-bit POP, 0xc1, 0xd1, 0xe1, 0xf1
                     bus->read(sp, rp2[p], 2, cycle);
                     sp += 2;
+                    if(p==3) {
+                        af.low &= 0xf0;
+                    }
                     //printf("POP %s\n", rp2[p]);
                 }
-                else {
+                else { //Jumps and stack ops, 0xc9, 0xd9, 0xe9, 0xf9
                     switch(p) {
-                    case 0x0:
+                    case 0x0: //standard RET, 0xc9
                         bus->read(sp, &pc, 2, cycle);
                         sp += 2;
                         //printf("RET\n");
                         break;
-                    case 0x1: //Different from z80
+                    case 0x1: //RET from interrupt, Different from z80, 0xd9
                         //printf("EXX\n");
                         bus->read(sp, &pc, 2, cycle);
                         sp+=2;
                         interrupts = true;
                         //printf("RETI (diff)\n");
                         break;
-                    case 0x2:
+                    case 0x2: //Jump to HL, 0xe9
                         pc = hl.pair;
                         //printf("JP HL\n");
                         break;
-                    case 0x3:
+                    case 0x3: //Set SP to HL, 0xf9
                         sp = hl.pair;
                         //printf("LD SP, HL\n");
                         break;
                     }
                 }
                 break;
-            case 0x2:
+            case 0x2: //Some weird LDs, conditional absolute jumps
                 switch(y) {
-                case 0x4:
-                    bus->write(0xff00 + bc.low, &af.hi,1, cycle);
+                case 0x4: //Write from A to IO port C, 0xe2
+                    bus->write(0xff00 + uint16_t(bc.low), &af.hi,1, cycle);
                     //printf("LD (FF00+C), A (diff)\n");
                     break;
-                case 0x5:
+                case 0x5: //Write A to memory location, 0xea
                     bus->write(data,&af.hi,1, cycle);
                     //printf("LD ($%04x), A (diff)\n",data);
                     break;
-                case 0x6:
-                    bus->read(0xff00 + bc.low, &af.hi,1, cycle);
+                case 0x6: //Read from IO port C to A, 0xf2
+                    bus->read(0xff00 + uint16_t(bc.low), &af.hi,1, cycle);
                     //printf("LD A, (FF00+C) (diff)\n");
                     break;
-                case 0x7:
+                case 0x7: //Read from memory location to A, 0xfa
                     bus->read(data,&af.hi,1, cycle);
                     //printf("LD A, ($%04x) (diff)\n",data);
                     break;
@@ -736,61 +751,61 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 }
                 break;
-            case 0x3:
+            case 0x3: //A Jump, a prefix, Interrupt flag control, and 4 dead ops
                 switch(y) {
-                case 0x0:
+                case 0x0: //0xc3
                     pc = data;
                     //printf("JP $%04x\n",data);
                     break;
-                case 0x1:
+                case 0x1: //0xcb
                     printf("CB Prefix\n");
                     break;
-                case 0x2: //Different from x80
+                case 0x2: //Different from z80, 0xd3
                     //printf("OUT (n), A\n");
                     printf("---- (diff)\n");
                     break;
-                case 0x3:
+                case 0x3: //Different from z80, 0xdb
                     //printf("IN A, (n)\n");
                     printf("---- (diff)\n");
                     break;
-                case 0x4: //Different from z80
+                case 0x4: //Different from z80, 0xe3
                     //printf("EX (SP), HL\n");
                     printf("---- (diff)\n");
                     break;
-                case 0x5: //Different from z80
+                case 0x5: //Different from z80, 0xeb
                     //printf("EX DE, HL\n");
                     printf("---- (diff)\n");
                     break;
-                case 0x6:
+                case 0x6: //Disable interrupts, 0xf3
                     //printf("X: %d Y: %d Z: %d ",x,y,z);
                     interrupts = false;
                     //printf("DI\n");
                     break;
-                case 0x7:
+                case 0x7: //Enable interrupts, 0xfb
                     interrupts = true;
                     //printf("EI\n");
                     break;
                 }
                 break;
-            case 0x4:
+            case 0x4: //Conditional calls and 4 dead ops, 0xc4, 0xcc, 0xd4, 0xdc
                 if(y<4) {
                     switch(y) {
-                    case 0:
+                    case 0: //0xc4
                         if(!zero()) {
                             condition = true;
                         }
                         break;
-                    case 1:
+                    case 1: //0xcc
                         if(zero()) {
                             condition = true;
                         }
                         break;
-                    case 2:
+                    case 2: //0xd4
                         if(!carry()) {
                             condition = true;
                         }
                         break;
-                    case 3:
+                    case 3: //0xdc
                         if(carry()) {
                             condition = true;
                         }
@@ -804,49 +819,40 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     }
                     //printf("CALL %s, $%04x\n", cc[y],data);
                 }
-                else {
+                else { //Dead ops, which I think were prefixes in Z80
                     printf("---- (diff)\n");
                 }
                 break;
-            case 0x5:
-                if(!q) {
+            case 0x5: //16-bit PUSHes, unconditional call to immediate address, 3 dead ops
+                if(!q) { //16-bit PUSH, 0xc5, 0xd5, 0xe5, 0xf5
                     bus->write(sp-2, rp2[p], 2, cycle);
                     sp -= 2;
                     //printf("PUSH %s\n", rp2[p]);
                 }
                 else {
                     switch(p) {
-                    case 0x0:
+                    case 0x0: //Unconditional call to immediate address
                         bus->write(sp-2, &pc, 2, cycle);
                         sp -= 2;
                         pc = data;
                         //printf("CALL $%04x\n",data);
                         break;
-                    case 0x1: //Different from z80
-                        //printf("DD Prefix\n");
-                        printf("---- (diff)\n");
-                        break;
-                    case 0x2: //Different from z80
-                        //printf("ED Prefix\n");
-                        printf("---- (diff)\n");
-                        break;
-                    case 0x3: //Different from z80
-                        //printf("FD Prefix\n");
+                    default: //Different from z80, Dead prefixes, 0xdd, 0xed, 0xfd
                         printf("---- (diff)\n");
                         break;
                     }
                 }
                 break;
-            case 0x6:
+            case 0x6: //ALU ops with immediate values
                 switch(y) {
-                case 0: //ADD
+                case 0: //ADD, 0xc6
                     if((af.hi & 0xf) + (data & 0xf) >= 0x10) {
                         set(HALF_CARRY_FLAG);
                     }
                     else {
                         clear(HALF_CARRY_FLAG);
                     }
-                    if(uint16_t(af.hi) + uint16_t(data) >= 0x100) {
+                    if(uint16_t(uint16_t(af.hi) + uint16_t(data)) >= 0x100) {
                         set(CARRY_FLAG);
                     }
                     else {
@@ -855,30 +861,30 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     af.hi += data;
                     clear(SUB_FLAG);
                     break;
-                case 1: //ADC
-                    if((af.hi & 0xf) + (data & 0xf)  + carry() >= 0x10) {
+                case 1: //ADC, 0xce
+                    if((af.hi & 0xf) + ((data + carry()) & 0xf)) {
                         set(HALF_CARRY_FLAG);
                     }
                     else {
                         clear(HALF_CARRY_FLAG);
                     }
-                    if(uint16_t(af.hi) + uint16_t(data) + carry() >= 0x100) {
+                    if(uint16_t(uint16_t(af.hi) + uint16_t(data) + uint16_t(carry())) >= 0x100) {
                         set(CARRY_FLAG);
                     }
                     else {
                         clear(CARRY_FLAG);
                     }
-                    af.hi += data + carry();
+                    af.hi += (data + carry());
                     clear(SUB_FLAG);
                     break;
-                case 2: //SUB
-                    if((af.hi & 0xf) - (data & 0xf) >= 0x10) {
+                case 2: //SUB, 0xd6
+                    if((af.hi & 0xf) < (data & 0xf)) {
                         set(HALF_CARRY_FLAG);
                     }
                     else {
                         clear(HALF_CARRY_FLAG);
                     }
-                    if(uint16_t(af.hi) - uint16_t(data) >= 0x100) {
+                    if(uint16_t(af.hi) < uint16_t(data)) {
                         set(CARRY_FLAG);
                     }
                     else {
@@ -887,54 +893,55 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     af.hi -= data;
                     set(SUB_FLAG);
                     break;
-                case 3: //SBC
-                    if((af.hi & 0xf) - (data & 0xf)  - carry() >= 0x10) {
+                case 3: //SBC, 0xde
+                    if((af.hi & 0xf) < ((data + carry()) & 0xf)) {
                         set(HALF_CARRY_FLAG);
                     }
                     else {
                         clear(HALF_CARRY_FLAG);
                     }
-                    if(uint16_t(af.hi) - uint16_t(data) - carry() >= 0x100) {
+                    if(uint16_t(af.hi) < uint16_t(uint16_t(data) + uint16_t(carry()))) {
                         set(CARRY_FLAG);
                     }
                     else {
                         clear(CARRY_FLAG);
                     }
-                    af.hi -= (data + carry());
+                    af.hi -= data;
+                    af.hi -= carry();
                     set(SUB_FLAG);
                     break;
-                case 4: //AND
+                case 4: //AND, 0xe6
                     af.hi &= data;
                     clear(SUB_FLAG);
                     set(HALF_CARRY_FLAG);
                     clear(CARRY_FLAG);
                     break;
-                case 5: //XOR
+                case 5: //XOR, 0xee
                     af.hi ^= data;
                     clear(SUB_FLAG);
                     clear(HALF_CARRY_FLAG);
                     clear(CARRY_FLAG);
                     break;
-                case 6: //OR
+                case 6: //OR, 0xf6
                     af.hi |= data;
                     clear(SUB_FLAG);
                     clear(HALF_CARRY_FLAG);
                     clear(CARRY_FLAG);
                     break;
-                case 7: //CP
-                    if(uint8_t(uint8_t(af.hi & 0xf) - uint8_t(data & 0xf)) >= 0x10) {
+                case 7: //CP, 0xfe
+                    if((af.hi & 0xf) < uint8_t(data & 0xf)) {
                         set(HALF_CARRY_FLAG);
                     }
                     else {
                         clear(HALF_CARRY_FLAG);
                     }
-                    if(uint16_t(uint16_t(af.hi) - uint16_t(data)) >= 0x100) {
+                    if(af.hi < uint8_t(data)) {
                         set(CARRY_FLAG);
                     }
                     else {
                         clear(CARRY_FLAG);
                     }
-                    if((af.hi - data) == 0) {
+                    if((af.hi - uint8_t(data)) == 0) {
                         set(ZERO_FLAG);
                     }
                     else {
@@ -953,7 +960,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 }
                 //printf("%s $%02x\n", alu[y],data);
                 break;
-            case 0x7:
+            case 0x7: //RST Y*8, where y = [0..7], 0xc7, 0xcf, 0xd7, 0xdf, 0xe7, 0xef, 0xf7, 0xff
                 bus->write(sp-2, &pc, 2, cycle);
                 sp -= 2;
                 pc = y * 8;
@@ -964,10 +971,10 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
         //printf("\n");
     }
     else if(pre==0xCB) {
+        if(z==6) { //Read value from memory to temp location
+            bus->read(hl.pair, &dummy, 1, cycle);
+        }
         if(x==0) {
-            if(z==6) {
-                bus->read(hl.pair, &dummy, 1, cycle);
-            }
             switch(y) {
             case 0: //RLC
                 if((*r[z]) & BIT7) {
@@ -1078,17 +1085,11 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 else      set(ZERO_FLAG);
                 break;
             }
-            if(z==6) {
-                bus->write(hl.pair, &dummy, 1, cycle);
-            }
             /*
             if(y>=4)
                 printf("%s %s %s\n", rot[y], r[z], (y==6)?"(diff)":"");*/
         }
         else if(x==1) {
-            if(z==6) {
-                bus->read(hl.pair, &dummy, 1, cycle);
-            }
             if((1<<(y)) & (*r[z])) {
                 clear(ZERO_FLAG);
             }
@@ -1099,24 +1100,16 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             //printf("BIT %02x, %s\n", y, r[z]);
         }
         else if(x==2) {
-            if(z==6) {
-                bus->read(hl.pair, &dummy, 1, cycle);
-            }
             (*r[z]) &= (~(1<<(y)));
-            if(z==6) {
-                bus->write(hl.pair, &dummy, 1, cycle);
-            }
             //printf("RES %02x, %s\n", y, r[z]);
         }
         else if(x==3) {
-            if(z==6) {
-                bus->read(hl.pair, &dummy, 1, cycle);
-            }
             (*r[z]) |= (1<<(y));
-            if(z==6) {
-                bus->write(hl.pair, &dummy, 1, cycle);
-            }
             //printf("SET %02x, %s\n", y, r[z]);
+        }
+
+        if(x!=1 && z==6) { //3/4 of the instructions affect their operand; write back to memory if the operand is a memory address
+            bus->write(hl.pair, &dummy, 1, cycle);
         }
     }
     else {
