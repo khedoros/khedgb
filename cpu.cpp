@@ -110,14 +110,12 @@ int cpu::dec_and_exe(uint32_t opcode) {
 }
 
 int cpu::execute(int pre,int x,int y,int z,int data) {
-    /*
-    char r[][5]  =    {     "B",      "C",   "D",      "E",   "H",   "L","(HL)",  "A"};
-    char rp[][3] =    {    "BC",     "DE",  "HL",     "SP"};
-    char rp2[][3]=    {    "BC",     "DE",  "HL",     "AF"};
-    */
-    char cc[][3] =    {    "NZ",      "Z",  "NC",      "C",  "PO",  "PE",   "P",  "M"};
-    char alu[][7]=    {"ADD A,", "ADC A,", "SUB", "SBC A,", "AND", "XOR",  "OR", "CP"};
-    char rot[][5]=    {   "RLC",    "RRC",  "RL",     "RR", "SLA", "SRA", "SWAP","SRL"};
+    char r_name[][5]  =    {     "B",      "C",   "D",      "E",   "H",   "L","(HL)",  "A"};
+    char rp_name[][3] =    {    "BC",     "DE",  "HL",     "SP"};
+    char rp2_name[][3]=    {    "BC",     "DE",  "HL",     "AF"};
+    char cc_name[][3] =    {    "NZ",      "Z",  "NC",      "C",  "PO",  "PE",   "P",  "M"};
+    char alu_name[][7]=    {"ADD A,", "ADC A,", "SUB", "SBC A,", "AND", "XOR",  "OR", "CP"};
+    char rot_name[][5]=    {   "RLC",    "RRC",  "RL",     "RR", "SLA", "SRA", "SWAP","SRL"};
     int p,q;
     p=y/2;
     q=y%2;
@@ -538,24 +536,28 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
 
                 break;
             case 1: //ADC, with carry, 0x88 - 0x8f
-                assert((carry() == 0 || carry() == 1) && (hc() == 0 || hc() == 1));
-                if((af.hi & 0xf) + ((*(r[z])) & 0xf) + carry() >= 0x10) {
-                    set(HALF_CARRY_FLAG);
+                {
+                    bool set_c = false;
+                    //printf("dbg Op:%02x ADC A(%02x), %s(%02x)\tC: %d H: %d\t=\t",((x<<6)|(y<<3)|z), af.hi, r_name[z], *r[z], carry(), hc());
+                    if((af.hi & 0xf) + ((*(r[z])) & 0xf) + carry() >= 0x10) {
+                        set(HALF_CARRY_FLAG);
+                    }
+                    else {
+                        clear(HALF_CARRY_FLAG);
+                    }
+                    if(uint16_t(uint16_t(af.hi) + uint16_t(*(r[z])) + uint16_t(carry())) >= 0x100) {
+                        set_c = true;
+                    }
+                    af.hi += ((*(r[z])) + carry());
+                    if(set_c) set(CARRY_FLAG);
+                    else clear(CARRY_FLAG);
                 }
-                else {
-                    clear(HALF_CARRY_FLAG);
-                }
-                if(uint16_t(uint16_t(af.hi) + uint16_t(*(r[z])) + uint16_t(carry())) >= 0x100) {
-                    set(CARRY_FLAG);
-                }
-                else {
-                    clear(CARRY_FLAG);
-                }
-                af.hi += ((*(r[z])) + carry());
-                clear(SUB_FLAG);
+                //printf("A(%02x)\tC: %d H: %d\n", af.hi, carry(), hc());
 
+                clear(SUB_FLAG);
                 if(af.hi) clear(ZERO_FLAG);
                 else set(ZERO_FLAG);
+
                 break;
             case 2: //SUB, without borrow, 0x90 - 0x97
                 if((af.hi & 0xf) < ((*(r[z])) & 0xf)) {
@@ -572,6 +574,8 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 }
                 af.hi -= *(r[z]);
                 set(SUB_FLAG);
+                if(af.hi) clear(ZERO_FLAG);
+                else set(ZERO_FLAG);
                 break;
             case 3: //SBC, with borrow, 0x98 - 0x9f
                 if((af.hi & 0xf) < (((*(r[z])) & 0xf) + carry())) {
@@ -580,14 +584,18 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 else {
                     clear(HALF_CARRY_FLAG);
                 }
-                if(uint16_t(af.hi) < uint16_t(uint16_t(*(r[z])) + uint16_t(carry()))) {
-                    set(CARRY_FLAG);
+                {
+                    bool set_c = false;
+                    if(uint16_t(af.hi) < uint16_t(uint16_t(*(r[z])) + uint16_t(carry()))) {
+                        set_c = true;
+                    }
+                    af.hi -= *(r[z]);
+                    af.hi -= carry();
+                    if(set_c) set(CARRY_FLAG);
+                    else clear(CARRY_FLAG);
                 }
-                else {
-                    clear(CARRY_FLAG);
-                }
-                af.hi -= *(r[z]);
-                af.hi -= carry();
+                if(af.hi) clear(ZERO_FLAG);
+                else set(ZERO_FLAG);
                 set(SUB_FLAG);
                 break;
             case 4: //AND, logical and, 0xa0 - 0xa7
@@ -736,6 +744,26 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 break;
             case 0x2: //Some weird LDs, conditional absolute jumps
                 switch(y) {
+                case 0:
+                    if(!zero()) {
+                        condition = true;
+                    }
+                    break;
+                case 1:
+                    if(zero()) {
+                        condition = true;
+                    }
+                    break;
+                case 2:
+                    if(!carry()) {
+                        condition = true;
+                    }
+                    break;
+                case 3:
+                    if(carry()) {
+                        condition = true;
+                    }
+                    break;
                 case 0x4: //Write from A to IO port C, 0xe2
                     bus->write(0xff00 + uint16_t(bc.low), &af.hi,1, cycle);
                     //printf("LD (FF00+C), A (diff)\n");
@@ -752,36 +780,12 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     bus->read(data,&af.hi,1, cycle);
                     //printf("LD A, ($%04x) (diff)\n",data);
                     break;
-                default:
-                    switch(y-4) {
-                    case 0:
-                        if(!zero()) {
-                            condition = true;
-                        }
-                        break;
-                    case 1:
-                        if(zero()) {
-                            condition = true;
-                        }
-                        break;
-                    case 2:
-                        if(!carry()) {
-                            condition = true;
-                        }
-                        break;
-                    case 3:
-                        if(carry()) {
-                            condition = true;
-                        }
-                        break;
-                    }
-                    if(condition) {
-                        pc = data;
-                        extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
-                    }
-                    //printf("JP %s, $%04x\n", cc[y],data);
-                    break;
                 }
+                if(y<4 && condition) {
+                    pc = data;
+                    extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
+                }
+                //printf("JP %s, $%04x\n", cc[y],data);
                 break;
             case 0x3: //A Jump, a prefix, Interrupt flag control, and 4 dead ops
                 switch(y) {
@@ -894,20 +898,27 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     clear(SUB_FLAG);
                     break;
                 case 1: //ADC, 0xce
-                    if((af.hi & 0xf) + ((data + carry()) & 0xf)) {
-                        set(HALF_CARRY_FLAG);
+                    {
+                        bool set_c = false;
+                        data &= 0xff; //data is an int, not a uint8_t
+                        //printf("dbg Op:%02x ADC A(%02x), %02x\tC: %d H: %d\t=\t",((x<<6)|(y<<3)|z), af.hi, data, carry(), hc());
+                        if((af.hi & 0xf) + (data & 0xf) + carry() >= 0x10) {
+                            set(HALF_CARRY_FLAG);
+                        }
+                        else {
+                            clear(HALF_CARRY_FLAG);
+                        }
+                        if(uint16_t(uint16_t(af.hi) + uint16_t(data) + uint16_t(carry())) >= 0x100) {
+                            set_c = true;
+                        }
+                        af.hi += (data + carry());
+                        if(set_c) set(CARRY_FLAG);
+                        else clear(CARRY_FLAG);
+                        printf("A(%02x)\tC: %d H: %d\n", af.hi, carry(), hc());
                     }
-                    else {
-                        clear(HALF_CARRY_FLAG);
-                    }
-                    if(uint16_t(uint16_t(af.hi) + uint16_t(data) + uint16_t(carry())) >= 0x100) {
-                        set(CARRY_FLAG);
-                    }
-                    else {
-                        clear(CARRY_FLAG);
-                    }
-                    af.hi += (data + carry());
                     clear(SUB_FLAG);
+                    if(af.hi) clear(ZERO_FLAG);
+                    else set(ZERO_FLAG);
                     break;
                 case 2: //SUB, 0xd6
                     if((af.hi & 0xf) < (data & 0xf)) {
@@ -926,6 +937,28 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     set(SUB_FLAG);
                     break;
                 case 3: //SBC, 0xde
+                    if((af.hi & 0xf) < ((data & 0xf) + carry())) {
+                        set(HALF_CARRY_FLAG);
+                    }
+                    else {
+                        clear(HALF_CARRY_FLAG);
+                    }
+                    {
+                        bool set_c = false;
+                        if(uint16_t(af.hi) < uint16_t(uint16_t(data) + uint16_t(carry()))) {
+                            set_c = true;
+                        }
+                        af.hi -= data;
+                        af.hi -= carry();
+                        if(set_c) set(CARRY_FLAG);
+                        else clear(CARRY_FLAG);
+                    }
+                    if(af.hi) clear(ZERO_FLAG);
+                    else set(ZERO_FLAG);
+                    set(SUB_FLAG);
+                    break;
+     
+                    /*
                     if((af.hi & 0xf) < ((data + carry()) & 0xf)) {
                         set(HALF_CARRY_FLAG);
                     }
@@ -942,6 +975,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     af.hi -= carry();
                     set(SUB_FLAG);
                     break;
+                    */
                 case 4: //AND, 0xe6
                     af.hi &= data;
                     clear(SUB_FLAG);
