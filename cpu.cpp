@@ -359,6 +359,31 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     //printf("RRA\n");
                     break;
                 case 0x4: //DAA: assuming last add/sub op was done on packed BCD values, correct the sum back to BCD, 0x27
+
+                    //Third version, shamelessly grabbed from someone's nesdev.com post. Doesn't pass Blargg...but I wonder if I've got another instruction broken somewhere.
+                    // note: assumes a is a uint8_t and wraps from 0xff to 0
+                    if (!sub()) {  // after an addition, adjust if (half-)carry occurred or if result is out of bounds
+                        if (carry() || af.hi > 0x99) {
+                            af.hi += 0x60;
+                            set(CARRY_FLAG);
+                        }
+                        if (hc() || (af.hi & 0x0f) > 0x09) {
+                            af.hi += 0x6;
+                        }
+                    }
+                    else {  // after a subtraction, only adjust if (half-)carry occurred
+                        if (carry()) {
+                            af.hi -= 0x60;
+                        }
+                        if (hc()) {
+                            af.hi -= 0x6;
+                        }
+                    }
+                    // these flags are always updated
+                    if(af.hi == 0) clear(ZERO_FLAG); // the usual z flag
+                    clear(HALF_CARRY_FLAG); // h flag is always cleared
+
+                    /*  Version 2 of the instruction that I came up with after reading a description of how the instruction should work
                     {
                     uint8_t hi=(af.hi>>(4));
                     uint8_t lo=(af.hi & 0xf);
@@ -386,6 +411,8 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     if(af.hi == 0) set(ZERO_FLAG);
                     else           clear(ZERO_FLAG);
                     clear(HALF_CARRY_FLAG);
+
+                    */
 
                     /*  This is the version of the instruction that I came up with based on official docs. 
                      *  The current version is much cleaner and easier to understand. It certainly seems like it has the same output, too.
@@ -439,7 +466,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                         }
                     }
                     if(!valid) printf("DAA is confused.\n");*/
-                    }
+                    //}
                     //printf("DAA\n");
                     break;
                 case 0x5: //CPL, complement A register, 0x2f
@@ -1096,6 +1123,9 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
             else {
                 set(ZERO_FLAG);
             }
+
+            clear(SUB_FLAG);
+            set(HALF_CARRY_FLAG);
 
             //printf("BIT %02x, %s\n", y, r[z]);
         }
