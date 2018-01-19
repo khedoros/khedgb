@@ -658,11 +658,26 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 case 5://add 8-bit signed to SP, 0xe8
                     data = extend(data);
+                    //printf("dbg: SP: %d(0x%04x) sum: %d(0x%04x) ",sp,sp,sp+data,uint16_t(sp+data));
+
+                    if(data >=0) {
+                        if((sp&0xff) + data > 0xff) set(CARRY_FLAG);
+                        else clear(CARRY_FLAG);
+                        if((sp&0xf)  + (data&0xf) > 0xf ) set(HALF_CARRY_FLAG);
+                        else clear(HALF_CARRY_FLAG);
+                    }
+                    else {
+                        if((sp&0xff) > ((sp + data)&0xff)) set(CARRY_FLAG);
+                        else clear(CARRY_FLAG);
+                        if((sp&0xf) > ((sp + data)&0xf))   set(HALF_CARRY_FLAG);
+                        else clear(HALF_CARRY_FLAG);
+                    }
+
+                    //printf("C:%d H:%d\n",carry(),hc());
                     sp += data;
                     clear(ZERO_FLAG);
                     clear(SUB_FLAG);
                     //printf("ADD SP, $%02x (diff)\n",data);
-                    //TODO: Figure out correct carry behavior with this instruction
                     break;
                 case 6: //Read from high memory address to A, 0xf0
                     bus->read(0xff00 + uint16_t(data), &af.hi, 1, cycle);
@@ -670,10 +685,25 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 case 7: //Transfer SP+8-bit signed to HL, 0xf8
                     data = extend(data);
+                    assert(data>-129 && data < 128);
+
+                    if(data >=0) {
+                        if((sp&0xff) + data > 0xff) set(CARRY_FLAG);
+                        else clear(CARRY_FLAG);
+                        if((sp&0xf)  + (data&0xf) > 0xf ) set(HALF_CARRY_FLAG);
+                        else clear(HALF_CARRY_FLAG);
+                    }
+                    else {
+                        if((sp&0xff) > ((sp + data)&0xff)) set(CARRY_FLAG);
+                        else clear(CARRY_FLAG);
+                        if((sp&0xf) > ((sp + data)&0xf))   set(HALF_CARRY_FLAG);
+                        else clear(HALF_CARRY_FLAG);
+                    }
+
                     hl.pair = sp + data;
+
                     clear(ZERO_FLAG);
                     clear(SUB_FLAG);
-                    //TODO: Figure out correct carry behavior with this instruction
                     //printf("LD HL, SP+$%02x (diff)\n",data);
                     break;
                 default:
