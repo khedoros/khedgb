@@ -2,6 +2,7 @@
 //4MHz (4194304Hz) 
 
 #include<iostream>
+#include<cassert>
 #include "cpu.h"
 
 void decode(int pre,int x,int y,int z,int data);
@@ -537,7 +538,8 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
 
                 break;
             case 1: //ADC, with carry, 0x88 - 0x8f
-                if((af.hi & 0xf) + ((*(r[z])) & 0xf)  + carry() >= 0x10) {
+                assert((carry() == 0 || carry() == 1) && (hc() == 0 || hc() == 1));
+                if((af.hi & 0xf) + ((*(r[z])) & 0xf) + carry() >= 0x10) {
                     set(HALF_CARRY_FLAG);
                 }
                 else {
@@ -551,6 +553,9 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                 }
                 af.hi += ((*(r[z])) + carry());
                 clear(SUB_FLAG);
+
+                if(af.hi) clear(ZERO_FLAG);
+                else set(ZERO_FLAG);
                 break;
             case 2: //SUB, without borrow, 0x90 - 0x97
                 if((af.hi & 0xf) < ((*(r[z])) & 0xf)) {
@@ -1097,6 +1102,9 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     uint8_t bottom=(((*r[z])&0x0f)<<(4));
                     *r[z]=(top|bottom);
                 }
+                clear(SUB_FLAG);
+                clear(CARRY_FLAG);
+                clear(HALF_CARRY_FLAG);
                 break;
             case 7: //SRL
                 if((*r[z]) & BIT0) {
