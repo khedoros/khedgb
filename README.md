@@ -1,17 +1,19 @@
 # khedgb
-Experiments in Game Boy emulation
+Adventures in Game Boy emulation (Or, What Khedoros Likes To Do In His Not-so-abundant Free Time)
 
-Current state:
+## Current state:
 
-CPU is nominally finished, but I suspect there are bugs (booting the DMG ROM actually uncovered one; the documentation I got opcode info from has at least 2 errors).
+Summary: Some games boot and show start screens/demos. Some just show garbled crap or nothing at all. None of my test ROMs are currently crashing the emulator, which is cool.
 
-Memory Map is fairly fleshed-out, but not complete, and a lot of the peripheral hardware isn't being emulated yet.
+CPU is nominally finished, but I suspect there are bugs (timing, edge cases, etc). Blargg cpu_inst tests pass (except for the timer, which I haven't written yet).
 
-ROM loader is rudimentary (no checks, for example). The on-cartridge RAM isn't even currently emulated, because I've been planning to do it along with the loader enhancements and beginning work on the mapper chips.
+Memory Map is fairly fleshed-out, but not complete, and some of the peripheral hardware isn't being emulated yet.
 
-I've got the beginning of the interrupt architecture, but it isn't really wired in. I'm planning on predicting when the interrupts fire to make it more efficient to poll. Similarly, the timers and cycle-counter/divider are intimately tied into the interrupt system, and haven't been written yet.
+ROM loader is basic (not many checks, for example). Onboard ROM+RAM work, and I've got a couple mappers written.
 
-There is no DMA and display is currently just a dump of the LCD RAM's state to file, as a PGM image.
+Timers and their related interrupts don't work yet (the timer clocking code being absent), controller input isn't read from SDL, and the link cable isn't emulated (except for on a basic level, for Blargg test serial line outputs). The other LCD interrupts are at least approximately working.
+
+OAM DMA is written, but OAM is in the memmap, instead of the LCD controller. TODO: move it. Display output is currently just a dump of the LCD RAM's state to file, as a PGM image. It renders the background, but not the window or sprites.
 
 My starting plan is to write this as a DMG emulator and expand to CGB either when I feel like the core emulator is solid, or I start getting bored. It should be comparatively painless to do the upgrade at a later time.
 
