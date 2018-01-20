@@ -358,8 +358,10 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     //printf("RRA\n");
                     break;
                 case 0x4: //DAA: assuming last add/sub op was done on packed BCD values, correct the sum back to BCD, 0x27
-
-                    //Third version, shamelessly grabbed from someone's nesdev.com post. Doesn't pass Blargg...but I wonder if I've got another instruction broken somewhere.
+                    //Third version of this code, shamelessly grabbed from someone's nesdev.com post. 
+                    //Didn't pass Blargg until I fixed some other instructions, came back, and realized I'd screwed up my adaptation of the post.
+                    //This is one of the ones that's well-defined for expected inputs, and deviates from behavior of other CPUs for unexpected inputs.
+                    //
                     // note: assumes a is a uint8_t and wraps from 0xff to 0
                     if (!sub()) {  // after an addition, adjust if (half-)carry occurred or if result is out of bounds
                         if (carry() || af.hi > 0x99) {
@@ -373,99 +375,17 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
                     else {  // after a subtraction, only adjust if (half-)carry occurred
                         if (carry()) {
                             af.hi -= 0x60;
+                            set(CARRY_FLAG);
                         }
                         if (hc()) {
                             af.hi -= 0x6;
                         }
                     }
                     // these flags are always updated
-                    if(af.hi == 0) clear(ZERO_FLAG); // the usual z flag
+                    if(af.hi) clear(ZERO_FLAG); // the usual z flag
+                    else set(ZERO_FLAG);
                     clear(HALF_CARRY_FLAG); // h flag is always cleared
 
-                    /*  Version 2 of the instruction that I came up with after reading a description of how the instruction should work
-                    {
-                    uint8_t hi=(af.hi>>(4));
-                    uint8_t lo=(af.hi & 0xf);
-                    bool valid = true;
-                    uint8_t diff = 0;
-                    if(lo>9||hc()) diff = 6; //lower nibble needs correction
-                    if(hi>9||carry()) {      //Higher nibble needs correction
-                        diff += 0x60;
-                        set(CARRY_FLAG);
-                    }
-                    else if(hi>8 && (lo > 9 || hc())) { //Higher nibble *will* need correction after carry from corrected lower nibble
-                        diff += 0x60;
-                        set(CARRY_FLAG);
-                    }
-                    else { //Nothing corrected in the upper nibble
-                        clear(CARRY_FLAG);
-                    }
-                    if(!sub()) { //Apply the diff. Add it, if the last op was add, subtract if last was sub.
-                        af.hi += diff;
-                    }
-                    else {
-                        af.hi -= diff;
-                    }
-
-                    if(af.hi == 0) set(ZERO_FLAG);
-                    else           clear(ZERO_FLAG);
-                    clear(HALF_CARRY_FLAG);
-
-                    */
-
-                    /*  This is the version of the instruction that I came up with based on official docs. 
-                     *  The current version is much cleaner and easier to understand. It certainly seems like it has the same output, too.
-                    if(!sub()) { //Addition operation
-                        if(!carry()) {
-                            if(!hc()) {
-                                if     (hi < 0xa && lo < 0xa) {af.hi += 0x00; clear(CARRY_FLAG);}
-                                else if(hi <   9 && lo >   9) {af.hi += 0x06; clear(CARRY_FLAG);}
-                                else if(hi >   9 && lo < 0xa) {af.hi += 0x60;   set(CARRY_FLAG);}
-                                else if(hi >   8 && lo >   9) {af.hi += 0x66;   set(CARRY_FLAG);}
-                                else valid = false;
-                            }
-                            else {
-                                if     (hi < 0xa && lo < 4)   {af.hi += 0x06; clear(CARRY_FLAG);}
-                                else if(hi >   9 && lo < 4)   {af.hi += 0x66;   set(CARRY_FLAG);}
-                                else valid = false;
-                            }
-                        }
-                        else {
-                            if(!hc()) {
-                                if     (hi < 3 && lo < 0xa) {af.hi += 0x60; set(CARRY_FLAG);}
-                                else if(hi < 3 && lo >   9) {af.hi += 0x66; set(CARRY_FLAG);}
-                                else valid = false;
-                            }
-                            else {
-                                if(hi < 4 && lo < 4) {af.hi += 0x60; set(CARRY_FLAG);}
-                                else valid = false;
-                            }
-                        }
-                    }
-                    else { //Subtraction operation
-                        if(!carry()) {
-                            if(!hc()) {
-                                if(hi < 0xa && lo < 0xa) {af.hi += 0x00; clear(CARRY_FLAG);}
-                                else valid = false;
-                            }
-                            else {
-                                if(hi <   9 && lo >   5) {af.hi += 0xfa; clear(CARRY_FLAG);}
-                                else valid = false;
-                            }
-                        }
-                        else {
-                            if(!hc()) {
-                                if(hi > 0x6 && lo < 0xa) {af.hi += 0xa0; set(CARRY_FLAG);}
-                                else valid = false;
-                            }
-                            else {
-                                if(hi > 0x5 && lo > 0x5) {af.hi += 0x9a; set(CARRY_FLAG);}
-                                else valid = false;
-                            }
-                        }
-                    }
-                    if(!valid) printf("DAA is confused.\n");*/
-                    //}
                     //printf("DAA\n");
                     break;
                 case 0x5: //CPL, complement A register, 0x2f

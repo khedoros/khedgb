@@ -51,6 +51,16 @@ private:
     int_flags int_requested; //0xff0f interrupt requested flags
     uint32_t last_int_frame;
     uint8_t link_data;
+
+    uint8_t div; //0xff04 top 8 bits of clock-divider register
+    uint8_t timer; //0xff05 timer value
+    uint8_t timer_reset; //0xff06
+    uint8_t timer_control; //0xff07
+    static const int timer_clock_select[4]; //0xff07 bit 0+1, table of number of CPU clocks to tick the timer
+    bool timer_running; //0xff07 bit2
+    uint64_t timer_deadline; //Time the clock will expire
+    uint64_t div_clock; //Last clock that div was reset at
+    uint64_t timer_clock; //Last clock that the timer was started at
 };
 /*
  * 0x0000-0x3FFF: Permanently-mapped ROM bank.

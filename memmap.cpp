@@ -23,13 +23,21 @@ const uint8_t memmap::dmg_firmware[256] = {
     0xdd, 0xdc, 0x99, 0x9f, 0xbb, 0xb9, 0x33, 0x3e, 0x3c, 0x42, 0xb9, 0xa5, 0xb9, 0xa5, 0x42, 0x3c,  
     0x21, 0x04, 0x01, 0x11, 0xa8, 0x00, 0x1a, 0x13, 0xbe, 0x20, 0xfe, 0x23, 0x7d, 0xfe, 0x34, 0x20,  
     0xf5, 0x06, 0x19, 0x78, 0x86, 0x23, 0x05, 0x20, 0xfb, 0x86, 0x20, 0xfe, 0x3e, 0x01, 0xe0, 0x50 }; 
+
+const int memmap::timer_clock_select[4] = {
+      256, //4096Hz
+        4, //262144Hz
+       16, //65536Hz
+       64 }; //16384Hz
                             
 
 memmap::memmap(const std::string& rom_filename, const std::string& fw_file) : 
                                                   screen(), cart(rom_filename, fw_file),
                                                   int_enabled{false,false,false,false,false},
                                                   int_requested{false,false,false,false,false},
-                                                  last_int_frame(0)
+                                                  last_int_frame(0),div_clock(0),timer_running(false),
+                                                  div(0),timer(0),timer_reset(0),timer_control(0),
+                                                  timer_clock(0)
 {
     wram.resize(0x2000);
     hram.resize(0x7f);
@@ -151,6 +159,7 @@ void memmap::write(int addr, void * val, int size, int cycle) {
                 int cmd = *((uint8_t *)val);
                 if(cmd == 0x81) {
                     std::cout<<"Blarg: "<<link_data<<std::endl;
+                    link_data = 0xff;
                 }
             }
             std::cout<<"Write to gamepad/link cable: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
