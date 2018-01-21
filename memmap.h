@@ -44,8 +44,6 @@ private:
     rom cart;
     Vect<uint8_t> wram;
     Vect<uint8_t> hram;
-    Vect<uint8_t> oam;
-    static const uint8_t dmg_firmware[256];
 
     int_flags int_enabled; //0xffff interrupt enable/disable flags
     int_flags int_requested; //0xff0f interrupt requested flags

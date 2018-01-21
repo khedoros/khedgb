@@ -8,6 +8,7 @@
 lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0), m1_last_frame(0), m2_last_line(0), m2_last_frame(0), m0_last_line(0), m0_last_frame(0), active_cycle(0) {
     control.val = 0x91;
     vram.resize(0x2000);
+    oam.resize(0xa0);
 
     /* Initialize the SDL library */
     screen = SDL_CreateWindow("KhedGB",
@@ -48,7 +49,7 @@ lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0
 }
 
 void lcd::write(int addr, void * val, int size, int cycle) {
-    //assert(size==1);
+    assert(size==1||(addr==0xff46&&size==0xa0));
     if(size > 1) return;
     if(addr >= 0x8000 && addr < 0xa000) {
         memcpy(&(vram[addr-0x8000]), val, size);
@@ -57,6 +58,15 @@ void lcd::write(int addr, void * val, int size, int cycle) {
         switch(addr) {
             case 0xff40:
                 control.val = *((uint8_t *)val);
+                std::cout<<"PPU: CTRL change"<<
+                    " Priority: "<<control.priority<<
+                    " sprites on : "<<control.sprite_enable<<
+                    " sprite size: "<<control.sprite_size<<
+                    " bg map: "<<control.bg_map<<
+                    " tile addr mode: "<<control.tile_addr_mode<<
+                    " window enable: "<<control.window_enable<<
+                    " window map: "<<control.window_map<<
+                    " display on: "<<control.display_enable<<std::endl;
                 break;
             case 0xff41:
                 status = (*((uint8_t *)val)) & 0xf8;
@@ -70,6 +80,9 @@ void lcd::write(int addr, void * val, int size, int cycle) {
                 break;
             case 0xff45:
                 lyc = *((uint8_t *)val);
+                break;
+            case 0xff46://OAM DMA
+                memcpy(&oam[0],val,0xa0);
                 break;
             case 0xff47:
                 bgpal.pal = *((uint8_t *)val);
@@ -140,7 +153,7 @@ void lcd::read(int addr, void * val, int size, int cycle) {
     return;
 }
 
-void lcd::render(int frame) {
+void lcd::render_background(int frame) {
     bool zero=true;
     for(int i=0;i<0x1800;i++) {
         if(vram[i]) zero = false;
@@ -189,6 +202,51 @@ void lcd::render(int frame) {
     }
     for(int i=0;i<256;i++) {
         vid.write(reinterpret_cast<char *>(&buffer[i][0]),256);
+    }
+    vid.close();
+    return;
+}
+
+void lcd::render(int frame) {
+    std::cout<<"PPU: Priority: "<<control.priority<<
+                    " sprites on : "<<control.sprite_enable<<
+                    " sprite size: "<<control.sprite_size<<
+                    " bg map: "<<control.bg_map<<
+                    " tile addr mode: "<<control.tile_addr_mode<<
+                    " window enable: "<<control.window_enable<<
+                    " window map: "<<control.window_map<<
+                    " display on: "<<control.display_enable<<std::endl;
+    std::ofstream vid((std::to_string(frame)+".pgm").c_str());
+    //std::ofstream vid("frame.pgm");
+    vid<<"P5\n160 144\n3\n";
+    uint8_t buffer[144][160];
+    uint32_t bgbase = 0x1800;
+    if(control.bg_map) bgbase = 0x1c00;
+    for(int xtile=0;xtile<32;xtile++) {
+        for(int ytile=0;ytile<32;ytile++) {
+            int tilenum = vram[bgbase+ytile*32+xtile];
+            if(control.tile_addr_mode) {
+                tilenum = 256 + int8_t(tilenum);
+            }
+            int base = tilenum*16;
+            for(int yp=0;yp<8;yp++) {
+                int b1=vram[base+yp*2];
+                int b2=vram[base+yp*2+1];
+                int shift=128;
+                for(int xp=0;xp<8;xp++) {
+                    int xpix=xtile*8+xp; int ypix=ytile*8+yp;
+                    if((xpix < bg_scroll_x + 160 || xpix + 96 < bg_scroll_x) && (ypix < bg_scroll_y + 144 || ypix + 112 < bg_scroll_y)) {
+                        int c=(b1 & shift)/shift + 2*((b2&shift)/shift);
+                        assert(c==0||c==1||c==2||c==3);
+                        buffer[(ytile*8+yp)%144][(xtile*8+xp)%160]=3-c;
+                    }
+                    shift/=2;
+                }
+            }
+        }
+    }
+    for(int i=0;i<144;i++) {
+        vid.write(reinterpret_cast<char *>(&buffer[i][0]),160);
     }
     vid.close();
     return;

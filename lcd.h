@@ -34,11 +34,13 @@ public:
     void write(int addr, void * val, int size, int cycle);
     void read(int addr, void * val, int size, int cycle);
     void render(int frame);
+    void render_background(int frame);
     bool interrupt_triggered(uint32_t frame, uint32_t cycle);
-    uint64_t active_cycle();
+    uint64_t get_active_cycle();
 
 private:
     Vect<uint8_t> vram;
+    Vect<uint8_t> oam;
     union dmgpal {
         struct {
             unsigned p0:2;
