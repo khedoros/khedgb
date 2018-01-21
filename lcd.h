@@ -35,6 +35,7 @@ public:
     void read(int addr, void * val, int size, int cycle);
     void render(int frame);
     bool interrupt_triggered(uint32_t frame, uint32_t cycle);
+    uint64_t active_cycle();
 
 private:
     Vect<uint8_t> vram;
@@ -82,6 +83,8 @@ private:
     uint32_t m2_last_frame;
     uint32_t m0_last_line;
     uint32_t m0_last_frame;
+
+    uint64_t active_cycle; //Most recent cycle that the display was enabled
 
     int cur_x_res;
     int cur_y_res;

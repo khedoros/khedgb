@@ -52,14 +52,14 @@ private:
     uint32_t last_int_frame;
     uint8_t link_data;
 
-    uint8_t div; //0xff04 top 8 bits of clock-divider register
+    //uint8_t div; //0xff04 top 8 bits of clock-divider register, which increments at 16384Hz. Calculated based on current cycle, and last time it was reset.
     uint8_t timer; //0xff05 timer value
     uint8_t timer_reset; //0xff06
     uint8_t timer_control; //0xff07
     static const int timer_clock_select[4]; //0xff07 bit 0+1, table of number of CPU clocks to tick the timer
     bool timer_running; //0xff07 bit2
     uint64_t timer_deadline; //Time the clock will expire
-    uint64_t div_clock; //Last clock that div was reset at
+    uint64_t div_clock; //0xff04: Used to calculate value of div. Stores last clock that div was reset at. DIV updates at 16384Hz (every 64CPU cycles)
     uint64_t timer_clock; //Last clock that the timer was started at
 };
 /*
