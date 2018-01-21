@@ -222,27 +222,25 @@ void lcd::render(int frame) {
     uint8_t buffer[144][160];
     uint32_t bgbase = 0x1800;
     if(control.bg_map) bgbase = 0x1c00;
-    for(int xtile=0;xtile<32;xtile++) {
-        for(int ytile=0;ytile<32;ytile++) {
-            int tilenum = vram[bgbase+ytile*32+xtile];
+    for(int x_out_pix = 0; x_out_pix < 160; x_out_pix++) {
+        int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
+        int x_tile = x_in_pix / 8;
+        int x_tile_pix = x_in_pix % 8;
+        for(int y_out_pix = 0; y_out_pix < 144; y_out_pix++) {
+            int y_in_pix = (y_out_pix + bg_scroll_y) & 0xff;
+            int y_tile = y_in_pix / 8;
+            int y_tile_pix = y_in_pix % 8;
+            int tile_num = vram[bgbase+y_tile*32+x_tile];
             if(control.tile_addr_mode) {
-                tilenum = 256 + int8_t(tilenum);
+                tile_num = 256 + int8_t(tile_num);
             }
-            int base = tilenum*16;
-            for(int yp=0;yp<8;yp++) {
-                int b1=vram[base+yp*2];
-                int b2=vram[base+yp*2+1];
-                int shift=128;
-                for(int xp=0;xp<8;xp++) {
-                    int xpix=xtile*8+xp; int ypix=ytile*8+yp;
-                    if((xpix < bg_scroll_x + 160 || xpix + 96 < bg_scroll_x) && (ypix < bg_scroll_y + 144 || ypix + 112 < bg_scroll_y)) {
-                        int c=(b1 & shift)/shift + 2*((b2&shift)/shift);
-                        assert(c==0||c==1||c==2||c==3);
-                        buffer[(ytile*8+yp)%144][(xtile*8+xp)%160]=3-c;
-                    }
-                    shift/=2;
-                }
-            }
+            int base = tile_num * 16;
+            int b1=vram[base+y_tile_pix*2];
+            int b2=vram[base+y_tile_pix*2+1];
+            int shift = 128>>(x_tile_pix);
+            int c=3 - ((b2&shift)/shift + 2*((b1&shift)/shift));
+            assert(c==0||c==1||c==2||c==3);
+            buffer[y_out_pix][x_out_pix]=c;
         }
     }
     for(int i=0;i<144;i++) {
