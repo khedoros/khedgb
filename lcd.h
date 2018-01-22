@@ -41,6 +41,7 @@ public:
 private:
     Vect<uint8_t> vram;
     Vect<uint8_t> oam;
+    /*
     union dmgpal {
         struct {
             unsigned p0:2;
@@ -49,6 +50,10 @@ private:
             unsigned p3:2;
         };
         uint8_t pal;
+    };
+    */
+    struct dmgpal {
+        uint8_t pal[4];
     };
 
     union control_reg {

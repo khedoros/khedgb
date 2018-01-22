@@ -17,7 +17,7 @@ lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0
             320, 288,
             SDL_WINDOW_RESIZABLE);
     if ( screen == NULL ) {
-        fprintf(stderr, "Couldn't set 320x240x8 video mode: %s\nStarting without video output.\n",
+        fprintf(stderr, "lcd::Couldn't set 320x240x8 video mode: %s\nStarting without video output.\n",
                 SDL_GetError());
         //exit(1);
         return;
@@ -27,13 +27,32 @@ lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0
     cur_x_res=160;
     cur_y_res=144;
 
-    renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED/*|SDL_RENDERER_PRESENTVSYNC*/);
+    //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED/*|SDL_RENDERER_PRESENTVSYNC*/);
     //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
     //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE|SDL_RENDERER_PRESENTVSYNC);
-    //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE/*|SDL_RENDERER_PRESENTVSYNC*/);
-    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,SDL_TEXTUREACCESS_STREAMING,160,144);
+    renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE/*|SDL_RENDERER_PRESENTVSYNC*/);
+    if(!renderer) {
+        fprintf(stderr, "lcd::Couldn't create a renderer: %s\nStarting without video output.\n",
+                SDL_GetError());
+        SDL_DestroyWindow(screen);
+        screen = NULL;
+        //exit(1);
+        return;
+    }
 
-    assert(renderer && texture);
+    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,SDL_TEXTUREACCESS_STREAMING,160,144);
+    if(!texture) {
+        fprintf(stderr, "lcd::Couldn't create a texture: %s\nStarting without video output.\n",
+                SDL_GetError());
+        SDL_DestroyRenderer(renderer);
+        renderer = NULL;
+        SDL_DestroyWindow(screen);
+        screen = NULL;
+        //exit(1);
+        return;
+    }
+
+    //assert(renderer && texture);
 
     buffer = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
     overlay = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
@@ -42,9 +61,13 @@ lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0
     win = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
     bg = SDL_CreateRGBSurface(0,512,512,8,0,0,0,0);
 
+    printf("lcd::Setting render draw color to black\n");
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+    printf("lcd::Clearing rendering output\n");
     SDL_RenderClear(renderer);
+    printf("lcd::Pushing video update to renderer\n");
     SDL_RenderPresent(renderer);
+    printf("lcd::constructor reached end\n");
 
 }
 
@@ -85,13 +108,22 @@ void lcd::write(int addr, void * val, int size, int cycle) {
                 memcpy(&oam[0],val,0xa0);
                 break;
             case 0xff47:
-                bgpal.pal = *((uint8_t *)val);
+                bgpal.pal[0] = *((uint8_t *)val) & 0x03;
+                bgpal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
+                bgpal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
+                bgpal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
                 break;
             case 0xff48:
-                obj1pal.pal = *((uint8_t *)val);
+                obj1pal.pal[0] = *((uint8_t *)val) & 0x03;
+                obj1pal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
+                obj1pal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
+                obj1pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
                 break;
             case 0xff49:
-                obj2pal.pal = *((uint8_t *)val);
+                obj2pal.pal[0] = *((uint8_t *)val) & 0x03;
+                obj2pal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
+                obj2pal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
+                obj2pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
                 break;
             case 0xff4a:
                 win_scroll_y = *((uint8_t *)val);
@@ -208,6 +240,9 @@ void lcd::render_background(int frame) {
 }
 
 void lcd::render(int frame) {
+    if(!screen||!texture||!renderer) {
+        printf("PPU: problem!\n");
+    }
     std::cout<<"PPU: Priority: "<<control.priority<<
                     " sprites on : "<<control.sprite_enable<<
                     " sprite size: "<<control.sprite_size<<
@@ -240,7 +275,15 @@ void lcd::render(int frame) {
             int shift = 128>>(x_tile_pix);
             int c=3 - ((b2&shift)/shift + 2*((b1&shift)/shift));
             assert(c==0||c==1||c==2||c==3);
-            buffer[y_out_pix][x_out_pix]=c;
+            /*
+            switch(c) {
+                case 0: c = bgpal.p0; break;
+                case 1: c = bgpal.p1; break;
+                case 2: c = bgpal.p2; break;
+                case 3: c = bgpal.p3; break;
+            }
+            */
+            buffer[y_out_pix][x_out_pix]=bgpal.pal[c];
         }
     }
     for(int i=0;i<144;i++) {
