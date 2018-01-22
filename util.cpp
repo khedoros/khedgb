@@ -4,7 +4,7 @@
 #include<SDL2/SDL.h>
 
 namespace util {
-void process_events(memmap * bus) {
+bool process_events(memmap * bus) {
     SDL_Event event;
     int newx,newy;
     while(SDL_PollEvent(&event)) {
@@ -40,6 +40,10 @@ void process_events(memmap * bus) {
                         printf("exposed\n");
                         //ppui.resize(1,1);
                         break;
+                    case SDL_WINDOWEVENT_CLOSE:
+                        printf("closed\n");
+                        SDL_Quit();
+                        break;
                     default:
                         printf("something else (%d)\n", event.window.event);
                         break;
@@ -52,9 +56,7 @@ void process_events(memmap * bus) {
                 //cpui.print_details(filename);
                 //printf("%d frames rendered in %f seconds. (%f FPS)\n",ppui.get_frame(),float(clock())/float(CLOCKS_PER_SEC),float(ppui.get_frame())/(float(clock())/float(CLOCKS_PER_SEC)));
                 //return 0;
-                break;
-            case SDL_AUDIODEVICEADDED:
-                printf("util::SDL_AudioDeviceAdded triggered\n");
+                return false;
                 break;
             default: /* Report an unhandled event */
                 printf("util::I don't know what this event is (%d)! Flushing it.\n", event.type);
@@ -62,5 +64,6 @@ void process_events(memmap * bus) {
                 break;
         }
     }
+    return true;
 }
 }

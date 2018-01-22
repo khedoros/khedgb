@@ -14,8 +14,6 @@ int main(int argc, char *argv[]) {
     const std::string romfile((argc>1)?argv[1]:"no_rom_file");
     const std::string fwfile((argc>2)?argv[2]:"");
     std::cout<<"Passing in rom file name of "<<romfile<<" and fw file name of "<<fwfile<<std::endl;
-    memmap bus(romfile, fwfile);
-    cpu    proc(&bus,bus.has_firmware());
 
     if( SDL_Init(SDL_INIT_EVERYTHING|SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER|SDL_INIT_NOPARACHUTE) < 0 ) {
         if( SDL_Init(SDL_INIT_NOPARACHUTE|SDL_INIT_AUDIO) < 0) {
@@ -26,10 +24,14 @@ int main(int argc, char *argv[]) {
         std::cout<<"Running in headless mode"<<std::endl;
     }
 
+    memmap bus(romfile, fwfile);
+    cpu    proc(&bus,bus.has_firmware());
+
     int count = 0;
     while(count = proc.run()) {
         std::cout<<"Frame: "<<proc.frame<<std::endl;
-        util::process_events(&bus);
+        bool continue_running = util::process_events(&bus);
+        if(!continue_running) break;
         //if(proc.frame == 2000) break;
         //bus.render(proc.frame);
         //bus.dump_tiles();

@@ -182,8 +182,8 @@ void memmap::write(int addr, void * val, int size, int cycle) {
     }
 }
 
-void memmap::render(int frame) {
-    screen.render(frame);
+void memmap::render(int frame,bool output_file) {
+    screen.render(frame,output_file);
 }
 
 INT_TYPE memmap::get_interrupt() {

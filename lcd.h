@@ -33,7 +33,7 @@ public:
     void dump_tiles();
     void write(int addr, void * val, int size, int cycle);
     void read(int addr, void * val, int size, int cycle);
-    void render(int frame);
+    void render(int frame, bool write_file);
     void render_background(int frame);
     bool interrupt_triggered(uint32_t frame, uint32_t cycle);
     uint64_t get_active_cycle();

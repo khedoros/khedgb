@@ -16,7 +16,7 @@ class RangeCheckVector : public std::vector<T> {
         }
 };
 
-void process_events(memmap * bus);
+bool process_events(memmap * bus);
 }
 
 #define Vect util::RangeCheckVector

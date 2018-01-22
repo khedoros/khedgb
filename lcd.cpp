@@ -54,7 +54,7 @@ lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0
 
     //assert(renderer && texture);
 
-    buffer = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
+    buffer = SDL_CreateRGBSurface(0,160,144,32,0,0,0,0);
     overlay = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
     lps = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
     hps = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
@@ -239,7 +239,8 @@ void lcd::render_background(int frame) {
     return;
 }
 
-void lcd::render(int frame) {
+void lcd::render(int frame,bool output_file) {
+
     if(!screen||!texture||!renderer) {
         printf("PPU: problem!\n");
     }
@@ -251,10 +252,13 @@ void lcd::render(int frame) {
                     " window enable: "<<control.window_enable<<
                     " window map: "<<control.window_map<<
                     " display on: "<<control.display_enable<<std::endl;
-    std::ofstream vid((std::to_string(frame)+".pgm").c_str());
+    std::ofstream vid;
+    if(output_file) {
+        vid.open((std::to_string(frame)+".pgm").c_str());
+        vid<<"P5\n160 144\n3\n";
+    }
     //std::ofstream vid("frame.pgm");
-    vid<<"P5\n160 144\n3\n";
-    uint8_t buffer[144][160];
+    uint8_t pgm_buffer[144][160];
     uint32_t bgbase = 0x1800;
     if(control.bg_map) bgbase = 0x1c00;
     for(int x_out_pix = 0; x_out_pix < 160; x_out_pix++) {
@@ -283,13 +287,32 @@ void lcd::render(int frame) {
                 case 3: c = bgpal.p3; break;
             }
             */
-            buffer[y_out_pix][x_out_pix]=bgpal.pal[c];
+            pgm_buffer[y_out_pix][x_out_pix]=bgpal.pal[c];
+
+            /*
+            uint32_t color = SDL_MapRGB(this->buffer->format,85*bgpal.pal[c],85*bgpal.pal[c],85*bgpal.pal[c]);
+            ((uint32_t *)this->buffer->pixels)[y_out_pix*(this->buffer->pitch)+x_out_pix] = color;
+
+            SDL_DestroyTexture(texture);
+
+            texture = SDL_CreateTextureFromSurface(renderer, this->buffer);
+
+            SDL_RenderClear(renderer);
+            SDL_RenderCopy(renderer,texture,NULL,NULL);
+            SDL_RenderPresent(renderer);
+            */
+
+            SDL_SetRenderDrawColor(renderer, 85*bgpal.pal[c], 85*bgpal.pal[c], 85*bgpal.pal[c], 255);
+            SDL_RenderDrawPoint(renderer, x_out_pix, y_out_pix);
         }
     }
-    for(int i=0;i<144;i++) {
-        vid.write(reinterpret_cast<char *>(&buffer[i][0]),160);
+    SDL_RenderPresent(renderer);
+    if(output_file) {
+        for(int i=0;i<144;i++) {
+            vid.write(reinterpret_cast<char *>(&pgm_buffer[i][0]),160);
+        }
+        vid.close();
     }
-    vid.close();
     return;
 }
 

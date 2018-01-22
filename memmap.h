@@ -24,7 +24,7 @@ public:
     INT_TYPE get_interrupt();
     void update_interrupts(uint32_t frame, uint32_t cycle);
     //void map(int addr, void * const val, int size, bool rw);
-    void  render(int f);
+    void  render(int f,bool fout);
     bool has_firmware();
     struct int_flags {
         union {

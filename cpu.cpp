@@ -51,8 +51,12 @@ int cpu::run() {
             running = false;
         }
     }
+    /*
     if(!(frame % 100))
-        bus->render(frame);
+        bus->render(frame,true);
+    else
+    */
+        bus->render(frame,false);
     return cycle+17556;
 }
 
