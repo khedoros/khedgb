@@ -5,7 +5,7 @@
 #include<fstream>
 #include<string>
 
-lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0), m1_last_frame(0), m2_last_line(0), m2_last_frame(0), m0_last_line(0), m0_last_frame(0), active_cycle(0) {
+lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0), m1_last_frame(0), m2_last_line(0), m2_last_frame(0), m0_last_line(0), m0_last_frame(0), active_cycle(0), screen(NULL), renderer(NULL), texture(NULL), buffer(NULL), overlay(NULL), lps(NULL), hps(NULL), win(NULL), bg(NULL) {
     control.val = 0x91;
     vram.resize(0x2000);
     oam.resize(0xa0);
@@ -241,8 +241,10 @@ void lcd::render_background(int frame) {
 
 void lcd::render(int frame,bool output_file) {
 
+    bool output_sdl = true;
     if(!screen||!texture||!renderer) {
         printf("PPU: problem!\n");
+        output_sdl = false;
     }
     std::cout<<"PPU: Priority: "<<control.priority<<
                     " sprites on : "<<control.sprite_enable<<
@@ -277,7 +279,7 @@ void lcd::render(int frame,bool output_file) {
             int b1=vram[base+y_tile_pix*2];
             int b2=vram[base+y_tile_pix*2+1];
             int shift = 128>>(x_tile_pix);
-            int c=3 - ((b2&shift)/shift + 2*((b1&shift)/shift));
+            int c=3 - ((b1&shift)/shift + 2*((b2&shift)/shift));
             assert(c==0||c==1||c==2||c==3);
             /*
             switch(c) {
@@ -302,11 +304,15 @@ void lcd::render(int frame,bool output_file) {
             SDL_RenderPresent(renderer);
             */
 
-            SDL_SetRenderDrawColor(renderer, 85*bgpal.pal[c], 85*bgpal.pal[c], 85*bgpal.pal[c], 255);
-            SDL_RenderDrawPoint(renderer, x_out_pix, y_out_pix);
+            if(output_sdl) {
+                SDL_SetRenderDrawColor(renderer, 85*bgpal.pal[c], 85*bgpal.pal[c], 85*bgpal.pal[c], 255);
+                SDL_RenderDrawPoint(renderer, x_out_pix, y_out_pix);
+            }
         }
     }
-    SDL_RenderPresent(renderer);
+    if(output_sdl) {
+        SDL_RenderPresent(renderer);
+    }
     if(output_file) {
         for(int i=0;i<144;i++) {
             vid.write(reinterpret_cast<char *>(&pgm_buffer[i][0]),160);
