@@ -1,5 +1,6 @@
 #pragma once
 #include<vector>
+#include<cstdint>
 
 class memmap;
 
@@ -14,6 +15,12 @@ class RangeCheckVector : public std::vector<T> {
         const T& operator[](int i) const {
             return std::vector<T>::at(i);
         }
+};
+
+struct cmd {
+    uint64_t cycle;
+    uint16_t addr;
+    uint8_t val;
 };
 
 bool process_events(memmap * bus);

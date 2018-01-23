@@ -4,6 +4,7 @@
 //#include<vector>
 #include<SDL2/SDL.h>
 #include "util.h"
+#include<list>
 
 /*
  * ff40: LCD control R/W (various settings)
@@ -31,14 +32,16 @@ class lcd {
 public:
     lcd();
     void dump_tiles();
-    void write(int addr, void * val, int size, int cycle);
-    void read(int addr, void * val, int size, int cycle);
+    void write(int addr, void * val, int size, uint64_t cycle);
+    void read(int addr, void * val, int size, uint64_t cycle);
     void render(int frame, bool write_file);
     void render_background(int frame);
-    bool interrupt_triggered(uint32_t frame, uint32_t cycle);
+    bool interrupt_triggered(uint32_t frame, uint64_t cycle);
     uint64_t get_active_cycle();
+    uint64_t run(uint64_t cycle_count);
 
 private:
+    std::list<util::cmd> cmd_queue;
     Vect<uint8_t> vram;
     Vect<uint8_t> oam;
     /*

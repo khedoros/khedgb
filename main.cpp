@@ -26,16 +26,19 @@ int main(int argc, char *argv[]) {
 
     memmap bus(romfile, fwfile);
     cpu    proc(&bus,bus.has_firmware());
+    lcd *  ppu = bus.get_lcd();
 
-    int count = 0;
+    uint64_t cycle = 0;
+    uint64_t count = 0;
     while(count = proc.run()) {
-        std::cout<<"Frame: "<<proc.frame<<std::endl;
+        //std::cout<<"Frame: "<<proc.frame<<std::endl;
         bool continue_running = util::process_events(&bus);
         if(!continue_running) break;
         //if(proc.frame == 2000) break;
         //bus.render(proc.frame);
         //bus.dump_tiles();
-
+        ppu->run(count);
+        //apu->run(count); TODO: Add audio support
 
         /* FRAME DELAY CODE to activate later
         //Calculates the time that the frame should end at, and delays until that time

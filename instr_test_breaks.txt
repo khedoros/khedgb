@@ -1,3 +1,0 @@
-Blarg: 01-special  0x27 is DAA
-Blarg: 02 TIMER is broken
-Blarg: 11-op a,(hl) 27 is DAA

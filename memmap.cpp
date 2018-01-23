@@ -29,7 +29,7 @@ void memmap::dump_tiles() {
     screen.dump_tiles();
 }
 
-void memmap::read(int addr, void * val, int size, int cycle) {
+void memmap::read(int addr, void * val, int size, uint64_t cycle) {
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
     if(addr >= 0 && addr < 0x8000) {
         cart.read(addr, val, size, cycle);
@@ -53,7 +53,7 @@ void memmap::read(int addr, void * val, int size, int cycle) {
             *((uint8_t *)val) = 0xff;
             printf("Stubbed out read to gamepad (not implemented yet)\n");
             break;
-        case 0xff44:
+        case 0xff44: //TODO: Move this to PPU, base on global cycle count instead of frame cycle count
             *((uint8_t *)val) = (cycle / 114);
             break;
         default:
@@ -100,7 +100,7 @@ void memmap::read(int addr, void * val, int size, int cycle) {
 
 }
 
-void memmap::write(int addr, void * val, int size, int cycle) {
+void memmap::write(int addr, void * val, int size, uint64_t cycle) {
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
     if(addr >= 0 && addr < 0x8000 || addr == 0xff50) {
         //std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (mappers not implemented yet)"<<std::endl;
@@ -197,8 +197,8 @@ INT_TYPE memmap::get_interrupt() {
     else {return NONE;}
 }
 
-void memmap::update_interrupts(uint32_t frame, uint32_t cycle) {
-    //VBLANK
+void memmap::update_interrupts(uint32_t frame, uint64_t cycle) {
+    //VBLANK TODO: This needs to be based on global cycle counts, not frame number and intra-frame cycle
     if(frame > last_int_frame && cycle >= 144*114) {
         int_requested.vblank = 1; 
         last_int_frame = frame; 
@@ -224,6 +224,10 @@ void memmap::update_interrupts(uint32_t frame, uint32_t cycle) {
 
 bool memmap::has_firmware() {
     return cart.firmware;
+}
+
+lcd * memmap::get_lcd() {
+    return &screen;
 }
 
 /*

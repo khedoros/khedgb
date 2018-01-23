@@ -71,7 +71,11 @@ lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0
 
 }
 
-void lcd::write(int addr, void * val, int size, int cycle) {
+uint64_t lcd::run(uint64_t cycle_count) {
+    return 0;
+}
+
+void lcd::write(int addr, void * val, int size, uint64_t cycle) {
     assert(size==1||(addr==0xff46&&size==0xa0));
     if(size > 1) return;
     if(addr >= 0x8000 && addr < 0xa000) {
@@ -138,7 +142,7 @@ void lcd::write(int addr, void * val, int size, int cycle) {
     return;
 }
 
-void lcd::read(int addr, void * val, int size, int cycle) {
+void lcd::read(int addr, void * val, int size, uint64_t cycle) { //TODO: Fix to work around global cycles
     if(size > 1) return;
     //assert(size==1);
     if(addr >= 0x8000 && addr < 0xa000) {
@@ -372,7 +376,7 @@ void lcd::render(int frame,bool output_file) {
     return;
 }
 
-bool lcd::interrupt_triggered(uint32_t frame, uint32_t cycle) {
+bool lcd::interrupt_triggered(uint32_t frame, uint64_t cycle) { //TODO: Fix to use global cycle counts
     int line = cycle / 114;
 
     //Line co-incidence

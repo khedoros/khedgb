@@ -31,10 +31,10 @@ cpu::cpu(memmap * b, bool has_firmware): bus(b),
     }
 }
 
-int cpu::run() {
+uint64_t cpu::run() {
     uint32_t opcode=0;
     bool running=true;
-    int cycles=0;
+    uint64_t cycles=0;
     while(running) {
         bus->read(pc, &opcode, 3, cycle);
         cycles = dec_and_exe(opcode);
@@ -60,11 +60,11 @@ int cpu::run() {
     return cycle+17556;
 }
 
-int cpu::dec_and_exe(uint32_t opcode) {
+uint64_t cpu::dec_and_exe(uint32_t opcode) {
     int bytes = 0;
     int prefix = 0;
     int op = 0;
-    int cycles = 0;
+    uint64_t cycles = 0;
     int data = 0;
     //std::cout<<std::hex<<opcode<<"\t";
     op = opcode & 0xff;
@@ -113,7 +113,7 @@ int cpu::dec_and_exe(uint32_t opcode) {
     return cycles;
 }
 
-int cpu::execute(int pre,int x,int y,int z,int data) {
+uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
     char r_name[][5]  =    {     "B",      "C",   "D",      "E",   "H",   "L","(HL)",  "A"};
     char rp_name[][3] =    {    "BC",     "DE",  "HL",     "SP"};
     char rp2_name[][3]=    {    "BC",     "DE",  "HL",     "AF"};
@@ -123,7 +123,7 @@ int cpu::execute(int pre,int x,int y,int z,int data) {
     int p,q;
     p=y/2;
     q=y%2;
-    int extra_cycles = 0;
+    uint64_t extra_cycles = 0;
     bool condition=false;
     if(!pre) {
         if(x==0) { //0x00 - 0x3f

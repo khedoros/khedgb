@@ -19,13 +19,14 @@ public:
     void dump_tiles();
     //read: rw==false, write: rw==true
 //    void map(int addr, void * val, int size, bool rw);
-    void read(int addr, void * val, int size, int cycle);
-    void write(int addr, void * val, int size, int cycle);
+    void read(int addr, void * val, int size, uint64_t cycle);
+    void write(int addr, void * val, int size, uint64_t cycle);
     INT_TYPE get_interrupt();
-    void update_interrupts(uint32_t frame, uint32_t cycle);
+    void update_interrupts(uint32_t frame, uint64_t cycle);
     //void map(int addr, void * const val, int size, bool rw);
     void  render(int f,bool fout);
     bool has_firmware();
+    lcd * get_lcd();
     struct int_flags {
         union {
             struct {

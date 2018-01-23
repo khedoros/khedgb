@@ -44,16 +44,16 @@
 class cpu {
 public:
     cpu(memmap * bus, bool has_firmware=false);
-    int run();
+    uint64_t run();
     bool halted;
     bool stopped;
-    int cycle;
-    int frame;
+    uint64_t cycle;
+    uint64_t frame;
 
 
 private:
-    int dec_and_exe(uint32_t opcode);
-    int execute(int pre,int x,int y,int z,int data);
+    uint64_t dec_and_exe(uint32_t opcode);
+    uint64_t execute(int pre,int x,int y,int z,int data);
     void registers();
 
     INT_TYPE check_interrupts();
@@ -80,5 +80,4 @@ private:
     uint16_t * const rp[4];
     uint16_t * const rp2[4];
     bool interrupts;       //Interrupt Master Enable
-    bool saved_interrupts;
 };
