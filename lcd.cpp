@@ -261,56 +261,106 @@ void lcd::render(int frame,bool output_file) {
     }
     //std::ofstream vid("frame.pgm");
     uint8_t pgm_buffer[144][160];
+
+    //Draw the background
     uint32_t bgbase = 0x1800;
-    if(control.bg_map) bgbase = 0x1c00;
-    for(int x_out_pix = 0; x_out_pix < 160; x_out_pix++) {
-        int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
-        int x_tile = x_in_pix / 8;
-        int x_tile_pix = x_in_pix % 8;
-        for(int y_out_pix = 0; y_out_pix < 144; y_out_pix++) {
-            int y_in_pix = (y_out_pix + bg_scroll_y) & 0xff;
-            int y_tile = y_in_pix / 8;
-            int y_tile_pix = y_in_pix % 8;
-            int tile_num = vram[bgbase+y_tile*32+x_tile];
-            if(control.tile_addr_mode) {
-                tile_num = 256 + int8_t(tile_num);
+    if(control.priority) { //controls whether the background displays, in regular DMG mode
+        if(control.bg_map) bgbase = 0x1c00;
+        for(int x_out_pix = 0; x_out_pix < 160; x_out_pix++) {
+            int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
+            int x_tile = x_in_pix / 8;
+            int x_tile_pix = x_in_pix % 8;
+            for(int y_out_pix = 0; y_out_pix < 144; y_out_pix++) {
+                int y_in_pix = (y_out_pix + bg_scroll_y) & 0xff;
+                int y_tile = y_in_pix / 8;
+                int y_tile_pix = y_in_pix % 8;
+                int tile_num = vram[bgbase+y_tile*32+x_tile];
+                if(control.tile_addr_mode) {
+                    tile_num = 256 + int8_t(tile_num);
+                }
+                int base = tile_num * 16;
+                int b1=vram[base+y_tile_pix*2];
+                int b2=vram[base+y_tile_pix*2+1];
+                int shift = 128>>(x_tile_pix);
+                int c=3 - ((b1&shift)/shift + 2*((b2&shift)/shift));
+                assert(c==0||c==1||c==2||c==3);
+
+                pgm_buffer[y_out_pix][x_out_pix]=bgpal.pal[c];
+
+                /*
+                uint32_t color = SDL_MapRGB(this->buffer->format,85*bgpal.pal[c],85*bgpal.pal[c],85*bgpal.pal[c]);
+                ((uint32_t *)this->buffer->pixels)[y_out_pix*(this->buffer->pitch)+x_out_pix] = color;
+
+               */
+
+                if(output_sdl) {
+                    SDL_SetRenderDrawColor(renderer, 85*bgpal.pal[c], 85*bgpal.pal[c], 85*bgpal.pal[c], 255);
+                    SDL_RenderDrawPoint(renderer, x_out_pix, y_out_pix);
+                }
             }
-            int base = tile_num * 16;
-            int b1=vram[base+y_tile_pix*2];
-            int b2=vram[base+y_tile_pix*2+1];
-            int shift = 128>>(x_tile_pix);
-            int c=3 - ((b1&shift)/shift + 2*((b2&shift)/shift));
-            assert(c==0||c==1||c==2||c==3);
-            /*
-            switch(c) {
-                case 0: c = bgpal.p0; break;
-                case 1: c = bgpal.p1; break;
-                case 2: c = bgpal.p2; break;
-                case 3: c = bgpal.p3; break;
-            }
-            */
-            pgm_buffer[y_out_pix][x_out_pix]=bgpal.pal[c];
+        }
 
-            /*
-            uint32_t color = SDL_MapRGB(this->buffer->format,85*bgpal.pal[c],85*bgpal.pal[c],85*bgpal.pal[c]);
-            ((uint32_t *)this->buffer->pixels)[y_out_pix*(this->buffer->pitch)+x_out_pix] = color;
+    }
+    else if(output_sdl) {
+        //clear the screen, because the background isn't going to be drawn
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        SDL_RenderPresent(renderer);
+    }
 
-            SDL_DestroyTexture(texture);
 
-            texture = SDL_CreateTextureFromSurface(renderer, this->buffer);
+    //Draw the window
+    uint32_t winbase = 0x1800;
+    if(control.window_map) winbase = 0x1c00;
+    if(control.window_enable) {
+        for(int tile_y = 0; tile_y + (win_scroll_y/8) < 18; tile_y++) {
+            for(int tile_x = 0; tile_x + (win_scroll_x/8) < 20; tile_x++) {
+                int tile_num = vram[winbase+tile_y*32+tile_x];
+                if(control.tile_addr_mode) {
+                    tile_num = 256+int8_t(tile_num);
+                }
+                int base = tile_num * 16;
+                for(int y_tile_pix = 0; y_tile_pix < 8 && y_tile_pix + win_scroll_y + tile_y * 8 < 144; y_tile_pix++) {
+                    int b1=vram[base+y_tile_pix*2];
+                    int b2=vram[base+y_tile_pix*2+1];
+                    for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 < 144; x_tile_pix++) {
+                        int shift = 128>>(x_tile_pix);
+                        int c=3 - ((b1&shift)/shift + 2*((b2&shift)/shift));
+                        assert(c==0||c==1||c==2||c==3);
 
-            SDL_RenderClear(renderer);
-            SDL_RenderCopy(renderer,texture,NULL,NULL);
-            SDL_RenderPresent(renderer);
-            */
+                        pgm_buffer[tile_y*8+y_tile_pix][tile_x*8+x_tile_pix]=bgpal.pal[c];
 
-            if(output_sdl) {
-                SDL_SetRenderDrawColor(renderer, 85*bgpal.pal[c], 85*bgpal.pal[c], 85*bgpal.pal[c], 255);
-                SDL_RenderDrawPoint(renderer, x_out_pix, y_out_pix);
+                        /*
+                        uint32_t color = SDL_MapRGB(this->buffer->format,85*bgpal.pal[c],85*bgpal.pal[c],85*bgpal.pal[c]);
+                        ((uint32_t *)this->buffer->pixels)[y_out_pix*(this->buffer->pitch)+x_out_pix] = color;
+
+                        */
+
+                        if(output_sdl) {
+                            SDL_SetRenderDrawColor(renderer, 85*bgpal.pal[c], 85*bgpal.pal[c], 85*bgpal.pal[c], 255);
+                            SDL_RenderDrawPoint(renderer, tile_x*8+x_tile_pix, tile_y*8+y_tile_pix);
+                        }
+                    }
+                }
             }
         }
     }
+    
+    //Draw the sprites
+    if(control.sprite_enable) {
+
+    }
+
     if(output_sdl) {
+        /* Activate when I'm not using SDL_RenderDrawPoint anymore
+        SDL_DestroyTexture(texture);
+
+        texture = SDL_CreateTextureFromSurface(renderer, this->buffer);
+
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer,texture,NULL,NULL);
+        */
+
         SDL_RenderPresent(renderer);
     }
     if(output_file) {
