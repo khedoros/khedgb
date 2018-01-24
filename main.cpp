@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
 
     uint64_t cycle = 0;
     uint64_t count = 0;
-    while(count = proc.run()) {
+    while(count = proc.run(10000)) {
         //std::cout<<"Frame: "<<proc.frame<<std::endl;
         bool continue_running = util::process_events(&bus);
         if(!continue_running) break;

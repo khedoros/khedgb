@@ -44,7 +44,7 @@
 class cpu {
 public:
     cpu(memmap * bus, bool has_firmware=false);
-    uint64_t run();
+    uint64_t run(uint64_t run_to);
     bool halted;
     bool stopped;
     uint64_t cycle;

@@ -31,7 +31,7 @@ cpu::cpu(memmap * b, bool has_firmware): bus(b),
     }
 }
 
-uint64_t cpu::run() {
+uint64_t cpu::run(uint64_t run_to) {
     uint32_t opcode=0;
     bool running=true;
     uint64_t cycles=0;
@@ -45,7 +45,7 @@ uint64_t cpu::run() {
         }
         cycle+=cycles;
         //114 CPU cycles per line, 154 lines per frame. CPU runs at 1024*1024 Hz, gives a framerate around 59.7Hz.
-        if(cycle >= 17556) {
+        if(cycle >= run_to) {
             cycle -= 17556;
             frame++;
             running = false;
@@ -61,30 +61,48 @@ uint64_t cpu::run() {
 }
 
 uint64_t cpu::dec_and_exe(uint32_t opcode) {
+    uint64_t cycles = 0;
+
+    //Poll interrupts
+    bus->update_interrupts(frame,cycle);
+    if(interrupts) { //IME
+        uint8_t int_flag = 0;
+        bus->read(0xff0f, &int_flag, 1, cycle);
+        if(int_flag > 0) {
+            halted = false;
+        }
+        if(int_flag & JOYPAD > 0) {
+            stopped = false;
+        }
+        bool called = call_interrupts();
+        if(called) {
+            cycles += 5;
+            return cycles;
+        }
+    }
+
+    //TODO: Correctly implement "HALT" and "STOP". 
+
     int bytes = 0;
     int prefix = 0;
     int op = 0;
-    uint64_t cycles = 0;
     int data = 0;
     //std::cout<<std::hex<<opcode<<"\t";
     op = opcode & 0xff;
-    int x = (op&0xc0)>>(6); // 11000000
-    int y = (op&0x38)>>(3); // 00111000
-    int z = (op&0x7);       // 00000111
     if(op == 0xcb) {
         prefix = 0xcb;
         op = ((opcode&0xFF00)>>(8));
-        x = (op&0xc0)>>(6); // 11000000
-        y = (op&0x38)>>(3); // 00111000
-        z = (op&0x7);       // 00000111
-        bytes = 2;
-        cycles = (z == 6) ? 16 : 8;
+        cycles = (op&0x7 == 6) ? 16 : 8;
         bytes = 2;
     }
     else {
         bytes = op_bytes[op];
         cycles = op_times[op];
     }
+
+    int x = (op&0xc0)>>(6); // 11000000
+    int y = (op&0x38)>>(3); // 00111000
+    int z = (op&0x7);       // 00000111
     
     if(bytes == 2 && !prefix) {
         data = (opcode & 0xff00)>>(8);
@@ -93,6 +111,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         data = (opcode & 0xffff00)>>(8);
     }
 
+    //Print a CPU trace
     registers();
     printf("\t");
     decode(prefix,x,y,z,data);
@@ -103,12 +122,6 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     }
 
     cycles += execute(prefix,x,y,z,data);
-
-    bus->update_interrupts(frame,cycle+cycles);
-    if(interrupts) { //IME
-        bool called = call_interrupts();
-        if(called) cycles += 5;
-    }
 
     return cycles;
 }
