@@ -64,19 +64,80 @@ lcd::lcd() : cpu_lyc(0), cpu_status(0), bg_scroll_x(0), bg_scroll_y(0), cpu_bg_s
     win = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
     bg = SDL_CreateRGBSurface(0,512,512,8,0,0,0,0);
 
-    printf("lcd::Setting render draw color to black\n");
+    //printf("lcd::Setting render draw color to black\n");
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-    printf("lcd::Clearing rendering output\n");
+    //printf("lcd::Clearing rendering output\n");
     SDL_RenderClear(renderer);
-    printf("lcd::Pushing video update to renderer\n");
+    //printf("lcd::Pushing video update to renderer\n");
     SDL_RenderPresent(renderer);
-    printf("lcd::constructor reached end\n");
+    //printf("lcd::constructor reached end\n");
 
 }
 
 uint64_t lcd::run(uint64_t cycle_count) {
+
     render(0,false);
     return 0; //0 means a frame hasn't been rendered during this timeslice
+}
+
+//Apply the data extracted from the command queue, and apply it to the PPU view of the state
+void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
+    if(addr >= 0x8000 && addr < 0xa000) {
+        vram[addr-0x8000] = val;
+    }
+    else if(addr >= 0xfe00 && addr < 0xfea0) {
+        oam[addr-0xfe00] = val;
+    }
+    else {
+        switch(addr) {
+            case 0xff40:
+                {
+                    control_reg old_val{.val = control.val};
+                    control.val = val;
+                    if(control.display_enable && !old_val.display_enable) {
+                        active_cycle = cycle;
+                    }
+                }
+                break;
+            case 0xff42:
+                bg_scroll_y = val;
+                break;
+            case 0xff43:
+                bg_scroll_x = val;
+                break;
+            case 0xff46://OAM DMA
+                memcpy(&oam[0],&cmd_data[index][0],0xa0);
+                break;
+            case 0xff47:
+                bgpal.pal[0] = (val & 0x03);
+                bgpal.pal[1] = (val & 0x0c)>>2;
+                bgpal.pal[2] = (val & 0x30)>>4;
+                bgpal.pal[3] = (val & 0xc0)>>6;
+                break;
+            case 0xff48:
+                obj1pal.pal[0] = (val & 0x03);
+                obj1pal.pal[1] = (val & 0x0c)>>2;
+                obj1pal.pal[2] = (val & 0x30)>>4;
+                obj1pal.pal[3] = (val & 0xc0)>>6;
+                break;
+            case 0xff49:
+                obj2pal.pal[0] = (val & 0x03);
+                obj2pal.pal[1] = (val & 0x0c)>>2;
+                obj2pal.pal[2] = (val & 0x30)>>4;
+                obj2pal.pal[3] = (val & 0xc0)>>6;
+                break;
+            case 0xff4a:
+                win_scroll_y = val;
+                break;
+            case 0xff4b:
+                win_scroll_x = val;
+                break;
+            default:
+                //Various data aren't necessary to render the screen, so we ignore anything like interrupts and status
+                break;
+        }
+    }
+    return;
 }
 
 void lcd::write(int addr, void * val, int size, uint64_t cycle) {
@@ -87,7 +148,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             cmd_queue.push_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
         }
     }
-    else if(addr >= 0xfe00 && addr < 0xffa0) {
+    else if(addr >= 0xfe00 && addr < 0xfea0) {
         if(get_mode(cycle) < 2) {
             memcpy(&(cpu_oam[addr - 0xfe00]), val, size);
             cmd_queue.push_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
@@ -221,6 +282,11 @@ uint8_t lcd::get_mode(uint64_t cycle) {
         if(line_cycle < 20) mode = 2; //OAM access
         else if (line_cycle < 20+43) mode = 3; //LCD transfer
     }
+    return mode;
+}
+
+uint64_t lcd::get_active_cycle() {
+    return cpu_active_cycle;
 }
 
 //Reads the CPU's view of the current state of the PPU
@@ -536,7 +602,7 @@ void lcd::update_estimates(uint64_t cycle) {
 
 }
 
-bool lcd::interrupt_triggered(uint32_t frame, uint64_t cycle) { //TODO: Fix to use global cycle counts
+bool lcd::interrupt_triggered(uint64_t cycle) {
     if(!cpu_control.display_enable) return false;
 
     bool retval = false;

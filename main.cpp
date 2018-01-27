@@ -55,12 +55,13 @@ int main(int argc, char *argv[]) {
                 }
                 uint64_t actual_delay = SDL_GetTicks() - now;
                 if(actual_delay > delay) {
-                    printf("Delayed for %d ms too long\n");
+                    printf("Delayed for %d ms too long\n", actual_delay - delay);
                 }
             }
             last_output_tick = now;
             last_output_cycle = cur_output_cycle;
         }
+        cycle += tick_size;
     }
     return 0;
 }

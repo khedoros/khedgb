@@ -48,7 +48,7 @@ private:
 
     int_flags int_enabled; //0xffff interrupt enable/disable flags
     int_flags int_requested; //0xff0f interrupt requested flags
-    uint32_t last_int_frame;
+    uint64_t last_int_cycle;
     uint8_t link_data;
 
     //uint8_t div; //0xff04 top 8 bits of clock-divider register, which increments at 16384Hz. Calculated based on current cycle, and last time it was reset.

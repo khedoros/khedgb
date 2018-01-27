@@ -36,14 +36,14 @@ public:
     void read(int addr, void * val, int size, uint64_t cycle);
     void render(int frame, bool write_file);
     void render_background(int frame);
-    bool interrupt_triggered(uint32_t frame, uint64_t cycle);
+    bool interrupt_triggered(uint64_t cycle);
     uint64_t get_active_cycle();
     uint64_t run(uint64_t cycle_count);
+    uint8_t get_mode(uint64_t cycle);
 
 private:
-    uint8_t get_mode(uint64_t cycle);
     void update_estimates(uint64_t cycle);
-
+    void apply(int addr, uint8_t val, uint64_t index, uint64_t cycle);
     struct dmgpal {
         uint8_t pal[4];
     };

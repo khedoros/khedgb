@@ -17,7 +17,7 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
                                                   screen(), cart(rom_filename, fw_file),
                                                   int_enabled{false,false,false,false,false},
                                                   int_requested{false,false,false,false,false},
-                                                  last_int_frame(0),div_clock(0),timer_running(false),
+                                                  last_int_cycle(0), div_clock(0),timer_running(false),
                                                   timer(0),timer_reset(0),timer_control(0),timer_clock(0)
 {
     wram.resize(0x2000);
@@ -199,14 +199,17 @@ INT_TYPE memmap::get_interrupt() {
 
 void memmap::update_interrupts(uint32_t frame, uint64_t cycle) {
     //VBLANK TODO: This needs to be based on global cycle counts, not frame number and intra-frame cycle
-    if(frame > last_int_frame && cycle >= 144*114) {
-        int_requested.vblank = 1; 
-        last_int_frame = frame; 
+    uint8_t enabled = 0;
+    screen.read(0xff40, &enabled, 1, cycle);
+    //We aren't still in previously-seen vblank, we *are* in vblank, and the screen is enabled
+    if(cycle > last_int_cycle + 1140 && screen.get_mode(cycle) == 1 && ((enabled&0x80) > 0)) {
+        int_requested.vblank = 1;
+        last_int_cycle = cycle; 
         //printf("vbl set active, frame %d, cycle %d\n", frame, cycle);
     }
 
     //LCDSTAT
-    if(screen.interrupt_triggered(frame, cycle)) {
+    if(screen.interrupt_triggered(cycle)) {
         int_requested.lcdstat = 1;
     }
 
