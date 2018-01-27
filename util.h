@@ -19,8 +19,9 @@ class RangeCheckVector : public std::vector<T> {
 
 struct cmd {
     uint64_t cycle;
-    uint16_t addr;
+    int addr;
     uint8_t val;
+    uint64_t data_index;
 };
 
 bool process_events(memmap * bus);

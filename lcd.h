@@ -41,20 +41,9 @@ public:
     uint64_t run(uint64_t cycle_count);
 
 private:
-    std::list<util::cmd> cmd_queue;
-    Vect<uint8_t> vram;
-    Vect<uint8_t> oam;
-    /*
-    union dmgpal {
-        struct {
-            unsigned p0:2;
-            unsigned p1:2;
-            unsigned p2:2;
-            unsigned p3:2;
-        };
-        uint8_t pal;
-    };
-    */
+    uint8_t get_mode(uint64_t cycle);
+    void update_estimates(uint64_t cycle);
+
     struct dmgpal {
         uint8_t pal[4];
     };
@@ -73,11 +62,14 @@ private:
         uint8_t val;
     };
 
+    //Needed for rendering, so must be mirrored to "catch up" with the CPU's view of the PPU state
+    std::list<util::cmd> cmd_queue; //List of commands to catch up PPU with CPU
+    std::vector<std::vector<uint8_t>> cmd_data; //necessary to store a snapshot of DMA data, for example
+    Vect<uint8_t> vram;
+    Vect<uint8_t> oam;
     control_reg control; //0xff40
-    uint8_t status;      //0xff41
     uint8_t bg_scroll_y; //0xff42
     uint8_t bg_scroll_x; //0xff43
-    uint8_t lyc;         //0xff45
 
     dmgpal bgpal;        //0xff47
     dmgpal obj1pal;      //0xff48
@@ -85,17 +77,49 @@ private:
 
     uint8_t win_scroll_y;//0xff4a
     uint8_t win_scroll_x;//0xff4b
-
-    uint32_t lyc_last_frame;
-    uint32_t lyc_last_line;
-    uint32_t m1_last_frame;
-    uint32_t m2_last_line;
-    uint32_t m2_last_frame;
-    uint32_t m0_last_line;
-    uint32_t m0_last_frame;
-
     uint64_t active_cycle; //Most recent cycle that the display was enabled
 
+
+    //Needed for proper responses to the CPU. A lot of these are mirrored versions of the PPU-view registers.
+    uint64_t lyc_next_cycle; //cycle of next time to trigger lyc interrupt
+
+    /*
+        0 201-207 clks, 2 about 77-83 clks, and 3 about 169-175 clks
+        1 is 4560 clks
+
+        (0=51, 2=20, 3=43)*114, 1=1140
+        0(hblank)=7344 cycles/frame
+        1(vblank)=1140 cycles/frame
+        2(oam=ro)=2880 cycles/frame
+        3(vramro)=6192 cycles/frame
+    */
+
+    uint32_t m0_next_cycle;  //cycle of next time to trigger m0 interrupt (h-blank)
+    uint32_t m1_next_cycle;  //cycle of next time to trigger m1 interrupt (v-blank)
+    uint32_t m2_next_cycle;  //cycle of next time to trigger m2 interrupt (oam access)
+    //Modes cycle: (2-3-0) 144 times, then to 1, with about 20, 
+
+    Vect<uint8_t> cpu_vram;
+    Vect<uint8_t> cpu_oam;
+    control_reg cpu_control; //0xff40
+    uint8_t cpu_status;      //0xff41 (store interrupt flags, calculate coincidence and mode flags)
+    uint8_t cpu_bg_scroll_y; //0xff42
+    uint8_t cpu_bg_scroll_x; //0xff43
+    //uint8_t cpu_ly;        //0xff44 (value is calculated, not stored)
+    uint8_t cpu_lyc;         //0xff45
+    uint8_t cpu_dma_addr;        //0xff46 (executed when written to)
+    dmgpal cpu_bgpal;        //0xff47
+    dmgpal cpu_obj1pal;      //0xff48
+    dmgpal cpu_obj2pal;      //0xff49
+
+    uint8_t cpu_win_scroll_y;//0xff4a
+    uint8_t cpu_win_scroll_x;//0xff4b
+
+    uint64_t cpu_active_cycle; //Most recent cycle that the display was enabled
+
+
+
+    //All of these have to do with the SDL2 output implementation
     int cur_x_res;
     int cur_y_res;
 

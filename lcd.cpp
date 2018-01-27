@@ -5,10 +5,13 @@
 #include<fstream>
 #include<string>
 
-lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0), m1_last_frame(0), m2_last_line(0), m2_last_frame(0), m0_last_line(0), m0_last_frame(0), active_cycle(0), screen(NULL), renderer(NULL), texture(NULL), buffer(NULL), overlay(NULL), lps(NULL), hps(NULL), win(NULL), bg(NULL) {
+lcd::lcd() : cpu_lyc(0), cpu_status(0), bg_scroll_x(0), bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_bg_scroll_y(0), lyc_next_cycle(0), m1_next_cycle(0), m2_next_cycle(0), active_cycle(0), cpu_active_cycle(0), screen(NULL), renderer(NULL), texture(NULL), buffer(NULL), overlay(NULL), lps(NULL), hps(NULL), win(NULL), bg(NULL) {
     control.val = 0x91;
+    cpu_control.val = 0x91;
     vram.resize(0x2000);
     oam.resize(0xa0);
+    cpu_vram.resize(0x2000);
+    cpu_oam.resize(0xa0);
 
     /* Initialize the SDL library */
     screen = SDL_CreateWindow("KhedGB",
@@ -72,68 +75,124 @@ lcd::lcd() : lyc(0), status(0), bg_scroll_x(0), bg_scroll_y(0), lyc_last_frame(0
 }
 
 uint64_t lcd::run(uint64_t cycle_count) {
-    return 0;
+    render(0,false);
+    return 0; //0 means a frame hasn't been rendered during this timeslice
 }
 
 void lcd::write(int addr, void * val, int size, uint64_t cycle) {
     assert(size==1||(addr==0xff46&&size==0xa0));
-    if(size > 1) return;
     if(addr >= 0x8000 && addr < 0xa000) {
-        memcpy(&(vram[addr-0x8000]), val, size);
+        if(get_mode(cycle) != 3) {
+            memcpy(&(cpu_vram[addr-0x8000]), val, size);
+            cmd_queue.push_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+        }
+    }
+    else if(addr >= 0xfe00 && addr < 0xffa0) {
+        if(get_mode(cycle) < 2) {
+            memcpy(&(cpu_oam[addr - 0xfe00]), val, size);
+            cmd_queue.push_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+        }
     }
     else {
         switch(addr) {
             case 0xff40:
-                control.val = *((uint8_t *)val);
+                {
+                    control_reg old_val{.val = cpu_control.val};
+                    cpu_control.val = *((uint8_t *)val);
+                    if(cpu_control.display_enable && !old_val.display_enable) {
+                        cpu_active_cycle = cycle;
+                        update_estimates(cycle);
+                    }
+                    else if(old_val.display_enable != cpu_control.display_enable) {
+                        update_estimates(cycle);
+                    }
+                }
                 std::cout<<"PPU: CTRL change"<<
-                    " Priority: "<<control.priority<<
-                    " sprites on : "<<control.sprite_enable<<
-                    " sprite size: "<<control.sprite_size<<
-                    " bg map: "<<control.bg_map<<
-                    " tile addr mode: "<<control.tile_addr_mode<<
-                    " window enable: "<<control.window_enable<<
-                    " window map: "<<control.window_map<<
-                    " display on: "<<control.display_enable<<std::endl;
+                    " Priority: "<<cpu_control.priority<<
+                    " sprites on : "<<cpu_control.sprite_enable<<
+                    " sprite size: "<<cpu_control.sprite_size<<
+                    " bg map: "<<cpu_control.bg_map<<
+                    " tile addr mode: "<<cpu_control.tile_addr_mode<<
+                    " window enable: "<<cpu_control.window_enable<<
+                    " window map: "<<cpu_control.window_map<<
+                    " display on: "<<cpu_control.display_enable<<std::endl;
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
-            case 0xff41:
-                status = (*((uint8_t *)val)) & 0xf8;
-                printf("LCD status set to %02X\n", status);
+            case 0xff41: 
+                {
+                    uint8_t old_val = cpu_status; 
+                    cpu_status = *((uint8_t *)val)&0xf8; 
+                    if(cpu_status != old_val && cpu_control.display_enable) {
+                        update_estimates(cycle);
+                    }
+                }
+                //Don't care about status while rendering
+                //cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                printf("LCD status set to %02X\n", cpu_status);
                 break;
             case 0xff42:
-                bg_scroll_y = *((uint8_t *)val);
+                cpu_bg_scroll_y = *((uint8_t *)val);
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
             case 0xff43:
-                bg_scroll_x = *((uint8_t *)val);
+                cpu_bg_scroll_x = *((uint8_t *)val);
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
             case 0xff45:
-                lyc = *((uint8_t *)val);
+                {
+                    uint8_t old_val = cpu_lyc;
+                    cpu_lyc = *((uint8_t *)val);
+                    if(cpu_lyc > 153) { //Out of range to actually trigger
+                        lyc_next_cycle = -1;
+                    }
+                    else if(old_val != cpu_lyc && cpu_control.display_enable) {
+                        update_estimates(cycle);
+                    }
+                }
+                //Don't care about lyc during rendering
+                //cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
             case 0xff46://OAM DMA
-                memcpy(&oam[0],val,0xa0);
+                {
+                    memcpy(&cpu_oam[0],val,0xa0);
+                    uint64_t index = cmd_data.size();
+                    cmd_data.resize(index + 1);
+                    cmd_data[index].resize(0xa0);
+                    for(int i=0;i<0xa0;i++) {
+                        cmd_data[index][i] = cpu_oam[i];
+                    }
+                    cpu_dma_addr = *((uint8_t *)val);
+                    cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), index});
+                }
                 break;
             case 0xff47:
-                bgpal.pal[0] = *((uint8_t *)val) & 0x03;
-                bgpal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
-                bgpal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
-                bgpal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
+                cpu_bgpal.pal[0] = *((uint8_t *)val) & 0x03;
+                cpu_bgpal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
+                cpu_bgpal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
+                cpu_bgpal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
             case 0xff48:
-                obj1pal.pal[0] = *((uint8_t *)val) & 0x03;
-                obj1pal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
-                obj1pal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
-                obj1pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
+                cpu_obj1pal.pal[0] = *((uint8_t *)val) & 0x03;
+                cpu_obj1pal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
+                cpu_obj1pal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
+                cpu_obj1pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
             case 0xff49:
-                obj2pal.pal[0] = *((uint8_t *)val) & 0x03;
-                obj2pal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
-                obj2pal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
-                obj2pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
+                cpu_obj2pal.pal[0] = *((uint8_t *)val) & 0x03;
+                cpu_obj2pal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
+                cpu_obj2pal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
+                cpu_obj2pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
             case 0xff4a:
-                win_scroll_y = *((uint8_t *)val);
+                cpu_win_scroll_y = *((uint8_t *)val);
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
             case 0xff4b:
-                win_scroll_x = *((uint8_t *)val);
+                cpu_win_scroll_x = *((uint8_t *)val);
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
             default:
                 std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
@@ -142,48 +201,95 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
     return;
 }
 
-void lcd::read(int addr, void * val, int size, uint64_t cycle) { //TODO: Fix to work around global cycles
+uint8_t lcd::get_mode(uint64_t cycle) {
+    if(!cpu_control.display_enable) {
+        return 1;
+    }
+    int frame_cycle = (cycle - cpu_active_cycle) % 17556;
+    int line = frame_cycle / 114;
+
+    int mode = 0; //hblank; largest amount of time per frame. May as well use it.
+    if(line > 143) {
+        mode = 1; //vblank
+    }
+    else {
+        //1. oam access around 20 cycles (mode 2)
+        //2. transfer to lcd for around 43 cycles (mode 3)
+        //3. h-blank around 51 cycles (mode 0)
+        //4. repeat 144 times, then vblank for 1140 cycles (mode 1)
+        int line_cycle = frame_cycle % 114;
+        if(line_cycle < 20) mode = 2; //OAM access
+        else if (line_cycle < 20+43) mode = 3; //LCD transfer
+    }
+}
+
+//Reads the CPU's view of the current state of the PPU
+void lcd::read(int addr, void * val, int size, uint64_t cycle) {
     if(size > 1) return;
     //assert(size==1);
     if(addr >= 0x8000 && addr < 0xa000) {
-        memcpy(val, &(vram[addr-0x8000]), size);
+        memcpy(val, &(cpu_vram[addr-0x8000]), size);
+    }
+    else if(addr >= 0xfe00 && addr < 0xfea0) {
+        memcpy(val, &(cpu_oam[addr-0xfe00]), size);
     }
     else {
         switch(addr) {
-            case 0xff41: {
-                int line = cycle / 114;
-                int mode = 0; //hblank
-                if(line > 143) {
-                    mode = 1; //vblank
+            case 0xff40:
+                *((uint8_t *)val) = cpu_control.val;
+                break;
+            case 0xff41: 
+                if(!cpu_control.display_enable) {
+                    *((uint8_t *)val) = cpu_status|1; //return current interrupt flags and v-blank mode, if screen is disabled.
                 }
                 else {
-                    //oam around 20
-                    //transfer around 43
-                    //h-blank around 51
-                    int line_cycle = cycle % 114;
-                    if(line_cycle < 20) mode = 2; //OAM access
-                    else if (line < 20+43) mode = 3; //LCD transfer
-                }
-                if(lyc == line) {
-                    mode += 4;
-                }
-                *((uint8_t *)val) = mode | status | 0x80;
+                    int mode = get_mode(cycle);
+                    if(cpu_lyc == ((cycle - cpu_active_cycle) % 17556) / 114) {
+                        mode |= 4;
+                    }
+                    *((uint8_t *)val) = mode | cpu_status;// | 0x80;
                 }
                 break;
             case 0xff42:
-                *((uint8_t *)val) = bg_scroll_y;
+                *((uint8_t *)val) = cpu_bg_scroll_y;
                 break;
             case 0xff43:
-                *((uint8_t *)val) = bg_scroll_x;
+                *((uint8_t *)val) = cpu_bg_scroll_x;
+                break;
+            case 0xff44:
+                if(!cpu_control.display_enable) {
+                    *((uint8_t *)val) = 0;
+                }
+                else {
+                    int frame_cycle = (cycle - cpu_active_cycle) % 17556;
+                    int line = frame_cycle / 114;
+                    *((uint8_t *)val) = line;
+                }
+                break;
+            case 0xff45:
+                *((uint8_t *)val) = cpu_lyc;
+                break;
+            case 0xff46:
+                *((uint8_t *)val) = cpu_dma_addr;
+                break;
+            case 0xff47:
+                *((uint8_t *)val) = cpu_bgpal.pal[0] | cpu_bgpal.pal[1]<<2 | cpu_bgpal.pal[2]<<4 | cpu_bgpal.pal[3]<<6;
+                break;
+            case 0xff48:
+                *((uint8_t *)val) = cpu_obj1pal.pal[0] | cpu_obj1pal.pal[1]<<2 | cpu_obj1pal.pal[2]<<4 | cpu_obj1pal.pal[3]<<6;
+                break;
+            case 0xff49:
+                *((uint8_t *)val) = cpu_obj2pal.pal[0] | cpu_obj2pal.pal[1]<<2 | cpu_obj2pal.pal[2]<<4 | cpu_obj2pal.pal[3]<<6;
                 break;
             case 0xff4a:
-                *((uint8_t *)val) = win_scroll_y;
+                *((uint8_t *)val) = cpu_win_scroll_y;
                 break;
             case 0xff4b:
-                *((uint8_t *)val) = win_scroll_x;
+                *((uint8_t *)val) = cpu_win_scroll_x;
                 break;
             default:
-                std::cout<<"Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+                std::cout<<"PPU: Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+                *((uint8_t *)val) = 0xff;
         }
     }
     return;
@@ -250,14 +356,14 @@ void lcd::render(int frame,bool output_file) {
         printf("PPU: problem!\n");
         output_sdl = false;
     }
-    std::cout<<"PPU: Priority: "<<control.priority<<
-                    " sprites on : "<<control.sprite_enable<<
-                    " sprite size: "<<control.sprite_size<<
-                    " bg map: "<<control.bg_map<<
-                    " tile addr mode: "<<control.tile_addr_mode<<
-                    " window enable: "<<control.window_enable<<
-                    " window map: "<<control.window_map<<
-                    " display on: "<<control.display_enable<<std::endl;
+    std::cout<<"PPU: Priority: "<<cpu_control.priority<<
+                    " sprites on : "<<cpu_control.sprite_enable<<
+                    " sprite size: "<<cpu_control.sprite_size<<
+                    " bg map: "<<cpu_control.bg_map<<
+                    " tile addr mode: "<<cpu_control.tile_addr_mode<<
+                    " window enable: "<<cpu_control.window_enable<<
+                    " window map: "<<cpu_control.window_map<<
+                    " display on: "<<cpu_control.display_enable<<std::endl;
     std::ofstream vid;
     if(output_file) {
         vid.open((std::to_string(frame)+".pgm").c_str());
@@ -268,8 +374,8 @@ void lcd::render(int frame,bool output_file) {
 
     //Draw the background
     uint32_t bgbase = 0x1800;
-    if(control.priority) { //controls whether the background displays, in regular DMG mode
-        if(control.bg_map) bgbase = 0x1c00;
+    if(cpu_control.priority) { //cpu_controls whether the background displays, in regular DMG mode
+        if(cpu_control.bg_map) bgbase = 0x1c00;
         for(int x_out_pix = 0; x_out_pix < 160; x_out_pix++) {
             int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
             int x_tile = x_in_pix / 8;
@@ -278,13 +384,13 @@ void lcd::render(int frame,bool output_file) {
                 int y_in_pix = (y_out_pix + bg_scroll_y) & 0xff;
                 int y_tile = y_in_pix / 8;
                 int y_tile_pix = y_in_pix % 8;
-                int tile_num = vram[bgbase+y_tile*32+x_tile];
-                if(control.tile_addr_mode) {
+                int tile_num = cpu_vram[bgbase+y_tile*32+x_tile];
+                if(cpu_control.tile_addr_mode) {
                     tile_num = 256 + int8_t(tile_num);
                 }
                 int base = tile_num * 16;
-                int b1=vram[base+y_tile_pix*2];
-                int b2=vram[base+y_tile_pix*2+1];
+                int b1=cpu_vram[base+y_tile_pix*2];
+                int b2=cpu_vram[base+y_tile_pix*2+1];
                 int shift = 128>>(x_tile_pix);
                 int c=3 - ((b1&shift)/shift + 2*((b2&shift)/shift));
                 assert(c==0||c==1||c==2||c==3);
@@ -312,21 +418,20 @@ void lcd::render(int frame,bool output_file) {
         SDL_RenderPresent(renderer);
     }
 
-
     //Draw the window
     uint32_t winbase = 0x1800;
-    if(control.window_map) winbase = 0x1c00;
-    if(control.window_enable) {
+    if(cpu_control.window_map) winbase = 0x1c00;
+    if(cpu_control.window_enable) {
         for(int tile_y = 0; tile_y + (win_scroll_y/8) < 18; tile_y++) {
             for(int tile_x = 0; tile_x + (win_scroll_x/8) < 20; tile_x++) {
-                int tile_num = vram[winbase+tile_y*32+tile_x];
-                if(control.tile_addr_mode) {
+                int tile_num = cpu_vram[winbase+tile_y*32+tile_x];
+                if(cpu_control.tile_addr_mode) {
                     tile_num = 256+int8_t(tile_num);
                 }
                 int base = tile_num * 16;
                 for(int y_tile_pix = 0; y_tile_pix < 8 && y_tile_pix + win_scroll_y + tile_y * 8 < 144; y_tile_pix++) {
-                    int b1=vram[base+y_tile_pix*2];
-                    int b2=vram[base+y_tile_pix*2+1];
+                    int b1=cpu_vram[base+y_tile_pix*2];
+                    int b2=cpu_vram[base+y_tile_pix*2+1];
                     for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 < 144; x_tile_pix++) {
                         int shift = 128>>(x_tile_pix);
                         int c=3 - ((b1&shift)/shift + 2*((b2&shift)/shift));
@@ -351,7 +456,7 @@ void lcd::render(int frame,bool output_file) {
     }
     
     //Draw the sprites
-    if(control.sprite_enable) {
+    if(cpu_control.sprite_enable) {
 
     }
 
@@ -376,42 +481,76 @@ void lcd::render(int frame,bool output_file) {
     return;
 }
 
+void lcd::update_estimates(uint64_t cycle) {
+    if(!cpu_control.display_enable) { //realistically shouldn't ever end up here
+        lyc_next_cycle = -1;
+        m0_next_cycle  = -1;
+        m1_next_cycle  = -1;
+        m2_next_cycle  = -1;
+        return;
+    }
+    
+    uint64_t frame_cycle = (cycle - cpu_active_cycle) % 17556;
+    uint64_t line = frame_cycle / 114;
+    uint64_t line_cycle = frame_cycle % 114;
+    uint64_t frame_base_cycle = cycle - frame_cycle;
+
+    uint64_t mode = get_mode(cycle);
+
+    if(cpu_status & LYC) {
+        lyc_next_cycle = frame_base_cycle + cpu_lyc * 114;
+        if(lyc_next_cycle <= cycle) { //We've passed it this frame; go to the next.
+            lyc_next_cycle += 17556;
+        }
+    }
+    else {
+        lyc_next_cycle = -1;
+    }
+
+    if(cpu_status & M0) {
+        m0_next_cycle = frame_base_cycle + (114 * line) + 63;
+        if(line_cycle >= 20 + 43) {
+            m0_next_cycle += 114;
+        }
+    }
+    else {
+        m0_next_cycle = -1;
+    }
+
+    if(cpu_status & M1) {
+        m1_next_cycle = frame_base_cycle + (144 * 114);
+        if(m1_next_cycle <= cycle) {
+            m1_next_cycle += 17556;
+        }
+    }
+    else {
+        m1_next_cycle = -1;
+    }
+
+    if(cpu_status & M2) {
+        m2_next_cycle = frame_base_cycle + (114 * (line + 1));
+    }
+    else {
+        m2_next_cycle = -1;
+    }
+
+}
+
 bool lcd::interrupt_triggered(uint32_t frame, uint64_t cycle) { //TODO: Fix to use global cycle counts
-    int line = cycle / 114;
+    if(!cpu_control.display_enable) return false;
 
-    //Line co-incidence
-    //Trigger interrupt if it's activated, the line matches, and either it hasn't been triggered this frame, or it was moved up to a later line
-    if(((LYC & status) != 0) && (lyc == line) && (frame > lyc_last_frame || line > lyc_last_line)) {
-        lyc_last_frame = frame; //Don't trigger twice in one frame
-        lyc_last_line = line;   //But go ahead and do it, if it's on a later line
-        return true;
+    bool retval = false;
+
+    if(lyc_next_cycle <= cycle) retval = true;
+    if(m0_next_cycle <= cycle) retval = true;
+    if(m1_next_cycle <= cycle) retval = true;
+    if(m2_next_cycle <= cycle) retval = true;
+
+    if(retval) {
+        update_estimates(cycle);
     }
 
-    //V-Blank
-    //Trigger interrupt if it's activated, the GB is in vsync, and it hasn't been triggered this frame.
-    if((M1 & status) != 0 && line >= 144 && frame > m1_last_frame) {
-        m1_last_frame = frame;
-        return true;
-    }
-
-    int line_cycle = cycle % 114;
-
-    //Line start, reading from OAM
-    //Trigger if before vsync, in cycle 0-19 
-    if((M2 & status) != 0 && line < 144 && line_cycle < 20 && (m2_last_frame < frame || m2_last_line < line)) {
-        m2_last_line = line;
-        m2_last_frame = frame;
-        return true;
-    }
-
-    //H-Blank
-    if((M0 & status) != 0 && line < 144 && line_cycle >= (20+43) && (m0_last_frame < frame || m0_last_line < line)) {
-        m0_last_line = line;
-        return true;
-        //printf("Warning: M0 interrupt set, but not implemented\n");
-    }
-
-    return false;
+    return retval;
 }
 
 void lcd::dump_tiles() {

@@ -30,28 +30,37 @@ int main(int argc, char *argv[]) {
 
     uint64_t cycle = 0;
     uint64_t count = 0;
-    while(count = proc.run(10000)) {
-        //std::cout<<"Frame: "<<proc.frame<<std::endl;
-        bool continue_running = util::process_events(&bus);
-        if(!continue_running) break;
-        //if(proc.frame == 2000) break;
-        //bus.render(proc.frame);
-        //bus.dump_tiles();
-        ppu->run(count);
-        //apu->run(count); TODO: Add audio support
+    uint64_t tick_size = 10000;
+    bool continue_running = true;
+    uint64_t last_output_cycle = 0;
+    uint64_t last_output_tick = 0;
+    while(continue_running) {
+        continue_running = util::process_events(&bus);
+        count = proc.run(cycle + tick_size);
 
-        /* FRAME DELAY CODE to activate later
-        //Calculates the time that the frame should end at, and delays until that time
-        //cout<<"Timing two"<<endl;
-        int frames = ppui.get_frame();
-        int now = SDL_GetTicks();
-        int delay = pstart + int(double(frames) * double(1000) / double(60)) - now;
-        //cout<<"Frame: "<<frames<<" now: "<<now<<" delay: "<<delay<<endl;       
-        if(delay > 0) {
-            SDL_Delay(delay);
+        //cur_output_cycle represents which cycle the ppu decided to render a frame at
+        uint64_t cur_output_cycle = ppu->run(cycle + tick_size);
+        //apu->run(cycle + tick_size); TODO: Add audio support
+
+        //Frame delay
+        if(cur_output_cycle != 0) {
+            uint64_t now = SDL_GetTicks();
+            uint64_t ms_diff = now - last_output_tick;
+            uint64_t cycle_diff = cur_output_cycle - last_output_cycle; //cycles since last frame was output
+
+            if(cycle_diff != 0) {
+                uint64_t delay = (double(cycle_diff*1000) / double(1024*1024));
+                if(delay < 1000) {
+                    SDL_Delay(delay);
+                }
+                uint64_t actual_delay = SDL_GetTicks() - now;
+                if(actual_delay > delay) {
+                    printf("Delayed for %d ms too long\n");
+                }
+            }
+            last_output_tick = now;
+            last_output_cycle = cur_output_cycle;
         }
-        */
-
     }
     return 0;
 }
