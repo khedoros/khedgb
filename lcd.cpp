@@ -5,8 +5,15 @@
 #include<fstream>
 #include<string>
 
-lcd::lcd() : cpu_lyc(0), cpu_status(0), bg_scroll_x(0), bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_bg_scroll_y(0), lyc_next_cycle(0), m1_next_cycle(0), m2_next_cycle(0), active_cycle(0), cpu_active_cycle(0), screen(NULL), renderer(NULL), texture(NULL), buffer(NULL), overlay(NULL), lps(NULL), hps(NULL), win(NULL), bg(NULL) {
-    control.val = 0x91;
+lcd::lcd() : cycle(0), next_line(0), control{.val=0x91}, bg_scroll_y(0), bg_scroll_x(0), 
+             bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, 
+             win_scroll_y(0), win_scroll_x(0), active_cycle(0), frame(0), 
+             lyc_next_cycle(0), m0_next_cycle(0), m1_next_cycle(0), m2_next_cycle(0), 
+             cpu_control{.val=0x91}, cpu_status(0), cpu_bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_lyc(0), cpu_dma_addr(0), 
+             cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}},
+             cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
+             screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg(NULL), win(NULL) {
+    //control.val = 0x91;
     cpu_control.val = 0x91;
     vram.resize(0x2000);
     oam.resize(0xa0);
@@ -74,10 +81,36 @@ lcd::lcd() : cpu_lyc(0), cpu_status(0), bg_scroll_x(0), bg_scroll_y(0), cpu_bg_s
 
 }
 
-uint64_t lcd::run(uint64_t cycle_count) {
+uint64_t lcd::run(uint64_t run_to) {
+    assert(cycle < run_to);
+    util::cmd current = cmd_queue.front();
 
-    render(0,false);
-    return 0; //0 means a frame hasn't been rendered during this timeslice
+    uint64_t render_cycle = 0;
+    while(cmd_queue.size() > 0) {
+        uint64_t offset = current.cycle - active_cycle;
+        uint64_t frame_cycle = offset % 17556;
+        uint64_t frame_line = frame_cycle / 114;
+        uint64_t frames_since_active = offset / 17556;
+
+        if(render_cycle == 0 && frame_cycle >= (114 * 144)) { //If next change is in vblank
+            render(frame,false);
+            frame++;
+            next_line = 0;
+            render_cycle = active_cycle + frames_since_active * 17556 + (114 * 144);
+        }
+
+        apply(current.addr, current.val, current.data_index, current.cycle);
+
+        cmd_queue.pop_front();
+        cycle = current.cycle;
+        current = cmd_queue.front();
+    }
+    for(int i=0;i<cmd_data.size();i++) {
+        cmd_data[i].resize(0);
+    }
+    cmd_data.resize(0);
+    cycle = run_to;
+    return render_cycle; //0 means a frame hasn't been rendered during this timeslice
 }
 
 //Apply the data extracted from the command queue, and apply it to the PPU view of the state
@@ -422,14 +455,14 @@ void lcd::render(int frame,bool output_file) {
         printf("PPU: problem!\n");
         output_sdl = false;
     }
-    std::cout<<"PPU: Priority: "<<cpu_control.priority<<
-                    " sprites on : "<<cpu_control.sprite_enable<<
-                    " sprite size: "<<cpu_control.sprite_size<<
-                    " bg map: "<<cpu_control.bg_map<<
-                    " tile addr mode: "<<cpu_control.tile_addr_mode<<
-                    " window enable: "<<cpu_control.window_enable<<
-                    " window map: "<<cpu_control.window_map<<
-                    " display on: "<<cpu_control.display_enable<<std::endl;
+    std::cout<<"PPU: Priority: "<<control.priority<<
+                    " sprites on : "<<control.sprite_enable<<
+                    " sprite size: "<<control.sprite_size<<
+                    " bg map: "<<control.bg_map<<
+                    " tile addr mode: "<<control.tile_addr_mode<<
+                    " window enable: "<<control.window_enable<<
+                    " window map: "<<control.window_map<<
+                    " display on: "<<control.display_enable<<std::endl;
     std::ofstream vid;
     if(output_file) {
         vid.open((std::to_string(frame)+".pgm").c_str());
@@ -440,8 +473,8 @@ void lcd::render(int frame,bool output_file) {
 
     //Draw the background
     uint32_t bgbase = 0x1800;
-    if(cpu_control.priority) { //cpu_controls whether the background displays, in regular DMG mode
-        if(cpu_control.bg_map) bgbase = 0x1c00;
+    if(control.priority) { //cpu_controls whether the background displays, in regular DMG mode
+        if(control.bg_map) bgbase = 0x1c00;
         for(int x_out_pix = 0; x_out_pix < 160; x_out_pix++) {
             int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
             int x_tile = x_in_pix / 8;
@@ -450,13 +483,13 @@ void lcd::render(int frame,bool output_file) {
                 int y_in_pix = (y_out_pix + bg_scroll_y) & 0xff;
                 int y_tile = y_in_pix / 8;
                 int y_tile_pix = y_in_pix % 8;
-                int tile_num = cpu_vram[bgbase+y_tile*32+x_tile];
-                if(cpu_control.tile_addr_mode) {
+                int tile_num = vram[bgbase+y_tile*32+x_tile];
+                if(control.tile_addr_mode) {
                     tile_num = 256 + int8_t(tile_num);
                 }
                 int base = tile_num * 16;
-                int b1=cpu_vram[base+y_tile_pix*2];
-                int b2=cpu_vram[base+y_tile_pix*2+1];
+                int b1=vram[base+y_tile_pix*2];
+                int b2=vram[base+y_tile_pix*2+1];
                 int shift = 128>>(x_tile_pix);
                 int c=3 - ((b1&shift)/shift + 2*((b2&shift)/shift));
                 assert(c==0||c==1||c==2||c==3);
@@ -486,18 +519,18 @@ void lcd::render(int frame,bool output_file) {
 
     //Draw the window
     uint32_t winbase = 0x1800;
-    if(cpu_control.window_map) winbase = 0x1c00;
-    if(cpu_control.window_enable) {
+    if(control.window_map) winbase = 0x1c00;
+    if(control.window_enable) {
         for(int tile_y = 0; tile_y + (win_scroll_y/8) < 18; tile_y++) {
             for(int tile_x = 0; tile_x + (win_scroll_x/8) < 20; tile_x++) {
-                int tile_num = cpu_vram[winbase+tile_y*32+tile_x];
-                if(cpu_control.tile_addr_mode) {
+                int tile_num = vram[winbase+tile_y*32+tile_x];
+                if(control.tile_addr_mode) {
                     tile_num = 256+int8_t(tile_num);
                 }
                 int base = tile_num * 16;
                 for(int y_tile_pix = 0; y_tile_pix < 8 && y_tile_pix + win_scroll_y + tile_y * 8 < 144; y_tile_pix++) {
-                    int b1=cpu_vram[base+y_tile_pix*2];
-                    int b2=cpu_vram[base+y_tile_pix*2+1];
+                    int b1=vram[base+y_tile_pix*2];
+                    int b2=vram[base+y_tile_pix*2+1];
                     for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 < 144; x_tile_pix++) {
                         int shift = 128>>(x_tile_pix);
                         int c=3 - ((b1&shift)/shift + 2*((b2&shift)/shift));
@@ -522,7 +555,7 @@ void lcd::render(int frame,bool output_file) {
     }
     
     //Draw the sprites
-    if(cpu_control.sprite_enable) {
+    if(control.sprite_enable) {
 
     }
 
@@ -561,7 +594,7 @@ void lcd::update_estimates(uint64_t cycle) {
     uint64_t line_cycle = frame_cycle % 114;
     uint64_t frame_base_cycle = cycle - frame_cycle;
 
-    uint64_t mode = get_mode(cycle);
+    //uint64_t mode = get_mode(cycle);
 
     if(cpu_status & LYC) {
         lyc_next_cycle = frame_base_cycle + cpu_lyc * 114;

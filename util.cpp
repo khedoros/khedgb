@@ -43,6 +43,7 @@ bool process_events(memmap * bus) {
                     case SDL_WINDOWEVENT_CLOSE:
                         printf("closed\n");
                         SDL_Quit();
+                        return false;
                         break;
                     default:
                         printf("something else (%d)\n", event.window.event);

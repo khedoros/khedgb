@@ -32,11 +32,12 @@ cpu::cpu(memmap * b, bool has_firmware): bus(b),
 }
 
 uint64_t cpu::run(uint64_t run_to) {
+    assert(cycle < run_to);
     uint32_t opcode=0;
     bool running=true;
     uint64_t cycles=0;
     while(running) {
-        bus->read(pc, &opcode, 3, cycle);
+        bus->read(pc, &opcode, 4, cycle);
         cycles = dec_and_exe(opcode);
         if(!cycles) {
             std::cout<<"No idea what to do with opcode "<<std::hex<<int(opcode)<<"."<<std::endl;
@@ -53,18 +54,22 @@ uint64_t cpu::run(uint64_t run_to) {
 }
 
 uint64_t cpu::dec_and_exe(uint32_t opcode) {
+    //"cycles" is the time that the CPU spent running this operation
     uint64_t cycles = 0;
 
     //Poll interrupts
+    uint8_t int_flag = 0;
+    uint32_t op = 0;
     bus->update_interrupts(frame,cycle);
+    bus->read(0xff0f, &int_flag, 1, cycle);
     if(interrupts) { //IME
-        uint8_t int_flag = 0;
-        bus->read(0xff0f, &int_flag, 1, cycle);
-        if(int_flag > 0) {
-            halted = false;
-        }
-        if(int_flag & JOYPAD > 0) {
+        if(stopped && (int_flag & JOYPAD) > 0) {
             stopped = false;
+            pc++; //interrupt should return to instruction after STOP
+        }
+        else if(halted && int_flag > 0) {
+            halted = false;
+            pc++; //interrupt should return to instruction after HALT
         }
         bool called = call_interrupts();
         if(called) {
@@ -72,19 +77,28 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
             return cycles;
         }
     }
-
-    //TODO: Correctly implement "HALT" and "STOP". 
+    else if(halted && int_flag > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
+        halted = false;
+        op = ((op & 0xff00)>>8); //Grab the next byte after HALT
+        op = op | (op<<8) | (op<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
+        pc++;
+    }
+    else if(stopped && (int_flag & JOYPAD) > 0) {
+        stopped = false;
+        op = ((op & 0xff00)>>8);
+        op = op | (op<<8) | (op<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
+        pc++;
+    }
 
     int bytes = 0;
     int prefix = 0;
-    int op = 0;
     int data = 0;
     //std::cout<<std::hex<<opcode<<"\t";
     op = opcode & 0xff;
     if(op == 0xcb) {
         prefix = 0xcb;
         op = ((opcode&0xFF00)>>(8));
-        cycles = (op&0x7 == 6) ? 16 : 8;
+        cycles = ((op&0x7) == 6) ? 16 : 8;
         bytes = 2;
     }
     else {
@@ -109,22 +123,23 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     decode(prefix,x,y,z,data);
     printf("\n");
 
-    if(!halted && !stopped) {
+    if(!halted && !stopped) {//If the CPU hits a HALT or STOP, it needs to stay there.
         pc += bytes;
     }
 
+    //Branches and such need extra time, so execute returns any extra time that was necessary
     cycles += execute(prefix,x,y,z,data);
 
     return cycles;
 }
 
 uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
-    char r_name[][5]  =    {     "B",      "C",   "D",      "E",   "H",   "L","(HL)",  "A"};
-    char rp_name[][3] =    {    "BC",     "DE",  "HL",     "SP"};
-    char rp2_name[][3]=    {    "BC",     "DE",  "HL",     "AF"};
-    char cc_name[][3] =    {    "NZ",      "Z",  "NC",      "C",  "PO",  "PE",   "P",  "M"};
-    char alu_name[][7]=    {"ADD A,", "ADC A,", "SUB", "SBC A,", "AND", "XOR",  "OR", "CP"};
-    char rot_name[][5]=    {   "RLC",    "RRC",  "RL",     "RR", "SLA", "SRA", "SWAP","SRL"};
+    //char r_name[][5]  =    {     "B",      "C",   "D",      "E",   "H",   "L","(HL)",  "A"};
+    //char rp_name[][3] =    {    "BC",     "DE",  "HL",     "SP"};
+    //char rp2_name[][3]=    {    "BC",     "DE",  "HL",     "AF"};
+    //char cc_name[][3] =    {    "NZ",      "Z",  "NC",      "C",  "PO",  "PE",   "P",  "M"};
+    //char alu_name[][7]=    {"ADD A,", "ADC A,", "SUB", "SBC A,", "AND", "XOR",  "OR", "CP"};
+    //char rot_name[][5]=    {   "RLC",    "RRC",  "RL",     "RR", "SLA", "SRA", "SWAP","SRL"};
     int p,q;
     p=y/2;
     q=y%2;
@@ -1232,9 +1247,10 @@ bool cpu::call_interrupts() {
             call = false;
     }
     if(call) {
-        halted = false;
-        stopped = false;
+        //halted = false;
+        //stopped = false;
         //push pc
+        printf("INT: calling to %d\n", to_run);
         bus->write(sp-2, &pc, 2, cycle);
         sp -= 2;
 

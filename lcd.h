@@ -67,6 +67,8 @@ private:
     std::vector<std::vector<uint8_t>> cmd_data; //necessary to store a snapshot of DMA data, for example
     Vect<uint8_t> vram;
     Vect<uint8_t> oam;
+    uint64_t cycle;      //Last cycle executed during previous invocation of "lcd::run()"
+    uint64_t next_line; //Next line to render in frame
     control_reg control; //0xff40
     uint8_t bg_scroll_y; //0xff42
     uint8_t bg_scroll_x; //0xff43
@@ -78,6 +80,7 @@ private:
     uint8_t win_scroll_y;//0xff4a
     uint8_t win_scroll_x;//0xff4b
     uint64_t active_cycle; //Most recent cycle that the display was enabled
+    uint64_t frame;      //current frame count
 
 
     //Needed for proper responses to the CPU. A lot of these are mirrored versions of the PPU-view registers.
@@ -131,8 +134,8 @@ private:
 
     SDL_Surface * overlay; //overlay surface
     SDL_Surface * lps; //Low-priority sprite compositing buffer
+    SDL_Surface * hps; //High-priority sprite compositing buffer
     SDL_Surface * bg; //Background compositing buffer
     SDL_Surface * win; //Floating window compositing buffer
-    SDL_Surface * hps; //High-priority sprite compositing buffer
 
 };

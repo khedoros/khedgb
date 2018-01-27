@@ -236,7 +236,7 @@ uint32_t rom::ram_sizes[6] = {0, 2048, 8192, 32768, 131072, 65536};
 
 
 //NULL mapper
-mapper::mapper(int rom_size, int ram_size, bool bat) : romsize(rom_size), ramsize(ram_size), has_bat(bat) {}
+mapper::mapper(int rom_size, int ram_size, bool bat) : has_bat(bat), has_rtc(false), romsize(rom_size), ramsize(ram_size) {}
 uint32_t mapper::map_rom(uint32_t addr, int cycle) {
     return addr;
 }
@@ -290,6 +290,8 @@ void mbc1_rom::write(uint32_t addr, void * val, int size, int cycle) {
     else if(addr >= 0x2000 && addr < 0x4000) bank.lower = *(((char *)val));
     else if(addr >= 0x4000 && addr < 0x6000) bank.upper = *(((char *)val));
     else mode = *(((char *)val));
+
+    if(addr>=0x2000 && addr < 0x6000) { printf("ROM MBC1: Set ROM bank to %d\n", bank.rom_bank); }
 }
 
 

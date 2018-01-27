@@ -15,10 +15,10 @@ const int memmap::timer_clock_select[4] = {
 
 memmap::memmap(const std::string& rom_filename, const std::string& fw_file) : 
                                                   screen(), cart(rom_filename, fw_file),
-                                                  int_enabled{false,false,false,false,false},
-                                                  int_requested{false,false,false,false,false},
-                                                  last_int_cycle(0), div_clock(0),timer_running(false),
-                                                  timer(0),timer_reset(0),timer_control(0),timer_clock(0)
+                                                  int_enabled{0,0,0,0,0},
+                                                  int_requested{0,0,0,0,0},
+                                                  last_int_cycle(0), link_data(0), timer(0),timer_reset(0),timer_control(0),
+                                                  timer_running(false),timer_deadline(0), div_clock(0), timer_clock(0)
 {
     wram.resize(0x2000);
     hram.resize(0x7f);
@@ -102,7 +102,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
 
 void memmap::write(int addr, void * val, int size, uint64_t cycle) {
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
-    if(addr >= 0 && addr < 0x8000 || addr == 0xff50) {
+    if((addr >= 0 && addr < 0x8000) || addr == 0xff50) {
         //std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (mappers not implemented yet)"<<std::endl;
         cart.write(addr,val,size,cycle);
     }
@@ -205,12 +205,13 @@ void memmap::update_interrupts(uint32_t frame, uint64_t cycle) {
     if(cycle > last_int_cycle + 1140 && screen.get_mode(cycle) == 1 && ((enabled&0x80) > 0)) {
         int_requested.vblank = 1;
         last_int_cycle = cycle; 
-        //printf("vbl set active, frame %d, cycle %d\n", frame, cycle);
+        printf("INT: vbl set active @ cycle %ld\n", cycle);
     }
 
     //LCDSTAT
     if(screen.interrupt_triggered(cycle)) {
         int_requested.lcdstat = 1;
+        printf("INT: lcdstat set active @ cycle %ld\n", cycle);
     }
 
     /*

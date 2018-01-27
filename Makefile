@@ -1,4 +1,4 @@
-CXXFLAGS:=-g -std=c++11
+CXXFLAGS:=-g -std=c++11 -Wall
 LDFLAGS:= $(shell sdl2-config --libs --cflags)
 
 khedgb: main.o cpu.o cpu.h memmap.o memmap.h lcd.o lcd.h rom.o rom.h decode.o util.o util.h
