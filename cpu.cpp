@@ -28,6 +28,10 @@ cpu::cpu(memmap * b, bool has_firmware): bus(b),
     else {
         pc = 0x100;
         sp = 0xfffe;
+        af.pair = 0x01b0;
+        bc.pair = 0x0013;
+        de.pair = 0x00d8;
+        hl.pair = 0x014d;
     }
 }
 
@@ -59,7 +63,6 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
 
     //Poll interrupts
     uint8_t int_flag = 0;
-    uint32_t op = 0;
     bus->update_interrupts(frame,cycle);
     bus->read(0xff0f, &int_flag, 1, cycle);
     if(interrupts) { //IME
@@ -79,14 +82,14 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     }
     else if(halted && int_flag > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
         halted = false;
-        op = ((op & 0xff00)>>8); //Grab the next byte after HALT
-        op = op | (op<<8) | (op<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
+        opcode = ((opcode & 0xff00)>>8); //Grab the next byte after HALT
+        opcode = opcode | (opcode<<8) | (opcode<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
         pc++;
     }
     else if(stopped && (int_flag & JOYPAD) > 0) {
         stopped = false;
-        op = ((op & 0xff00)>>8);
-        op = op | (op<<8) | (op<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
+        opcode = ((opcode & 0xff00)>>8);
+        opcode = opcode | (opcode<<8) | (opcode<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
         pc++;
     }
 
@@ -94,6 +97,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     int prefix = 0;
     int data = 0;
     //std::cout<<std::hex<<opcode<<"\t";
+    uint32_t op = 0;
     op = opcode & 0xff;
     if(op == 0xcb) {
         prefix = 0xcb;

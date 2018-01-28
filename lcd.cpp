@@ -128,7 +128,7 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                     control_reg old_val{.val = control.val};
                     control.val = val;
                     if(control.display_enable && !old_val.display_enable) {
-                        active_cycle = cycle;
+                        //active_cycle = cycle;
                     }
                 }
                 break;
@@ -194,7 +194,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                     control_reg old_val{.val = cpu_control.val};
                     cpu_control.val = *((uint8_t *)val);
                     if(cpu_control.display_enable && !old_val.display_enable) {
-                        cpu_active_cycle = cycle;
+                        //cpu_active_cycle = cycle;
                         update_estimates(cycle);
                     }
                     else if(old_val.display_enable != cpu_control.display_enable) {
@@ -520,7 +520,7 @@ void lcd::render(int frame,bool output_file) {
     //Draw the window
     uint32_t winbase = 0x1800;
     if(control.window_map) winbase = 0x1c00;
-    if(control.window_enable) {
+    if(control.window_enable && false) {
         for(int tile_y = 0; tile_y + (win_scroll_y/8) < 18; tile_y++) {
             for(int tile_x = 0; tile_x + (win_scroll_x/8) < 20; tile_x++) {
                 int tile_num = vram[winbase+tile_y*32+tile_x];
@@ -545,7 +545,7 @@ void lcd::render(int frame,bool output_file) {
                         */
 
                         if(output_sdl) {
-                            SDL_SetRenderDrawColor(renderer, 85*bgpal.pal[c], 85*bgpal.pal[c], 85*bgpal.pal[c], 255);
+                            SDL_SetRenderDrawColor(renderer, 85*bgpal.pal[c], 0, 0, 255);
                             SDL_RenderDrawPoint(renderer, tile_x*8+x_tile_pix, tile_y*8+y_tile_pix);
                         }
                     }
@@ -556,6 +556,12 @@ void lcd::render(int frame,bool output_file) {
     
     //Draw the sprites
     if(control.sprite_enable) {
+        for(int spr = 0; spr < 40; spr++) {
+            oam_data sprite_dat;
+            memcpy(&sprite_dat, &oam[spr*4], 4);
+            sprite_dat.ypos -= 16;
+            sprite_dat.xpos -= 8;
+        }
 
     }
 

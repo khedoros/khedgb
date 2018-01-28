@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
             if(cycle_diff != 0) {
                 uint64_t delay = (double(cycle_diff*1000) / double(1024*1024));
                 if(delay < 1000) {
-                    SDL_Delay(delay);
+                    //SDL_Delay(delay);
                 }
                 uint64_t actual_delay = SDL_GetTicks() - now;
                 if(actual_delay > delay) {

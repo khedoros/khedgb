@@ -318,6 +318,12 @@ void mbc2_rom::write(uint32_t addr, void * val, int size, int cycle) {
 //MBC3 mapper
 mbc3_rom::mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc) : mapper(rom_size, ram_size, has_bat) {}
 uint32_t mbc3_rom::map_rom(uint32_t addr, int cycle) {
+    if(addr < 0x4000) {
+        return addr;
+    }
+
+    addr -= 0x4000;
+
     return 0;
 }
 uint32_t mbc3_rom::map_ram(uint32_t addr, int cycle) {

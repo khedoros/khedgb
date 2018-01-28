@@ -62,6 +62,23 @@ private:
         uint8_t val;
     };
 
+    struct oam_data {
+        uint8_t ypos;
+        uint8_t xpos;
+        uint8_t tile;
+        union {
+            struct {
+                unsigned palnum_cgb:3; //CGB only
+                unsigned tilebank:1; //CGB only
+                unsigned palnum_dmg:1; //DMG only
+                unsigned xflip:1;
+                unsigned yflip:1;
+                unsigned priority:1; //0=above BG, 1=behind BG colors 1-3
+            };
+            uint8_t attribs;
+        };
+    };
+
     //Needed for rendering, so must be mirrored to "catch up" with the CPU's view of the PPU state
     std::list<util::cmd> cmd_queue; //List of commands to catch up PPU with CPU
     std::vector<std::vector<uint8_t>> cmd_data; //necessary to store a snapshot of DMA data, for example

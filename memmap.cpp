@@ -23,6 +23,40 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
     wram.resize(0x2000);
     hram.resize(0x7f);
 
+    if(fw_file == "") {
+        uint8_t temp = 0;
+        temp = 0x00; write(0xFF05, &temp, 1, 0);    //; TIMA
+        temp = 0x00; write(0xFF06, &temp, 1, 0);    //; TMA
+        temp = 0x00; write(0xFF07, &temp, 1, 0);    //; TAC
+        temp = 0x80; write(0xFF10, &temp, 1, 0);    //; NR10
+        temp = 0xBF; write(0xFF11, &temp, 1, 0);    //; NR11
+        temp = 0xF3; write(0xFF12, &temp, 1, 0);    //; NR12
+        temp = 0xBF; write(0xFF14, &temp, 1, 0);    //; NR14
+        temp = 0x3F; write(0xFF16, &temp, 1, 0);    //; NR21
+        temp = 0x00; write(0xFF17, &temp, 1, 0);    //; NR22
+        temp = 0xBF; write(0xFF19, &temp, 1, 0);    //; NR24
+        temp = 0x7F; write(0xFF1A, &temp, 1, 0);    //; NR30
+        temp = 0xFF; write(0xFF1B, &temp, 1, 0);    //; NR31
+        temp = 0x9F; write(0xFF1C, &temp, 1, 0);    //; NR32
+        temp = 0xBF; write(0xFF1E, &temp, 1, 0);    //; NR33
+        temp = 0xFF; write(0xFF20, &temp, 1, 0);    //; NR41
+        temp = 0x00; write(0xFF21, &temp, 1, 0);    //; NR42
+        temp = 0x00; write(0xFF22, &temp, 1, 0);    //; NR43
+        temp = 0xBF; write(0xFF23, &temp, 1, 0);    //; NR30
+        temp = 0x77; write(0xFF24, &temp, 1, 0);    //; NR50
+        temp = 0xF3; write(0xFF25, &temp, 1, 0);    //; NR51
+        temp = 0xF1; write(0xFF26, &temp, 1, 0);    //; NR52
+        temp = 0x91; write(0xFF40, &temp, 1, 0);    //; LCDC
+        temp = 0x00; write(0xFF42, &temp, 1, 0);    //; SCY
+        temp = 0x00; write(0xFF43, &temp, 1, 0);    //; SCX
+        temp = 0x00; write(0xFF45, &temp, 1, 0);    //; LYC
+        temp = 0xFC; write(0xFF47, &temp, 1, 0);    //; BGP
+        temp = 0xFF; write(0xFF48, &temp, 1, 0);    //; OBP0
+        temp = 0xFF; write(0xFF49, &temp, 1, 0);    //; OBP1
+        temp = 0x00; write(0xFF4A, &temp, 1, 0);    //; WY
+        temp = 0x00; write(0xFF4B, &temp, 1, 0);    //; WX
+        temp = 0x00; write(0xFFFF, &temp, 1, 0);    //; IE
+    }
 }
 
 void memmap::dump_tiles() {
