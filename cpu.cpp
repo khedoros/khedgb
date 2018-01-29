@@ -69,10 +69,13 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         if(stopped && (int_flag & JOYPAD) > 0) {
             stopped = false;
             pc++; //interrupt should return to instruction after STOP
+            opcode>>=8;
         }
         else if(halted && int_flag > 0) {
             halted = false;
             pc++; //interrupt should return to instruction after HALT
+            opcode>>=8;
+            printf("Interrupts enabled, and int_flag: %02x, un-halting\n", int_flag);
         }
         bool called = call_interrupts();
         if(called) {
@@ -82,15 +85,17 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     }
     else if(halted && int_flag > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
         halted = false;
-        opcode = ((opcode & 0xff00)>>8); //Grab the next byte after HALT
+        opcode >>= 8; //Grab the next byte after HALT
         opcode = opcode | (opcode<<8) | (opcode<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
         pc++;
+        printf("Interrupts disabled, but int_flag: %02x, un-halting and locking PC\n", int_flag);
     }
     else if(stopped && (int_flag & JOYPAD) > 0) {
         stopped = false;
-        opcode = ((opcode & 0xff00)>>8);
+        opcode >>= 8;
         opcode = opcode | (opcode<<8) | (opcode<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
         pc++;
+        printf("Interrupts disabled, but saw joypad interrupt. un-stopping and locking PC\n");
     }
 
     int bytes = 0;
@@ -164,7 +169,6 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 case 0x2: //0x10
                     //Different than Z80
-                    halted = true;
                     stopped = true;
                     //printf("STOP 0 (diff)\n");
                     break;
@@ -892,7 +896,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                         af.hi += (data + carry());
                         if(set_c) set(CARRY_FLAG);
                         else clear(CARRY_FLAG);
-                        printf("A(%02x)\tC: %d H: %d\n", af.hi, carry(), hc());
+                        //printf("A(%02x)\tC: %d H: %d\n", af.hi, carry(), hc());
                     }
                     clear(SUB_FLAG);
                     if(af.hi) clear(ZERO_FLAG);

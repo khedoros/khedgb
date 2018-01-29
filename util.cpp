@@ -13,10 +13,17 @@ bool process_events(memmap * bus) {
                 printf("util::Keydown\n");
                 if(event.key.keysym.scancode==SDL_SCANCODE_Q||
                         (event.key.keysym.scancode==SDL_SCANCODE_C&&(event.key.keysym.mod==KMOD_RCTRL))||
-                        (event.key.keysym.scancode==SDL_SCANCODE_C&&(event.key.keysym.mod==KMOD_LCTRL))) {}
+                        (event.key.keysym.scancode==SDL_SCANCODE_C&&(event.key.keysym.mod==KMOD_LCTRL))) {
+                    SDL_Quit();
+                    return false;
+                }
+                else {
+                    bus->keydown(event.key.keysym.scancode);
+                }
                 break;
             case SDL_KEYUP: /* Handle a KEYUP event*/
                 printf("util::Keyup\n");
+                bus->keyup(event.key.keysym.scancode);
                 break;
             case SDL_WINDOWEVENT:
                 printf("util::Window event: ");

@@ -3,6 +3,7 @@
 #include "rom.h"
 #include "lcd.h"
 #include<string>
+#include<SDL2/SDL_scancode.h>
 
 enum INT_TYPE {
     NONE = 0,
@@ -21,6 +22,8 @@ public:
 //    void map(int addr, void * val, int size, bool rw);
     void read(int addr, void * val, int size, uint64_t cycle);
     void write(int addr, void * val, int size, uint64_t cycle);
+    void keydown(SDL_Scancode k);
+    void keyup(SDL_Scancode k);
     INT_TYPE get_interrupt();
     void update_interrupts(uint32_t frame, uint64_t cycle);
     //void map(int addr, void * const val, int size, bool rw);
@@ -50,6 +53,29 @@ private:
     int_flags int_requested; //0xff0f interrupt requested flags
     uint64_t last_int_cycle;
     uint8_t link_data;
+
+    struct buttons {
+        union {
+            struct {
+                unsigned right:1;
+                unsigned left:1;
+                unsigned up:1;
+                unsigned down:1;
+                unsigned unused_dirs:4;
+            };
+            struct {
+                unsigned a:1;
+                unsigned b:1;
+                unsigned select:1;
+                unsigned start:1;
+                unsigned unused_buttons:4;
+            };
+            unsigned keys:8;
+        };
+    };
+    uint8_t joypad; //0xff00, just stores the flags for which lines are active
+    buttons directions;
+    buttons btns;
 
     //uint8_t div; //0xff04 top 8 bits of clock-divider register, which increments at 16384Hz. Calculated based on current cycle, and last time it was reset.
     uint8_t timer; //0xff05 timer value

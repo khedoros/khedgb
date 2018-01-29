@@ -20,6 +20,8 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
                                                   last_int_cycle(0), link_data(0), timer(0),timer_reset(0),timer_control(0),
                                                   timer_running(false),timer_deadline(0), div_clock(0), timer_clock(0)
 {
+    directions.keys = 0x00;
+    btns.keys = 0x00;
     wram.resize(0x2000);
     hram.resize(0x7f);
 
@@ -83,8 +85,17 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
     }
     else if (addr >= 0xff00 && addr < 0xff80) {
         switch(addr) {
-        case 0xff00:
-            *((uint8_t *)val) = 0xff;
+        case 0xff00: 
+            {
+                uint8_t keyval = 0xf0;
+                if((joypad & 0x20) == 0) {
+                    keyval |= btns.keys;
+                }
+                if((joypad & 0x10) == 0) {
+                    keyval |= directions.keys;
+                }
+                *((uint8_t *)val) = (0xc0 | joypad | (~keyval));
+            }
             printf("Stubbed out read to gamepad (not implemented yet)\n");
             break;
         case 0xff44: //TODO: Move this to PPU, base on global cycle count instead of frame cycle count
@@ -156,7 +167,10 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
     }
     else if (addr >= 0xff00 && addr < 0xff80) {
         if(addr < 0xff03) {
-            if(addr == 0xff01) {
+            if(addr == 0xff00) {
+                joypad = (*((uint8_t *)val) & 0x30);
+            }
+            else if(addr == 0xff01) {
                 link_data = *((uint8_t *)val);
             }
             else if(addr == 0xff02) {
@@ -218,6 +232,68 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
 
 void memmap::render(int frame,bool output_file) {
     screen.render(frame,output_file);
+}
+
+void memmap::keydown(SDL_Scancode k) { //TODO: Implement joypad
+    switch(k) {
+        case SDL_SCANCODE_W:
+            directions.up=1;
+            break;
+        case SDL_SCANCODE_A:
+            directions.left=1;
+            break;
+        case SDL_SCANCODE_S:
+            directions.down=1;
+            break;
+        case SDL_SCANCODE_D:
+            directions.right=1;
+            break;
+        case SDL_SCANCODE_G:
+            btns.start=1;
+            break;
+        case SDL_SCANCODE_H:
+            btns.select=1;
+            break;
+        case SDL_SCANCODE_K:
+            btns.b=1;
+            break;
+        case SDL_SCANCODE_L:
+            btns.a=1;
+            break;
+        default:
+            break;
+    }
+}
+
+void memmap::keyup(SDL_Scancode k) { //TODO: Implement joypad
+    switch(k) {
+        case SDL_SCANCODE_W:
+            directions.up=0;
+            break;
+        case SDL_SCANCODE_A:
+            directions.left=0;
+            break;
+        case SDL_SCANCODE_S:
+            directions.down=0;
+            break;
+        case SDL_SCANCODE_D:
+            directions.right=0;
+            break;
+        case SDL_SCANCODE_G:
+            btns.start=0;
+            break;
+        case SDL_SCANCODE_H:
+            btns.select=0;
+            break;
+        case SDL_SCANCODE_K:
+            btns.b=0;
+            break;
+        case SDL_SCANCODE_L:
+            btns.a=0;
+            break;
+        default:
+            break;
+    }
 }
 
 INT_TYPE memmap::get_interrupt() {

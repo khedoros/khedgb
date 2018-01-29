@@ -128,7 +128,7 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                     control_reg old_val{.val = control.val};
                     control.val = val;
                     if(control.display_enable && !old_val.display_enable) {
-                        //active_cycle = cycle;
+                        active_cycle = cycle;
                     }
                 }
                 break;
@@ -194,7 +194,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                     control_reg old_val{.val = cpu_control.val};
                     cpu_control.val = *((uint8_t *)val);
                     if(cpu_control.display_enable && !old_val.display_enable) {
-                        //cpu_active_cycle = cycle;
+                        cpu_active_cycle = cycle;
                         update_estimates(cycle);
                     }
                     else if(old_val.display_enable != cpu_control.display_enable) {
