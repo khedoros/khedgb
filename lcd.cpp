@@ -151,6 +151,8 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                 bg_scroll_x = val;
                 break;
             case 0xff46://OAM DMA
+                assert(cmd_data.size() > index);
+                assert(cmd_data[index].size() == 0xa0);
                 memcpy(&oam[0],&cmd_data[index][0],0xa0);
                 break;
             case 0xff47:
@@ -573,6 +575,16 @@ void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/
             memcpy(&sprite_dat, &oam[spr*4], 4);
             sprite_dat.ypos -= 16;
             sprite_dat.xpos -= 8;
+            int ypos = oam[spr*4+0] - 16;
+            int xpos = oam[spr*4+1] - 8;
+            SDL_SetRenderDrawColor(renderer, 0, 160,0,255);
+            for(int x=0;x<8;x++) {
+                for(int y=0;y<(8+((control.sprite_size)*8));y++) {
+                    if(ypos+y >= 0 &&ypos+y < 144 && xpos+x >=0 && xpos+x < 160) {
+                        SDL_RenderDrawPoint(renderer, xpos+x, ypos+y);
+                    }
+                }
+            }
         }
 
     }

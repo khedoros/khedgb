@@ -196,7 +196,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
         }
         else if(addr > 0xff3f && addr < 0xff4c) {
             if(addr == 0xff46) { //OAM DMA
-                int dat = 0; //uint16_t(*((uint8_t *)val)) * 0x100;
+                int dat = uint16_t(*((uint8_t *)val)) * 0x100;
                 if(dat < 0xf100) {
                     //dat is between 0x00 and 0xf1, so that covers: ROM (00 to 7f), vram (80 to 9f), cram (a0-bf), wram (c0-df), wram_echo (e0-f1)
                     uint8_t temp[0xa0];
