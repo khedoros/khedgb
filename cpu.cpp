@@ -73,9 +73,10 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         }
         else if(halted && int_flag > 0) {
             halted = false;
-            pc++; //interrupt should return to instruction after HALT
+            //pc++; //interrupt should return to instruction after HALT
             opcode>>=8;
             printf("Interrupts enabled, and int_flag: %02x, un-halting\n", int_flag);
+            return 2;
         }
         bool called = call_interrupts();
         if(called) {
@@ -84,17 +85,19 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         }
     }
     else if(halted && int_flag > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
-        halted = false;
+        //halted = false;
         opcode >>= 8; //Grab the next byte after HALT
         opcode = opcode | (opcode<<8) | (opcode<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
         pc++;
+        return 2;
         printf("Interrupts disabled, but int_flag: %02x, un-halting and locking PC\n", int_flag);
     }
     else if(stopped && (int_flag & JOYPAD) > 0) {
         stopped = false;
         opcode >>= 8;
         opcode = opcode | (opcode<<8) | (opcode<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
-        pc++;
+        //pc+=2;
+        return 2;
         printf("Interrupts disabled, but saw joypad interrupt. un-stopping and locking PC\n");
     }
 
