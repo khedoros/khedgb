@@ -99,7 +99,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             printf("Stubbed out read to gamepad (not implemented yet)\n");
             break;
         case 0xff44: //TODO: Move this to PPU, base on global cycle count instead of frame cycle count
-            *((uint8_t *)val) = (cycle / 114);
+            *((uint8_t *)val) = (((cycle - screen.get_active_cycle()) % 17556) / 114);
             break;
         default:
             if(addr < 0xff03) {
@@ -249,10 +249,10 @@ void memmap::keydown(SDL_Scancode k) { //TODO: Implement joypad
             directions.right=1;
             break;
         case SDL_SCANCODE_G:
-            btns.start=1;
+            btns.select=1;
             break;
         case SDL_SCANCODE_H:
-            btns.select=1;
+            btns.start=1;
             break;
         case SDL_SCANCODE_K:
             btns.b=1;
@@ -280,10 +280,10 @@ void memmap::keyup(SDL_Scancode k) { //TODO: Implement joypad
             directions.right=0;
             break;
         case SDL_SCANCODE_G:
-            btns.start=0;
+            btns.select=0;
             break;
         case SDL_SCANCODE_H:
-            btns.select=0;
+            btns.start=0;
             break;
         case SDL_SCANCODE_K:
             btns.b=0;
@@ -308,7 +308,6 @@ INT_TYPE memmap::get_interrupt() {
 }
 
 void memmap::update_interrupts(uint32_t frame, uint64_t cycle) {
-    //VBLANK TODO: This needs to be based on global cycle counts, not frame number and intra-frame cycle
     uint8_t enabled = 0;
     screen.read(0xff40, &enabled, 1, cycle);
     //We aren't still in previously-seen vblank, we *are* in vblank, and the screen is enabled
