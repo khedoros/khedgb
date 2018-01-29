@@ -34,7 +34,7 @@ public:
     void dump_tiles();
     void write(int addr, void * val, int size, uint64_t cycle);
     void read(int addr, void * val, int size, uint64_t cycle);
-    void render(int frame, bool write_file);
+    void render(int frame, bool write_file, int start_line=0, int end_line=143);
     void render_background(int frame);
     bool interrupt_triggered(uint64_t cycle);
     uint64_t get_active_cycle();

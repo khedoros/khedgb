@@ -83,10 +83,10 @@ lcd::lcd() : cycle(0), next_line(0), control{.val=0x91}, bg_scroll_y(0), bg_scro
 
 uint64_t lcd::run(uint64_t run_to) {
     assert(cycle < run_to);
-    util::cmd current = cmd_queue.front();
 
     uint64_t render_cycle = 0;
     while(cmd_queue.size() > 0) {
+        util::cmd current = cmd_queue.front();
         uint64_t offset = current.cycle - active_cycle;
         uint64_t frame_cycle = offset % 17556;
         uint64_t frame_line = frame_cycle / 114;
@@ -94,6 +94,8 @@ uint64_t lcd::run(uint64_t run_to) {
 
         if(render_cycle == 0 && frame_cycle >= (114 * 144)) { //If next change is in vblank
             render(frame,false);
+
+            printf("PPU: Frame %ld\n", frame);
             frame++;
             next_line = 0;
             render_cycle = active_cycle + frames_since_active * 17556 + (114 * 144);
@@ -105,7 +107,17 @@ uint64_t lcd::run(uint64_t run_to) {
         cycle = current.cycle;
         current = cmd_queue.front();
     }
-    for(int i=0;i<cmd_data.size();i++) {
+    if(render_cycle == 0 && ((run_to - active_cycle) % 17556) / 114 >= 144) {
+            if(frame >= 10 && frame < 15) {
+                render_background(frame);
+            }
+            render(frame,false);
+        printf("PPU: Frame %ld\n", frame);
+        frame++;
+        next_line = 0;
+        render_cycle = ((run_to - active_cycle) / 17556) * 17556 + (114 * 144);
+    }
+    for(size_t i=0;i<cmd_data.size();i++) {
         cmd_data[i].resize(0);
     }
     cmd_data.resize(0);
@@ -448,7 +460,7 @@ void lcd::render_background(int frame) {
     return;
 }
 
-void lcd::render(int frame,bool output_file) {
+void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/*=143*/) {
 
     bool output_sdl = true;
     if(!screen||!texture||!renderer) {
