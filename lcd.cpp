@@ -153,6 +153,8 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                 bg_scroll_x = val;
                 break;
             case 0xff46://OAM DMA
+                assert(cmd_data.size() > index);
+                assert(cmd_data[index].size() == 0xa0);
                 memcpy(&oam[0],&cmd_data[index][0],0xa0);
                 break;
             case 0xff47:
@@ -575,6 +577,46 @@ void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/
             memcpy(&sprite_dat, &oam[spr*4], 4);
             sprite_dat.ypos -= 16;
             sprite_dat.xpos -= 8;
+            //int ypos = oam[spr*4+0] - 16;
+            //int xpos = oam[spr*4+1] - 8;
+            uint8_t tile = oam[spr*4+2];
+
+            int sprite_size = 8 + (control.sprite_size * 8);
+
+            if(control.sprite_size) {
+                tile &= 0xfe;
+            }
+
+            int base = tile * 16;
+
+            for(int x=0;x!=8;x++) {
+                int x_i = x;
+                if(sprite_dat.xflip == 1) {
+                    x_i = 7 - x;
+                }
+
+                for(int y=0;y!=sprite_size;y++) {
+                    if(sprite_dat.ypos+y >= 0 && sprite_dat.ypos+y < 144 && sprite_dat.xpos+x >=0 && sprite_dat.xpos+x < 160) {
+                        int y_i = y;
+                        if(sprite_dat.yflip == 1) {
+                            y_i = sprite_size - (y + 1);
+                        }
+                        int b1=vram[base+y_i * 2];
+                        int b2=vram[base+y_i * 2 + 1];
+                        int shift = 128>>(x_i);
+                        int col=((b1&shift)/shift + 2*((b2&shift)/shift));
+                        if(!col) continue;
+                        if(sprite_dat.palnum_dmg) {
+                            SDL_SetRenderDrawColor(renderer, 0, 85 * obj1pal.pal[3-col],0,255);
+                        }
+                        else {
+                            SDL_SetRenderDrawColor(renderer, 0, 0, 85 * obj2pal.pal[3-col],255);
+                        }
+
+                        SDL_RenderDrawPoint(renderer, sprite_dat.xpos+x, sprite_dat.ypos+y);
+                    }
+                }
+            }
         }
 
     }

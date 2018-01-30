@@ -291,7 +291,11 @@ void mbc1_rom::write(uint32_t addr, void * val, int size, int cycle) {
     else if(addr >= 0x4000 && addr < 0x6000) bank.upper = *(((char *)val));
     else mode = *(((char *)val));
 
-    if(addr>=0x2000 && addr < 0x6000) { printf("ROM MBC1: Set ROM bank to %d\n", bank.rom_bank); }
+    if(addr>=0x2000 && addr < 0x6000) {
+        printf("ROM MBC1: Set ROM bank to %d, rom size: %d\n", bank.rom_bank, romsize);
+        bank.rom_bank = bank.rom_bank % (romsize / 16384);
+        //printf("ROM MBC1: Set ROM bank to %d after masking\n", bank.rom_bank);
+    }
 }
 
 
