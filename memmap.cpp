@@ -67,13 +67,13 @@ void memmap::dump_tiles() {
 
 void memmap::read(int addr, void * val, int size, uint64_t cycle) {
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
-    if(addr >= 0 && addr < 0x8000) {
+    if(addr >= 0 && addr < 0x8000) { //Cartridge 0x0000-0x7fff
         cart.read(addr, val, size, cycle);
     }
-    else if (addr >= 0x8000 && addr < 0xa000) {
+    else if (addr >= 0x8000 && addr < 0xa000) { //VRAM 0x8000-0x9fff
         screen.read(addr, val, size, cycle);//memcpy(val, &(vram[addr-0x8000]), size);
     }
-    else if (addr >= 0xa000 && addr < 0xc000) {
+    else if (addr >= 0xa000 && addr < 0xc000) { //External RAM 0xa000-0xbfff
         cart.read(addr, val, size, cycle);
         //std::cout<<"Read from external RAM: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
     }
@@ -82,6 +82,10 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
     }
     else if (addr >= 0xfe00 && addr < 0xfea0) {
         screen.read(addr, val, size, cycle);
+    }
+    else if (addr >= 0xfea0 && addr < 0xff00) {
+        //"Not useable" RAM area; apparently returns 0 on DMG, 0 and random values on CGB
+        memset(val, 0, size);
     }
     else if (addr >= 0xff00 && addr < 0xff80) {
         switch(addr) {
@@ -98,21 +102,33 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             }
             printf("Stubbed out read to gamepad (not implemented yet)\n");
             break;
+        case 0xff01:
+            std::cout<<"Read from gamepad/link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            break;
+        case 0xff02:
+            std::cout<<"Read from gamepad/link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            break;
+        case 0xff04: //DIV register. 16KHz increment, (1024*1024)/16384=64, and the register overflows every 256 increments
+            *(uint8_t *)val = ((cycle - div_reset) / 64) % 256;
+            break;
+        case 0xff05:
+            std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            break;
+        case 0xff06:
+            std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            break;
+        case 0xff07:
+            std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            break;
+        case 0xff0f:
+            *((uint8_t *)val) = int_requested.reg;
+            //std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            break;
         case 0xff44: //TODO: Move this to PPU, base on global cycle count instead of frame cycle count
             *((uint8_t *)val) = (((cycle - screen.get_active_cycle()) % 17556) / 114);
             break;
         default:
-            if(addr < 0xff03) {
-                std::cout<<"Read from gamepad/link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
-            }
-            else if(addr > 0xff03 && addr < 0xff08) {
-                std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
-            }
-            else if(addr == 0xff0f) {
-                *((uint8_t *)val) = int_requested.reg;
-                //std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
-            }
-            else if(addr > 0xff0f && addr < 0xff3f) {
+            if(addr > 0xff0f && addr < 0xff3f) {
                 std::cout<<"Read from audio hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             }
             else if(addr > 0xff3f && addr < 0xff4c) {
@@ -128,16 +144,12 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             }
         }
     }
-    else if (addr >= 0xff80 && addr < 0xffff) {
+    else if (addr >= 0xff80 && addr < 0xffff) { //127 bytes High RAM
         memcpy(val, &(hram[addr - 0xff80]), size);
     }
     else if (addr == 0xffff) {
         //std::cerr<<"Attempted read of write-only register?"<<std::endl;
         *((uint8_t *)val) = int_enabled.reg;
-    }
-    else if (addr >= 0xffa0 && addr < 0xff00) {
-        //"Not useable" RAM area; apparently returns 0 on DMG, 0 and random values on CGB
-        memset(val, 0, size);
     }
     else {
         //std::cerr<<"Water fog? Trying to read from 0x"<<std::hex<<addr<<" bzzzzzzt"<<std::endl;
@@ -147,79 +159,97 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
 
 void memmap::write(int addr, void * val, int size, uint64_t cycle) {
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
-    if((addr >= 0 && addr < 0x8000) || addr == 0xff50) {
+    if(addr >= 0 && addr < 0x8000) { //Cartridge ROM
         //std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (mappers not implemented yet)"<<std::endl;
         cart.write(addr,val,size,cycle);
     }
-    else if (addr >= 0x8000 && addr < 0xa000) {
+    else if (addr >= 0x8000 && addr < 0xa000) { //Video RAM
         screen.write(addr, val, size, cycle);
         //memcpy(&(vram[addr-0x8000]), val, size);
     }
-    else if (addr >= 0xa000 && addr < 0xc000) {
+    else if (addr >= 0xa000 && addr < 0xc000) { //Cartridge RAM
         //std::cout<<"Write to external RAM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         cart.write(addr, val, size, cycle);
     }
-    else if (addr >= 0xc000 && addr < 0xfe00) { //8KB RAM and mirrored area
+    else if (addr >= 0xc000 && addr < 0xfe00) { //8KB Work RAM (0xc000-0xdfff) and mirrored area (0xe000-0xfe00)
         memcpy(&(wram[addr&0x1fff]), val, size);
     }
-    else if (addr >= 0xfe00 && addr < 0xfea0) {
+    else if (addr >= 0xfe00 && addr < 0xfea0) { //OAM memory
         screen.write(addr, val, size, cycle);
     }
-    else if (addr >= 0xff00 && addr < 0xff80) {
-        if(addr < 0xff03) {
-            if(addr == 0xff00) {
+    else if (addr >= 0xff00 && addr < 0xff80) { //Hardware IO area
+        switch(addr) {
+            case 0xff00:
                 joypad = (*((uint8_t *)val) & 0x30);
-            }
-            else if(addr == 0xff01) {
+                break;
+            case 0xff01:
                 link_data = *((uint8_t *)val);
-            }
-            else if(addr == 0xff02) {
-                int cmd = *((uint8_t *)val);
-                if(cmd == 0x81) {
-                    std::cout<<"Blarg: "<<link_data<<std::endl;
-                    link_data = 0xff;
+                //std::cout<<"Write to gamepad/link cable: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                break;
+            case 0xff02:
+                {
+                    int cmd = *((uint8_t *)val);
+                    if(cmd == 0x81) {
+                        std::cout<<"Blarg: "<<link_data<<std::endl;
+                        link_data = 0xff;
+                    }
                 }
-            }
-            std::cout<<"Write to gamepad/link cable: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
-        }
-        else if(addr > 0xff03 && addr < 0xff08) {
-            std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
-        }
-        else if(addr == 0xff0f) {
-            assert(size == 1);
-            int_requested.reg = *((uint8_t *)val);
-            //printf("Interrupts requested: %02X\n",int_requested.reg);
-            //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
-        }
-        else if(addr > 0xff0f && addr < 0xff3f) {
-            std::cout<<"Write to audio hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
-        }
-        else if(addr > 0xff3f && addr < 0xff4c) {
-            if(addr == 0xff46) { //OAM DMA
-                int dat = uint16_t(*((uint8_t *)val)) * 0x100;
-                if(dat < 0xf100) {
-                    //dat is between 0x00 and 0xf1, so that covers: ROM (00 to 7f), vram (80 to 9f), cram (a0-bf), wram (c0-df), wram_echo (e0-f1)
-                    uint8_t temp[0xa0];
-                    read(dat, (void *)(&temp[0]), 0xa0, cycle);
-                    screen.write(0xff46, (void *)(&temp[0]), 0xa0, cycle);
+                //std::cout<<"Write to gamepad/link cable: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                break;
+            case 0xff04:
+                div_reset = cycle;
+                //std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                break;
+            case 0xff05:
+                //std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                break;
+            case 0xff06:
+                //std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                break;
+            case 0xff07:
+                //std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                break;
+            case 0xff0f:
+                assert(size == 1);
+                int_requested.reg = *((uint8_t *)val);
+                //printf("Interrupts requested: %02X\n",int_requested.reg);
+                //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                break;
+            case 0xff46: //OAM DMA
+                {
+                    int dat = uint16_t(*((uint8_t *)val)) * 0x100;
+                    if(dat < 0xf100) {
+                        //dat is between 0x00 and 0xf1, so that covers: ROM (00 to 7f), vram (80 to 9f), cram (a0-bf), wram (c0-df), wram_echo (e0-f1)
+                        uint8_t temp[0xa0];
+                        read(dat, (void *)(&temp[0]), 0xa0, cycle);
+                        screen.write(0xff46, (void *)(&temp[0]), 0xa0, cycle);
+                    }
                 }
-            }
-            else {
-                screen.write(addr, val, size, cycle);
-            }
-            //std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
-        }
-        else if(addr > 0xff4e && addr < 0xff6c) { //0xff50 is handled up above
-                std::cout<<"Write to CGB DMA/RAM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
-        }
-        else {
-            std::cout<<"Write to unknown mem-mapped hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                break;
+            case 0xff50: //disables CPU firmware
+                cart.write(addr,val,size,cycle);
+                break;
+            default:
+                if(addr > 0xff0f && addr < 0xff3f) {
+                    std::cout<<"Write to audio hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                }
+                else if(addr > 0xff3f && addr < 0xff4c) {
+                    screen.write(addr, val, size, cycle);
+                    //std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                }
+                else if(addr > 0xff4e && addr < 0xff6c) { //0xff50 is handled up above
+                    std::cout<<"Write to CGB DMA/RAM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                }
+                else {
+                    std::cout<<"Write to unknown mem-mapped hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                }
+                break;
         }
     }
-    else if (addr >= 0xff80 && addr < 0xffff) {
+    else if (addr >= 0xff80 && addr < 0xffff) { //127 bytes of HRAM
         memcpy(&(hram[addr - 0xff80]), val, size);
     }
-    else if (addr == 0xffff) {
+    else if (addr == 0xffff) { //Interrupt enabled register
         assert(size == 1);
         int_enabled.reg = *((uint8_t *)val);
         //printf("Interrupts enabled: %02X\n",int_enabled.reg);

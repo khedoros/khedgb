@@ -78,6 +78,7 @@ private:
     buttons btns;
 
     //uint8_t div; //0xff04 top 8 bits of clock-divider register, which increments at 16384Hz. Calculated based on current cycle, and last time it was reset.
+    uint64_t div_reset; //0xff04 counter cycle reset
     uint8_t timer; //0xff05 timer value
     uint8_t timer_reset; //0xff06
     uint8_t timer_control; //0xff07
