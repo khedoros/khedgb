@@ -100,13 +100,13 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
                 }
                 *((uint8_t *)val) = (0xc0 | joypad | (~keyval));
             }
-            printf("Stubbed out read to gamepad (not implemented yet)\n");
+            //printf("Stubbed out read to gamepad (not implemented yet)\n");
             break;
         case 0xff01:
-            std::cout<<"Read from gamepad/link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            std::cout<<"Read from link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             break;
         case 0xff02:
-            std::cout<<"Read from gamepad/link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            std::cout<<"Read from link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             break;
         case 0xff04: //DIV register. 16KHz increment, (1024*1024)/16384=64, and the register overflows every 256 increments
             *(uint8_t *)val = ((cycle - div_reset) / 64) % 256;
@@ -182,11 +182,11 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff00:
                 joypad = (*((uint8_t *)val) & 0x30);
                 break;
-            case 0xff01:
+            case 0xff01: //Fake implementation, for serial output from Blarg roms
                 link_data = *((uint8_t *)val);
-                //std::cout<<"Write to gamepad/link cable: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                //std::cout<<"Write to link cable: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 break;
-            case 0xff02:
+            case 0xff02: //Fake implementation
                 {
                     int cmd = *((uint8_t *)val);
                     if(cmd == 0x81) {
@@ -194,7 +194,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                         link_data = 0xff;
                     }
                 }
-                //std::cout<<"Write to gamepad/link cable: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                //std::cout<<"Write to link cable: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 break;
             case 0xff04:
                 div_reset = cycle;
