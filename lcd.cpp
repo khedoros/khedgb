@@ -608,7 +608,7 @@ void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/
                             SDL_SetRenderDrawColor(renderer, 0, 85 * obj1pal.pal[3-col],0,255);
                         }
                         else {
-                            SDL_SetRenderDrawColor(renderer, 0, 85 * obj2pal.pal[3-col],0,255);
+                            SDL_SetRenderDrawColor(renderer, 0, 0, 85 * obj2pal.pal[3-col],255);
                         }
 
                         SDL_RenderDrawPoint(renderer, sprite_dat.xpos+x, sprite_dat.ypos+y);
