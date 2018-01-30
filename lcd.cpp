@@ -83,7 +83,9 @@ lcd::lcd() : cycle(0), next_line(0), control{.val=0x91}, bg_scroll_y(0), bg_scro
 
 uint64_t lcd::run(uint64_t run_to) {
     assert(cycle < run_to);
+    printf("sizeof(oam_data): %d\n", sizeof(oam_data));
 
+    //render(frame,false);
     uint64_t render_cycle = 0;
     while(cmd_queue.size() > 0) {
         util::cmd current = cmd_queue.front();

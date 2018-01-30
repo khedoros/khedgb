@@ -66,17 +66,12 @@ private:
         uint8_t ypos;
         uint8_t xpos;
         uint8_t tile;
-        union {
-            struct {
-                unsigned palnum_cgb:3; //CGB only
-                unsigned tilebank:1; //CGB only
-                unsigned palnum_dmg:1; //DMG only
-                unsigned xflip:1;
-                unsigned yflip:1;
-                unsigned priority:1; //0=above BG, 1=behind BG colors 1-3
-            };
-            uint8_t attribs;
-        };
+        unsigned palnum_cgb:3; //CGB only
+        unsigned tilebank:1; //CGB only
+        unsigned palnum_dmg:1; //DMG only
+        unsigned xflip:1;
+        unsigned yflip:1;
+        unsigned priority:1; //0=above BG, 1=behind BG colors 1-3
     };
 
     //Needed for rendering, so must be mirrored to "catch up" with the CPU's view of the PPU state
