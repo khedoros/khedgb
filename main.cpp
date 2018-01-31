@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
     cpu    proc(&bus,bus.has_firmware());
     lcd *  ppu = bus.get_lcd();
 
-    uint64_t cycle = 0; //Cycles since the machine started running
+    uint64_t cycle = 144*114; //Cycles since the machine started running (the system starts in vblank)
     uint64_t tick_size = 10000; //Cycles to run in a batch
     bool continue_running = true;
     uint64_t last_output_cycle = 0; //Last cycle that the ppu output a frame
@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
             if(cycle_diff != 0) {
                 uint64_t delay = (double(cycle_diff*1000) / double(1024*1024));
                 if(delay < 1000) {
-                    //SDL_Delay(delay);
+                    SDL_Delay(delay);
                 }
                 uint64_t actual_delay = SDL_GetTicks() - now;
                 if(actual_delay > delay) {

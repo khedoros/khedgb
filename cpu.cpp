@@ -15,7 +15,7 @@ cpu::cpu(memmap * b, bool has_firmware): bus(b),
     interrupts = false;
     halted = false;
     stopped = false;
-    cycle = 0;
+    cycle = 16416; //Start in VBlank
     frame = 0;
     af.pair=0;
     bc.pair=0;

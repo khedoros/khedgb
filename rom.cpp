@@ -338,12 +338,40 @@ void mbc3_rom::write(uint32_t addr, void * val, int size, int cycle) {}
 
 
 //MBC5 mapper
-mbc5_rom::mbc5_rom(int rom_size, int ram_size, bool has_bat, bool has_rumble) : mapper(rom_size, ram_size, has_bat) {}
+mbc5_rom::mbc5_rom(int rom_size, int ram_size, bool has_bat, bool has_rumble) : mapper(rom_size, ram_size, has_bat), rombank{.bank=1}, rambank(0), ram_enabled(false) {}
 uint32_t mbc5_rom::map_rom(uint32_t addr, int cycle) {
-    return 0;
-}
-uint32_t mbc5_rom::map_ram(uint32_t addr, int cycle) {
-    return 0;
-}
-void mbc5_rom::write(uint32_t addr, void * val, int size, int cycle) {}
+    if(addr<0x4000) {
+        return addr;
+    }
 
+    addr -= 0x4000;
+    addr+=(uint32_t(rombank.bank) * 0x4000);
+    return addr;
+}
+
+uint32_t mbc5_rom::map_ram(uint32_t addr, int cycle) {
+    if(!ram_enabled) {
+        return 0xffffff;
+    }
+    addr+=(uint32_t(rambank) * 0x2000);
+    return 0;
+}
+
+void mbc5_rom::write(uint32_t addr, void * val, int size, int cycle) {
+    if(addr < 0x2000) {
+        ram_enabled = (*((uint8_t *)val) == 0x0a);
+    }
+    else if(addr < 0x3000) {
+        rombank.lower = *((uint8_t *)val);
+    }
+    else if(addr < 0x4000) {
+        rombank.upper = *((uint8_t *)val);
+    }
+    else if(addr < 0x6000) {
+        rambank = *((char *)val) % (ramsize / 0x2000);
+    }
+
+    if(addr >= 0x2000 && addr < 0x4000) {
+        rombank.bank = rombank.bank % (romsize / 0x4000);
+    }
+}

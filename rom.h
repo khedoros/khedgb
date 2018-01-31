@@ -122,18 +122,17 @@ class mbc5_rom: public mapper {
         virtual uint32_t map_ram(uint32_t addr, int cycle);
         virtual void write(uint32_t addr, void * val, int size, int cycle);
     private:
-        struct rom_bank {
-            unsigned lower:8;
-            unsigned upper:1;
-            unsigned unused_rom:7;
+        union rom_bank {
+            struct {
+                unsigned lower:8;
+                unsigned upper:1;
+                unsigned unused_rom:7;
+            };
+            uint16_t bank;
         } rombank;
 
-        struct ram_bank {
-            unsigned bank:4;
-            unsigned unused:4;
-        } rambank;
-
-
+        uint8_t rambank;
+        bool ram_enabled;
 };
 
 /*

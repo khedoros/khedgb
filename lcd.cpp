@@ -5,7 +5,7 @@
 #include<fstream>
 #include<string>
 
-lcd::lcd() : cycle(0), next_line(0), control{.val=0x91}, bg_scroll_y(0), bg_scroll_x(0), 
+lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), bg_scroll_x(0), 
              bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, 
              win_scroll_y(0), win_scroll_x(0), active_cycle(0), frame(0), 
              lyc_next_cycle(0), m0_next_cycle(0), m1_next_cycle(0), m2_next_cycle(0), 
