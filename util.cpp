@@ -61,9 +61,6 @@ bool process_events(memmap * bus) {
                 printf("util::SDL Quit triggered\n");
                 //SDL_PauseAudio(true);
                 SDL_Quit();
-                //cpui.print_details(filename);
-                //printf("%d frames rendered in %f seconds. (%f FPS)\n",ppui.get_frame(),float(clock())/float(CLOCKS_PER_SEC),float(ppui.get_frame())/(float(clock())/float(CLOCKS_PER_SEC)));
-                //return 0;
                 return false;
                 break;
             default: /* Report an unhandled event */

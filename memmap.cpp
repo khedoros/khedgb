@@ -260,10 +260,6 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
     }
 }
 
-void memmap::render(int frame,bool output_file) {
-    screen.render(frame,output_file);
-}
-
 void memmap::keydown(SDL_Scancode k) { //TODO: Implement joypad
     switch(k) {
         case SDL_SCANCODE_W:

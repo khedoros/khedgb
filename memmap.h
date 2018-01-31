@@ -27,7 +27,6 @@ public:
     INT_TYPE get_interrupt();
     void update_interrupts(uint32_t frame, uint64_t cycle);
     //void map(int addr, void * const val, int size, bool rw);
-    void  render(int f,bool fout);
     bool has_firmware();
     lcd * get_lcd();
     struct int_flags {

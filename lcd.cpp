@@ -476,8 +476,11 @@ void lcd::render_background(int frame) {
     return;
 }
 
-void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/*=143*/) {
+std::vector<uint8_t> lcd::get_tile_row(int tilenum, int row, std::vector<uint8_t> pixels) {
 
+}
+
+void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/*=143*/) {
     if(start_line < 0) start_line = 0;
     if(start_line >= end_line) return;
     if(end_line > 143) end_line = 143;
