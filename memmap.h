@@ -42,6 +42,7 @@ public:
             uint8_t reg;
         };
     };
+    bool valid;
 private:
     lcd screen;
     rom cart;

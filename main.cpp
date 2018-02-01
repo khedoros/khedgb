@@ -27,6 +27,9 @@ int main(int argc, char *argv[]) {
     }
 
     memmap bus(romfile, fwfile);
+    if(!bus.valid) {
+        return 1;
+    }
     cpu    proc(&bus,bus.has_firmware());
     lcd *  ppu = bus.get_lcd();
 
@@ -52,6 +55,7 @@ int main(int argc, char *argv[]) {
         //apu->run(cycle + tick_size); TODO: Add audio support
 
         //Frame delay
+        /*
         if(cur_output_cycle != 0) {
             uint64_t now = SDL_GetTicks();
             //uint64_t ms_diff = now - last_output_tick;
@@ -69,7 +73,7 @@ int main(int argc, char *argv[]) {
             }
             last_output_tick = now;
             last_output_cycle = cur_output_cycle;
-        }
+        }*/
         cycle += tick_size;
     }
     return 0;

@@ -20,6 +20,10 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
                                                   last_int_cycle(0), link_data(0), timer(0),timer_reset(0),timer_control(0),
                                                   timer_running(false),timer_deadline(0), div_clock(0), timer_clock(0)
 {
+
+    valid = cart.valid;
+    if(!valid) return;
+
     directions.keys = 0x00;
     btns.keys = 0x00;
     wram.resize(0x2000);

@@ -39,12 +39,12 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
         int retval = util::read(firmware_filename, firmware_data, 256, 256);
         if(retval) {
             firmware = false;
-            std::cout<<"Didn't find a valid firmware file at "<<firmware_filename<<std::endl;
-            return;
+            std::cout<<"Didn't find a valid firmware file at "<<firmware_filename<<". Continuing without one."<<std::endl;
         }
-
-        firmware = true;
-        memcpy(&rom_data[0], &firmware_data[0], 256);
+        else {
+            firmware = true;
+            memcpy(&rom_data[0], &firmware_data[0], 256);
+        }
     }
 
     //Read Game title
