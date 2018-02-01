@@ -7,71 +7,44 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
     firmware = false;
     //Take input of the actual ROM data
 
-    std::ifstream in(rom_filename.c_str());
     if(rom_filename.substr(rom_filename.size() - 3, 3) == "zip") {
-        in.close();
-        int retval = util::unzip(rom_filename, rom_data);
+        int retval = util::unzip(rom_filename, rom_data, 32*1024, 8*1024*1024); //All ROMs are expected to be between size 32KB and 8MB
         if(retval) {
             printf("Got error code %d while trying to extract the zip.\n", retval);
-            rom_data.resize(0x8000,0x10);
+            rom_data.resize(0x8000,0xd3); //invalid opcode, to crash the interpreter
+        }
+        else {
+            std::cout<<"Opened "<<rom_filename<<", found a file of "<<rom_data.size()<<" bytes."<<std::endl;
         }
         h.filesize = rom_data.size();
         rom_backup.resize(256);
         memcpy(&rom_backup[0],&rom_data[0], 256);
     }
     else {
-        if(in.is_open()) {
-            size_t size = 0;
-            in.seekg(0, std::ios::end);
-            size = in.tellg();
-            in.seekg(0, std::ios::beg);
-            std::cout<<"Opened "<<rom_filename<<", found a file of "<<size<<" bytes."<<std::endl;
-            if(size > 8 * 1024 * 1024) {
-                std::cerr<<"That's larger than I'd expect any real Game Boy ROM to be. Exiting."<<std::endl;
-                rom_data.resize(0x8000, 0x10);
-                return;
-            }
-            rom_data.resize(size);
-            h.filesize = size;
-            in.read(reinterpret_cast<char *>(&(rom_data[0])), size);
-            in.seekg(0, std::ios::beg);
-            rom_backup.resize(256);
-            in.read(reinterpret_cast<char *>(&(rom_backup[0])), 256);
-            in.close();
+        int retval = util::read(rom_filename, rom_data, 32*1024, 8*1024*1024);
+        if(retval) {
+            printf("Got error code %d while trying to read the rom.\n", retval);
+            rom_data.resize(0x8000, 0xd3); //invalid opcode
         }
         else {
-            std::cerr<<"Couldn't open "<<rom_filename<<"."<<std::endl;
-            rom_data.resize(0x8000, 0x10); //Fill it with "stop" instructions
-            return;
+            std::cout<<"Opened "<<rom_filename<<", found a file of "<<rom_data.size()<<" bytes."<<std::endl;
         }
+        h.filesize = rom_data.size();
+        rom_backup.resize(256);
+        memcpy(&rom_backup[0], &rom_data[0], 256);
     }
 
     //Load the firmware file, if one was provided
     if(firmware_filename != "") {
-        in.open(firmware_filename.c_str());
-        if(in.is_open()) {
-            size_t size = 0;
-            in.seekg(0, std::ios::end);
-            size = in.tellg();
-            in.seekg(0, std::ios::beg);
-            std::cout<<"Opened firmware "<<firmware_filename<<", found a file of "<<size<<" bytes."<<std::endl;
-            firmware = true;
-            if(size != 256) {
-                std::cerr<<"But...I was really expecting a firmware of 256 bytes. I'm going to proceed without firmware."<<std::endl;
-                firmware = false;
-                in.close();
-            }
-            else {
-                firmware = true;
-                firmware_data.resize(size);
-                in.read(reinterpret_cast<char *>(&(rom_data[0])), 256);
-                in.close();
-            }
-        }
-        else {
-            std::cerr<<"Couldn't open "<<firmware_filename<<"."<<std::endl;
+        int retval = util::read(firmware_filename, firmware_data, 256, 256);
+        if(retval) {
             firmware = false;
+            std::cout<<"Didn't find a valid firmware file at "<<firmware_filename<<std::endl;
+            return;
         }
+
+        firmware = true;
+        memcpy(&rom_data[0], &firmware_data[0], 256);
     }
 
     //Read Game title

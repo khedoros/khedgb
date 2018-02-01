@@ -3,6 +3,8 @@
 #include "rom.h"
 #include<SDL2/SDL.h>
 #include<minizip/unzip.h>
+#include<iostream>
+#include<fstream>
 
 namespace util {
 bool process_events(memmap * bus) {
@@ -73,7 +75,7 @@ bool process_events(memmap * bus) {
     return true;
 }
 
-int unzip(const std::string& zip_filename, std::vector<uint8_t>& output) {
+int unzip(const std::string& zip_filename, std::vector<uint8_t>& output, size_t min_size, size_t max_size) {
     unzFile f = unzOpen(zip_filename.c_str());
     if(!f) {
         printf("Bleh2.\n");
@@ -99,7 +101,12 @@ int unzip(const std::string& zip_filename, std::vector<uint8_t>& output) {
         return 5;
     }
 
-    printf("Filename: %s\nCompression method: %d\nCompressed size: %ld\nExtracted size: %ld\n", filename, fi.compression_method, fi.compressed_size, fi.uncompressed_size);
+    printf("Filename: %s\nCompression method: %ld\nCompressed size: %ld\nExtracted size: %ld\n", filename, fi.compression_method, fi.compressed_size, fi.uncompressed_size);
+
+    if(fi.uncompressed_size < min_size || fi.uncompressed_size > max_size) {
+        unzClose(f);
+        return 8;
+    }
 
     if(unzOpenCurrentFile(f) != UNZ_OK) {
         printf("Bleh6.\n");
@@ -108,16 +115,39 @@ int unzip(const std::string& zip_filename, std::vector<uint8_t>& output) {
 
     output.resize(fi.uncompressed_size);
 
-    int read_bytes = 0;
+    size_t read_bytes = 0;
 
     if((read_bytes = unzReadCurrentFile(f,reinterpret_cast<char *>(&output[0]),fi.uncompressed_size)) != fi.uncompressed_size) {
-        printf("Bleh7. Got return of %d\n", read_bytes);
+        printf("Bleh7. Got return of %ld\n", read_bytes);
         return 7;
     }
 
     unzCloseCurrentFile(f);
     unzClose(f);
 
+    return 0;
+}
+
+int read(const std::string& filename, std::vector<uint8_t>& output, size_t min_size, size_t max_size) {
+    std::ifstream in(filename.c_str());
+    if(in.is_open()) {
+        size_t size = 0;
+        in.seekg(0, std::ios::end);
+        size = in.tellg();
+        if(size < min_size || size > max_size) {
+            in.close();
+            return 1;
+        }
+        in.seekg(0, std::ios::beg);
+        printf("Opened %s, found a file of %ld bytes.\n", filename.c_str(), size);
+        output.resize(size);
+        in.read(reinterpret_cast<char *>(&(output[0])), size);
+        in.close();
+    }
+    else {
+        fprintf(stderr, "Couldn't open %s.\n", filename.c_str());
+        return 2;
+    }
     return 0;
 }
 

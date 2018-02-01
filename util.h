@@ -26,7 +26,8 @@ struct cmd {
 };
 
 bool process_events(memmap * bus);
-int unzip(const std::string& zip_filename, std::vector<uint8_t>& output);
+int unzip(const std::string& zip_filename, std::vector<uint8_t>& output, size_t min, size_t max);
+int read(const std::string& filename, std::vector<uint8_t>& output, size_t min_size, size_t max_size);
 }
 
 #define Vect util::RangeCheckVector
