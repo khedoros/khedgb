@@ -1,6 +1,7 @@
 #pragma once
 #include<vector>
 #include<cstdint>
+#include<string>
 
 class memmap;
 
@@ -25,6 +26,7 @@ struct cmd {
 };
 
 bool process_events(memmap * bus);
+int unzip(const std::string& zip_filename, std::vector<uint8_t>& output);
 }
 
 #define Vect util::RangeCheckVector

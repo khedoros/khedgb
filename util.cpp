@@ -2,6 +2,7 @@
 #include "memmap.h"
 #include "rom.h"
 #include<SDL2/SDL.h>
+#include<minizip/unzip.h>
 
 namespace util {
 bool process_events(memmap * bus) {
@@ -71,4 +72,53 @@ bool process_events(memmap * bus) {
     }
     return true;
 }
+
+int unzip(const std::string& zip_filename, std::vector<uint8_t>& output) {
+    unzFile f = unzOpen(zip_filename.c_str());
+    if(!f) {
+        printf("Bleh2.\n");
+        return 2;
+    }
+
+    unz_global_info gi;
+    if(unzGetGlobalInfo(f,&gi) != UNZ_OK) {
+        printf("Bleh3.\n");
+        return 3;
+    }
+
+    printf("File seems to contain %ld file entries.\n", gi.number_entry);
+    if(unzGoToFirstFile(f) != UNZ_OK) {
+        printf("Bleh4.\n");
+        return 4;
+    }
+
+    unz_file_info fi;
+    char filename[256];
+    if(unzGetCurrentFileInfo(f,&fi,filename,256,NULL,0,NULL,0) != UNZ_OK) {
+        printf("Bleh5.\n");
+        return 5;
+    }
+
+    printf("Filename: %s\nCompression method: %d\nCompressed size: %ld\nExtracted size: %ld\n", filename, fi.compression_method, fi.compressed_size, fi.uncompressed_size);
+
+    if(unzOpenCurrentFile(f) != UNZ_OK) {
+        printf("Bleh6.\n");
+        return 6;
+    }
+
+    output.resize(fi.uncompressed_size);
+
+    int read_bytes = 0;
+
+    if((read_bytes = unzReadCurrentFile(f,reinterpret_cast<char *>(&output[0]),fi.uncompressed_size)) != fi.uncompressed_size) {
+        printf("Bleh7. Got return of %d\n", read_bytes);
+        return 7;
+    }
+
+    unzCloseCurrentFile(f);
+    unzClose(f);
+
+    return 0;
+}
+
 }

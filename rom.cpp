@@ -6,30 +6,44 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
     cram.resize(0);
     firmware = false;
     //Take input of the actual ROM data
+
     std::ifstream in(rom_filename.c_str());
-    if(in.is_open()) {
-        size_t size = 0;
-        in.seekg(0, std::ios::end);
-        size = in.tellg();
-        in.seekg(0, std::ios::beg);
-        std::cout<<"Opened "<<rom_filename<<", found a file of "<<size<<" bytes."<<std::endl;
-        if(size > 8 * 1024 * 1024) {
-            std::cerr<<"That's larger than I'd expect any real Game Boy ROM to be. Exiting."<<std::endl;
-            rom_data.resize(0x8000, 0x10);
-            return;
-        }
-        rom_data.resize(size);
-        h.filesize = size;
-        in.read(reinterpret_cast<char *>(&(rom_data[0])), size);
-        in.seekg(0, std::ios::beg);
-        rom_backup.resize(256);
-        in.read(reinterpret_cast<char *>(&(rom_backup[0])), 256);
+    if(rom_filename.substr(rom_filename.size() - 3, 3) == "zip") {
         in.close();
+        int retval = util::unzip(rom_filename, rom_data);
+        if(retval) {
+            printf("Got error code %d while trying to extract the zip.\n", retval);
+            rom_data.resize(0x8000,0x10);
+        }
+        h.filesize = rom_data.size();
+        rom_backup.resize(256);
+        memcpy(&rom_backup[0],&rom_data[0], 256);
     }
     else {
-        std::cerr<<"Couldn't open "<<rom_filename<<"."<<std::endl;
-        rom_data.resize(0x8000, 0x10); //Fill it with "stop" instructions
-        return;
+        if(in.is_open()) {
+            size_t size = 0;
+            in.seekg(0, std::ios::end);
+            size = in.tellg();
+            in.seekg(0, std::ios::beg);
+            std::cout<<"Opened "<<rom_filename<<", found a file of "<<size<<" bytes."<<std::endl;
+            if(size > 8 * 1024 * 1024) {
+                std::cerr<<"That's larger than I'd expect any real Game Boy ROM to be. Exiting."<<std::endl;
+                rom_data.resize(0x8000, 0x10);
+                return;
+            }
+            rom_data.resize(size);
+            h.filesize = size;
+            in.read(reinterpret_cast<char *>(&(rom_data[0])), size);
+            in.seekg(0, std::ios::beg);
+            rom_backup.resize(256);
+            in.read(reinterpret_cast<char *>(&(rom_backup[0])), 256);
+            in.close();
+        }
+        else {
+            std::cerr<<"Couldn't open "<<rom_filename<<"."<<std::endl;
+            rom_data.resize(0x8000, 0x10); //Fill it with "stop" instructions
+            return;
+        }
     }
 
     //Load the firmware file, if one was provided
