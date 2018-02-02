@@ -83,7 +83,6 @@ lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), b
 
 uint64_t lcd::run(uint64_t run_to) {
     assert(cycle < run_to);
-    printf("sizeof(oam_data): %d\n", sizeof(oam_data));
 
     uint64_t render_cycle = 0;
     while(cmd_queue.size() > 0) {
@@ -476,8 +475,18 @@ void lcd::render_background(int frame) {
     return;
 }
 
-std::vector<uint8_t> lcd::get_tile_row(int tilenum, int row, std::vector<uint8_t> pixels) {
-
+void lcd::get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>& pixels) {
+    assert(tilenum < 192); assert(row < 16); assert(pixels.size() == 8);
+    int addr = tilenum * 16 + row * 2;
+    int b1 = vram[addr];
+    int b2 = vram[addr + 1];
+    for(int x = 0; x < 8; x++) {
+        int x_i = x;
+        if(reverse) x_i = 7 - x;
+        int shift = 128>>(x_i);
+        pixels[x] = ((b1&shift)/shift + 2*((b2&shift)/shift));
+    }
+    return;
 }
 
 void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/*=143*/) {

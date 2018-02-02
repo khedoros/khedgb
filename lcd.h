@@ -44,7 +44,7 @@ private:
     void apply(int addr, uint8_t val, uint64_t index, uint64_t cycle);
     void render(int frame, bool write_file, int start_line=0, int end_line=143);
     void render_background(int frame);
-    std::vector<uint8_t> get_tile_row(int tilenum, int row, std::vector<uint8_t> pixels);
+    void get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>& pixels);
 
     struct dmgpal {
         uint8_t pal[4];

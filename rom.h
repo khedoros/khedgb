@@ -17,7 +17,7 @@ enum map_type {
 
 class mapper {
     public:
-        mapper(int rom_size, int ram_size, bool has_bat); 
+        mapper(int rom_size, int ram_size, bool has_bat, bool has_rtc=false); 
         virtual uint32_t map_rom(uint32_t addr, int cycle);
         virtual uint32_t map_ram(uint32_t addr, int cycle);
         virtual void write(uint32_t addr, void * val, int size, int cycle);
@@ -113,6 +113,12 @@ class mbc3_rom: public mapper {
         virtual uint32_t map_rom(uint32_t addr, int cycle);
         virtual uint32_t map_ram(uint32_t addr, int cycle);
         virtual void write(uint32_t addr, void * val, int size, int cycle);
+    private:
+        uint8_t rombank;
+        uint8_t rambank;
+        bool ram_enabled;
+        bool rtc_latch;
+        uint8_t rtc[5];
 };
 
 class mbc5_rom: public mapper {

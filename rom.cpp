@@ -1,6 +1,7 @@
 #include "rom.h"
 #include<fstream>
 #include<iostream>
+#include<cassert>
 
 rom::rom(const std::string& rom_filename, const std::string& firmware_filename = "") : valid(false) {
     cram.resize(0);
@@ -193,8 +194,12 @@ void rom::read(int addr, void * val, int size, int cycle) {
     }
     else if(addr >= 0xa000 && addr < 0xc000) {
         addr = map->map_ram(addr, cycle);
-        if(addr < 0xffffff) {
+        if(addr < 0xffffff) { //Messy solution for specifying that an invalid address was requested
             memcpy(val, &(cram[addr]), size);
+        }
+        else if((addr & 0xffffff00) == 0xffffff00) { //Messy solution for returning a value stored in the mapper itself (like RTC data in MBC3)
+            uint8_t mapped_val = addr&0xff;
+            memcpy(val, &mapped_val, 1);
         }
         else {
             memset(val, 0xff, size);
@@ -223,7 +228,7 @@ uint32_t rom::ram_sizes[6] = {0, 2048, 8192, 32768, 131072, 65536};
 
 
 //NULL mapper
-mapper::mapper(int rom_size, int ram_size, bool bat) : has_bat(bat), has_rtc(false), romsize(rom_size), ramsize(ram_size) {}
+mapper::mapper(int rom_size, int ram_size, bool bat, bool rtc/*=false*/) : has_bat(bat), has_rtc(rtc), romsize(rom_size), ramsize(ram_size) {}
 uint32_t mapper::map_rom(uint32_t addr, int cycle) {
     return addr;
 }
@@ -272,11 +277,11 @@ uint32_t mbc1_rom::map_ram(uint32_t addr, int cycle) {
     return addr;
 }
 void mbc1_rom::write(uint32_t addr, void * val, int size, int cycle) {
-    if(addr<0x2000 && (*((char *)val) == 0x0a)) ram_enabled = true;
+    if(addr<0x2000 && (*((uint8_t *)val) == 0x0a)) ram_enabled = true;
     else if(addr<0x2000) ram_enabled = false;
-    else if(addr >= 0x2000 && addr < 0x4000) bank.lower = *(((char *)val));
-    else if(addr >= 0x4000 && addr < 0x6000) bank.upper = *(((char *)val));
-    else mode = *(((char *)val));
+    else if(addr >= 0x2000 && addr < 0x4000) bank.lower = *(((uint8_t *)val));
+    else if(addr >= 0x4000 && addr < 0x6000) bank.upper = *(((uint8_t *)val));
+    else mode = *(((uint8_t *)val));
 
     if(addr>=0x2000 && addr < 0x6000) {
         printf("ROM MBC1: Set ROM bank to %d, rom size: %d\n", bank.rom_bank, romsize);
@@ -288,7 +293,7 @@ void mbc1_rom::write(uint32_t addr, void * val, int size, int cycle) {
 
 
 //MBC2 mapper
-mbc2_rom::mbc2_rom(uint32_t rom_size, bool has_bat) : mapper(rom_size, 512, has_bat) {}
+mbc2_rom::mbc2_rom(uint32_t rom_size, bool has_bat) : mapper(rom_size, 512, has_bat), ram_enabled(false), banknum(1) {}
 uint32_t mbc2_rom::map_rom(uint32_t addr, int cycle) {
     return  addr + (uint32_t(banknum) * 0x4000) - 0x4000;
 }
@@ -300,27 +305,61 @@ uint32_t mbc2_rom::map_ram(uint32_t addr, int cycle) {
     return addr;
 }
 void mbc2_rom::write(uint32_t addr, void * val, int size, int cycle) {
-    if(addr < 0x2000 && (addr & 0x100) == 0x100) banknum = *(((char *)val));
-    else if(addr >= 0x2000 && addr < 0x4000 && (addr & 0x100) == 0) ram_enabled = *(((char *)val));
+    if(addr < 0x2000 && (addr & 0x100) == 0x100) banknum = *(((uint8_t *)val));
+    else if(addr >= 0x2000 && addr < 0x4000 && (addr & 0x100) == 0) ram_enabled = *(((uint8_t *)val));
 }
 
 
 
 //MBC3 mapper
-mbc3_rom::mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc) : mapper(rom_size, ram_size, has_bat) {}
+mbc3_rom::mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc) : mapper(rom_size, ram_size+5, has_bat), rombank(1), rambank(0), ram_enabled(false), rtc_latch(false), rtc{0,0,0,0,0} {}
 uint32_t mbc3_rom::map_rom(uint32_t addr, int cycle) {
     if(addr < 0x4000) {
         return addr;
     }
 
     addr -= 0x4000;
-
-    return 0;
+    return addr+(uint32_t(rombank) * 0x4000);
 }
 uint32_t mbc3_rom::map_ram(uint32_t addr, int cycle) {
+    if(rambank < 0x04) {
+        addr -= 0xa000;
+        if(addr >= ramsize || !ram_enabled) {
+            return 0xffffff;
+        }
+        return addr+(uint32_t(rambank) * 0x2000);
+    }
+    else if(rambank >= 0x08 && rambank <= 0x0c) {
+        //TODO: Make this actually return current time if unlatched, and latched data if latched
+        return (uint32_t(rtc[rambank-0x08]) | 0xffffff00);
+    }
     return 0;
 }
-void mbc3_rom::write(uint32_t addr, void * val, int size, int cycle) {}
+void mbc3_rom::write(uint32_t addr, void * val, int size, int cycle) {
+    if(addr < 0x2000) {
+        if(*((uint8_t *)val) == 0x0a) {
+            ram_enabled = true;
+        }
+        else {
+            ram_enabled = false;
+        }
+    }
+    else if(addr < 0x4000) {
+        rombank = *(((uint8_t *)val));
+    }
+    else if(addr < 0x6000) {
+        rambank = *(((uint8_t *)val));
+    }
+    else if(addr < 0x8000) {
+        if(*(((uint8_t *)val)) == 1 && !rtc_latch) {
+            //TODO: actually latch new data here
+            rtc_latch = true;
+        }
+        else if(*(((uint8_t *)val)) == 0) {
+            rtc_latch = false;
+        }
+    }
+}
 
 
 
@@ -355,7 +394,8 @@ void mbc5_rom::write(uint32_t addr, void * val, int size, int cycle) {
         rombank.upper = *((uint8_t *)val);
     }
     else if(addr < 0x6000) {
-        rambank = *((char *)val) % (ramsize / 0x2000);
+        assert(ramsize != 0);
+        rambank = *((uint8_t *)val) % (ramsize / 0x2000);
     }
 
     if(addr >= 0x2000 && addr < 0x4000) {
