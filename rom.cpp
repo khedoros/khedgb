@@ -179,7 +179,7 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
 
 }
 
-void rom::read(int addr, void * val, int size, int cycle) {
+void rom::read(uint32_t addr, void * val, int size, int cycle) {
     if(addr < 0x4000) {
         memcpy(val, &(rom_data[addr]), size);
     }
@@ -208,7 +208,7 @@ void rom::read(int addr, void * val, int size, int cycle) {
 }
 
 //TODO: Replace this with mapper implementation
-void rom::write(int addr, void * val, int size, int cycle) {
+void rom::write(uint32_t addr, void * val, int size, int cycle) {
     if(addr == 0xff50) memcpy(reinterpret_cast<char *>(&rom_data[0]), reinterpret_cast<char *>(&rom_backup[0]), 256);
     else if(addr >= 0xa000 && addr < 0xc000) {
         addr = map->map_ram(addr, cycle);

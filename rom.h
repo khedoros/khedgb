@@ -31,8 +31,8 @@ class mapper {
 class rom {
     public:
         rom(const std::string& rom_filename, const std::string& firmware_filename);
-        virtual void read(int addr, void * val, int size, int cycle);
-        virtual void write(int addr, void * val, int size, int cycle);
+        virtual void read(uint32_t addr, void * val, int size, int cycle);
+        virtual void write(uint32_t addr, void * val, int size, int cycle);
 
         struct header {
             uint8_t title[17]; //16 chars and null, just in case 0134-0143
