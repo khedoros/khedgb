@@ -394,8 +394,9 @@ void mbc5_rom::write(uint32_t addr, void * val, int size, int cycle) {
         rombank.upper = *((uint8_t *)val);
     }
     else if(addr < 0x6000) {
-        assert(ramsize != 0);
-        rambank = *((uint8_t *)val) % (ramsize / 0x2000);
+        if(ramsize != 0) {
+            rambank = *((uint8_t *)val) % (ramsize / 0x2000);
+        }
     }
 
     if(addr >= 0x2000 && addr < 0x4000) {
