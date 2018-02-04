@@ -12,9 +12,7 @@ lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), b
              cpu_control{.val=0x91}, cpu_status(0), cpu_bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_lyc(0), cpu_dma_addr(0), 
              cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}},
              cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
-             screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg(NULL), win(NULL) {
-    //control.val = 0x91;
-    cpu_control.val = 0x91;
+             screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL) {
     vram.resize(0x2000);
     oam.resize(0xa0);
     cpu_vram.resize(0x2000);
@@ -62,14 +60,19 @@ lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), b
         return;
     }
 
-    //assert(renderer && texture);
-
     buffer = SDL_CreateRGBSurface(0,160,144,32,0,0,0,0);
-    overlay = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
-    lps = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
-    hps = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
-    win = SDL_CreateRGBSurface(0,160,144,8,0,0,0,0);
-    bg = SDL_CreateRGBSurface(0,512,512,8,0,0,0,0);
+
+    overlay = SDL_CreateRGBSurface(0,160,144,32,0,0,0,0);
+    lps = SDL_CreateRGBSurface(0,160,144,32,0,0,0,0);
+    hps = SDL_CreateRGBSurface(0,160,144,32,0,0,0,0);
+
+    bg1 = SDL_CreateRGBSurface(0,512,512,32,0,0,0,0);
+    bg2 = SDL_CreateRGBSurface(0,512,512,32,0,0,0,0);
+
+    if(buffer && bg1) {
+        assert(buffer->pitch == 160*4);
+        assert(bg1->pitch == 512 * 4);
+    }
 
     //printf("lcd::Setting render draw color to black\n");
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
@@ -78,7 +81,6 @@ lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), b
     //printf("lcd::Pushing video update to renderer\n");
     SDL_RenderPresent(renderer);
     //printf("lcd::constructor reached end\n");
-
 }
 
 uint64_t lcd::run(uint64_t run_to) {
@@ -93,7 +95,7 @@ uint64_t lcd::run(uint64_t run_to) {
         uint64_t frames_since_active = offset / 17556;
 
         if(render_cycle == 0 && frame_cycle >= (114 * 144)) { //If next change is in vblank
-            render(frame,false, next_line, 143);
+            render(frame, next_line, 143);
 
             printf("PPU: Frame %ld\n", frame);
             frame++;
@@ -101,8 +103,8 @@ uint64_t lcd::run(uint64_t run_to) {
             render_cycle = active_cycle + frames_since_active * 17556 + (114 * 144);
         }
         else {
-            render(frame, false, next_line, frame_line - 1);
-            next_line = frame_line;
+            //render(frame, next_line, frame_line - 1);
+            //next_line = frame_line;
         }
 
         apply(current.addr, current.val, current.data_index, current.cycle);
@@ -112,10 +114,7 @@ uint64_t lcd::run(uint64_t run_to) {
         current = cmd_queue.front();
     }
     if(render_cycle == 0 && ((run_to - active_cycle) % 17556) / 114 >= 144) {
-        if(frame >= 10 && frame < 15) {
-            render_background(frame);
-        }
-        render(frame,false, next_line, 143);
+        //render(frame, next_line, 143);
         printf("PPU: Frame %ld\n", frame);
         frame++;
         next_line = 0;
@@ -126,8 +125,8 @@ uint64_t lcd::run(uint64_t run_to) {
         uint64_t frame_cycle = offset % 17556;
         uint64_t frame_line = frame_cycle / 114;
         uint64_t frames_since_active = offset / 17556;
-        render(frame, false, next_line, frame_line - 1);
-        next_line = frame_line;
+        //render(frame, next_line, frame_line - 1);
+        //next_line = frame_line;
     }
 
     for(size_t i=0;i<cmd_data.size();i++) {
@@ -135,13 +134,14 @@ uint64_t lcd::run(uint64_t run_to) {
     }
     cmd_data.resize(0);
     cycle = run_to;
+    //render(0,0,143);
     return render_cycle; //0 means a frame hasn't been rendered during this timeslice
 }
 
 //Apply the data extracted from the command queue, and apply it to the PPU view of the state
 void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
     if(addr >= 0x8000 && addr < 0xa000) {
-        vram[addr-0x8000] = val;
+        vram[addr & 0x1fff] = val;
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
         oam[addr-0xfe00] = val;
@@ -202,17 +202,24 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
 
 void lcd::write(int addr, void * val, int size, uint64_t cycle) {
     assert(size==1||(addr==0xff46&&size==0xa0));
+    printf("PPU: 0x%04X = 0x%02x @ %ld (mode %d)\n", addr, *((uint8_t *)val), cycle, get_mode(cycle));
     if(addr >= 0x8000 && addr < 0xa000) {
-        if(get_mode(cycle) != 3) {
+        //if(get_mode(cycle) != 3) {
             memcpy(&(cpu_vram[addr-0x8000]), val, size);
             cmd_queue.push_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
-        }
+        //}
+        //else {
+        //    printf("PPU: Cycle %010ld Denied write during mode   3: 0x%04x = 0x%02x\n", cycle, addr, *((uint8_t *)val));
+        //}
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
-        if(get_mode(cycle) < 2) {
+        //if(get_mode(cycle) < 2) {
             memcpy(&(cpu_oam[addr - 0xfe00]), val, size);
             cmd_queue.push_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
-        }
+        //}
+        //else {
+        //    printf("PPU: Cycle %010ld Denied write during mode 2/3: 0x%04x = 0x%02x\n", cycle, addr, *((uint8_t *)val));
+        //}
     }
     else {
         switch(addr) {
@@ -247,8 +254,6 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                         update_estimates(cycle);
                     }
                 }
-                //Don't care about status while rendering
-                //cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 printf("LCD status set to %02X\n", cpu_status);
                 break;
             case 0xff42:
@@ -270,8 +275,6 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                         update_estimates(cycle);
                     }
                 }
-                //Don't care about lyc during rendering
-                //cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
             case 0xff46://OAM DMA
                 {
@@ -329,6 +332,9 @@ uint8_t lcd::get_mode(uint64_t cycle) {
     int frame_cycle = (cycle - cpu_active_cycle) % 17556;
     int line = frame_cycle / 114;
 
+    assert(line < 154);
+    assert(line >= 0);
+
     int mode = 0; //hblank; largest amount of time per frame. May as well use it.
     if(line > 143) {
         mode = 1; //vblank
@@ -354,10 +360,16 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
     if(size > 1) return;
     //assert(size==1);
     if(addr >= 0x8000 && addr < 0xa000) {
-        memcpy(val, &(cpu_vram[addr-0x8000]), size);
+        if(get_mode(cycle) != 3) {
+            memcpy(val, &(cpu_vram[addr-0x8000]), size);
+        }
+        else *((uint8_t *)val) = 0xff;
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
-        memcpy(val, &(cpu_oam[addr-0xfe00]), size);
+        if(get_mode(cycle) < 2) {
+            memcpy(val, &(cpu_oam[addr-0xfe00]), size);
+        }
+        else *((uint8_t *)val) = 0xff;
     }
     else {
         switch(addr) {
@@ -421,62 +433,8 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
     return;
 }
 
-void lcd::render_background(int frame) {
-    bool zero=true;
-    for(int i=0;i<0x1800;i++) {
-        if(vram[i]) zero = false;
-    }
-    if(!zero) { std::cout<<"Some tiles defined. ";}
-    else return;
-    zero = true;
-    for(int i=0x1800;i<0x2000;i++) {
-        if(vram[i]) zero = false;
-    }
-    if(!zero) {std::cout<<"Some BG map defined. "<<std::endl;}
-
-    std::cout<<"PPU: Priority: "<<control.priority<<
-                    " sprites on : "<<control.sprite_enable<<
-                    " sprite size: "<<control.sprite_size<<
-                    " bg map: "<<control.bg_map<<
-                    " tile addr mode: "<<control.tile_addr_mode<<
-                    " window enable: "<<control.window_enable<<
-                    " window map: "<<control.window_map<<
-                    " display on: "<<control.display_enable<<std::endl;
-    std::ofstream vid((std::to_string(frame)+".pgm").c_str());
-    //std::ofstream vid("frame.pgm");
-    vid<<"P5\n256 256\n3\n";
-    uint8_t buffer[256][256];
-    uint32_t bgbase = 0x1800;
-    if(control.bg_map) bgbase = 0x1c00;
-    for(int xtile=0;xtile<32;xtile++) {
-        for(int ytile=0;ytile<32;ytile++) {
-            int tilenum = vram[bgbase+ytile*32+xtile];
-            if(control.tile_addr_mode) {
-                tilenum = 256 + int8_t(tilenum);
-            }
-            int base = tilenum*16;
-            for(int yp=0;yp<8;yp++) {
-                int b1=vram[base+yp*2];
-                int b2=vram[base+yp*2+1];
-                int shift=128;
-                for(int xp=0;xp<8;xp++) {
-                    int c=(b1 & shift)/shift + 2*((b2&shift)/shift);
-                    assert(c==0||c==1||c==2||c==3);
-                    buffer[ytile*8+yp][xtile*8+xp]=3-c;
-                    shift/=2;
-                }
-            }
-        }
-    }
-    for(int i=0;i<256;i++) {
-        vid.write(reinterpret_cast<char *>(&buffer[i][0]),256);
-    }
-    vid.close();
-    return;
-}
-
 void lcd::get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>& pixels) {
-    assert(tilenum < 192); assert(row < 16); assert(pixels.size() == 8);
+    assert(tilenum < 384); assert(row < 16); assert(pixels.size() == 8);
     int addr = tilenum * 16 + row * 2;
     int b1 = vram[addr];
     int b2 = vram[addr + 1];
@@ -489,7 +447,8 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>&
     return;
 }
 
-void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/*=143*/) {
+void lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
+
     if(start_line < 0) start_line = 0;
     if(start_line >= end_line) return;
     if(end_line > 143) end_line = 143;
@@ -498,37 +457,25 @@ void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/
         printf("PPU: problem!\n");
         output_sdl = false;
     }
-    std::cout<<"PPU: Priority: "<<control.priority<<
-                    " sprites on : "<<control.sprite_enable<<
-                    " sprite size: "<<control.sprite_size<<
-                    " bg map: "<<control.bg_map<<
-                    " tile addr mode: "<<control.tile_addr_mode<<
-                    " window enable: "<<control.window_enable<<
-                    " window map: "<<control.window_map<<
-                    " display on: "<<control.display_enable<<std::endl;
-    std::ofstream vid;
-    if(output_file) {
-        vid.open((std::to_string(frame)+".pgm").c_str());
-        vid<<"P5\n160 144\n3\n";
-    }
-    //std::ofstream vid("frame.pgm");
-    uint8_t pgm_buffer[144][160];
 
     //Draw the background
-    uint32_t bgbase = 0x1800;
     if(control.priority) { //cpu_controls whether the background displays, in regular DMG mode
         if(output_sdl && start_line == 0) { //Draw the background color
-            SDL_SetRenderDrawColor(renderer, 85*(bgpal.pal[0]), 85*(bgpal.pal[0]), 85*(bgpal.pal[0]), 255);
+            SDL_SetRenderDrawColor(renderer, 85*(3 - bgpal.pal[0]), 85*(3 - bgpal.pal[0]), 85*(3 - bgpal.pal[0]), 255);
+            SDL_RenderClear(renderer);
         }
+        uint32_t bgbase = 0x1800;
         if(control.bg_map) bgbase = 0x1c00;
-        for(int x_out_pix = 0; x_out_pix < 160; x_out_pix++) {
-            int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
-            int x_tile = x_in_pix / 8;
-            int x_tile_pix = x_in_pix % 8;
-            for(int y_out_pix = start_line; y_out_pix <= end_line; y_out_pix++) {
-                int y_in_pix = (y_out_pix + bg_scroll_y) & 0xff;
-                int y_tile = y_in_pix / 8;
-                int y_tile_pix = y_in_pix % 8;
+        for(int y_out_pix = start_line; y_out_pix <= end_line; y_out_pix++) {
+            int y_in_pix = (y_out_pix + bg_scroll_y) & 0xff;
+            int y_tile = y_in_pix / 8;
+            int y_tile_pix = y_in_pix % 8;
+
+            for(int x_out_pix = 0; x_out_pix < 160; x_out_pix++) {
+                int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
+                int x_tile = x_in_pix / 8;
+                int x_tile_pix = x_in_pix % 8;
+
                 int tile_num = vram[bgbase+y_tile*32+x_tile];
                 if(control.tile_addr_mode) {
                     tile_num = 256 + int8_t(tile_num);
@@ -537,10 +484,8 @@ void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/
                 int b1=vram[base+y_tile_pix*2];
                 int b2=vram[base+y_tile_pix*2+1];
                 int shift = 128>>(x_tile_pix);
-                int c=3 - ((b1&shift)/shift + 2*((b2&shift)/shift));
+                int c=((b1 & shift) / shift + 2 * ((b2 & shift) / shift));
                 assert(c==0||c==1||c==2||c==3);
-
-                pgm_buffer[y_out_pix][x_out_pix]=bgpal.pal[c];
 
                 /*
                 uint32_t color = SDL_MapRGB(this->buffer->format,85*bgpal.pal[c],85*bgpal.pal[c],85*bgpal.pal[c]);
@@ -549,7 +494,7 @@ void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/
                */
 
                 if(output_sdl && c != 0) {
-                    SDL_SetRenderDrawColor(renderer, 85*bgpal.pal[c], 85*bgpal.pal[c], 85*bgpal.pal[c], 255);
+                    SDL_SetRenderDrawColor(renderer, 85*(3-bgpal.pal[c]), 85*(3-bgpal.pal[c]), 85*(3-bgpal.pal[c]), 255);
                     SDL_RenderDrawPoint(renderer, x_out_pix, y_out_pix);
                 }
             }
@@ -563,9 +508,11 @@ void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/
     }
 
     //Draw the window
-    uint32_t winbase = 0x1800;
-    if(control.window_map) winbase = 0x1c00;
     if(control.window_enable) {
+        uint32_t winbase = 0x1800;
+        if(control.window_map) winbase = 0x1c00;
+        std::vector<uint8_t> line(8,0);
+
         for(int tile_y = 0; tile_y + (win_scroll_y/8) < 18; tile_y++) {
             for(int tile_x = 0; tile_x + (win_scroll_x/8) < 20; tile_x++) {
                 int tile_num = vram[winbase+tile_y*32+tile_x];
@@ -574,15 +521,8 @@ void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/
                 }
                 int base = tile_num * 16;
                 for(int y_tile_pix = 0; y_tile_pix < 8 && y_tile_pix + win_scroll_y + tile_y * 8 < 144; y_tile_pix++) {
-                    int b1=vram[base+y_tile_pix*2];
-                    int b2=vram[base+y_tile_pix*2+1];
+                    get_tile_row(tile_num, y_tile_pix, false, line);
                     for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 < 144; x_tile_pix++) {
-                        int shift = 128>>(x_tile_pix);
-                        int c=3 - ((b1&shift)/shift + 2*((b2&shift)/shift));
-                        assert(c==0||c==1||c==2||c==3);
-
-                        pgm_buffer[tile_y*8+y_tile_pix][tile_x*8+x_tile_pix]=bgpal.pal[c];
-
                         /*
                         uint32_t color = SDL_MapRGB(this->buffer->format,85*bgpal.pal[c],85*bgpal.pal[c],85*bgpal.pal[c]);
                         ((uint32_t *)this->buffer->pixels)[y_out_pix*(this->buffer->pitch)+x_out_pix] = color;
@@ -590,7 +530,7 @@ void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/
                         */
 
                         if(output_sdl) {
-                            SDL_SetRenderDrawColor(renderer, 85*bgpal.pal[c], 0, 0, 255);
+                            SDL_SetRenderDrawColor(renderer, 85*bgpal.pal[line[x_tile_pix]], 0, 0, 255);
                             SDL_RenderDrawPoint(renderer, tile_x*8+x_tile_pix, tile_y*8+y_tile_pix);
                         }
                     }
@@ -662,12 +602,6 @@ void lcd::render(int frame,bool output_file, int start_line/*=0*/, int end_line/
 
         SDL_RenderPresent(renderer);
     }
-    if(output_file) {
-        for(int i=0;i<144;i++) {
-            vid.write(reinterpret_cast<char *>(&pgm_buffer[i][0]),160);
-        }
-        vid.close();
-    }
     return;
 }
 
@@ -687,7 +621,7 @@ void lcd::update_estimates(uint64_t cycle) {
 
     //uint64_t mode = get_mode(cycle);
 
-    if(cpu_status & LYC) {
+    if((cpu_status & LYC) > 0) {
         lyc_next_cycle = frame_base_cycle + cpu_lyc * 114;
         if(lyc_next_cycle <= cycle) { //We've passed it this frame; go to the next.
             lyc_next_cycle += 17556;
@@ -697,7 +631,7 @@ void lcd::update_estimates(uint64_t cycle) {
         lyc_next_cycle = -1;
     }
 
-    if(cpu_status & M0) {
+    if((cpu_status & M0) > 0) {
         m0_next_cycle = frame_base_cycle + (114 * line) + 63;
         if(line_cycle >= 20 + 43) {
             m0_next_cycle += 114;
@@ -707,7 +641,7 @@ void lcd::update_estimates(uint64_t cycle) {
         m0_next_cycle = -1;
     }
 
-    if(cpu_status & M1) {
+    if((cpu_status & M1) > 0) {
         m1_next_cycle = frame_base_cycle + (144 * 114);
         if(m1_next_cycle <= cycle) {
             m1_next_cycle += 17556;
@@ -717,7 +651,7 @@ void lcd::update_estimates(uint64_t cycle) {
         m1_next_cycle = -1;
     }
 
-    if(cpu_status & M2) {
+    if((cpu_status & M2) > 0) {
         m2_next_cycle = frame_base_cycle + (114 * (line + 1));
     }
     else {

@@ -110,7 +110,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     if(op == 0xcb) {
         prefix = 0xcb;
         op = ((opcode&0xFF00)>>(8));
-        cycles = ((op&0x7) == 6) ? 16 : 8;
+        cycles = ((op&0x7) == 6) ? 4 : 2;
         bytes = 2;
     }
     else {
@@ -134,7 +134,6 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     printf("\t");
     decode(prefix,x,y,z,data);
     printf("\n");
-
     if(!halted && !stopped) {//If the CPU hits a HALT or STOP, it needs to stay there.
         pc += bytes;
     }

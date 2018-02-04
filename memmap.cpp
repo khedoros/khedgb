@@ -149,13 +149,14 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
         }
     }
     else if (addr >= 0xff80 && addr < 0xffff) { //127 bytes High RAM
-        memcpy(val, &(hram[addr - 0xff80]), size);
+        memcpy(val, &(hram[addr & 0x7f]), size);
     }
     else if (addr == 0xffff) {
         //std::cerr<<"Attempted read of write-only register?"<<std::endl;
         *((uint8_t *)val) = int_enabled.reg;
     }
     else {
+        memset(val, 0xff, size);
         //std::cerr<<"Water fog? Trying to read from 0x"<<std::hex<<addr<<" bzzzzzzt"<<std::endl;
     }
 

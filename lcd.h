@@ -42,8 +42,7 @@ public:
 private:
     void update_estimates(uint64_t cycle);
     void apply(int addr, uint8_t val, uint64_t index, uint64_t cycle);
-    void render(int frame, bool write_file, int start_line=0, int end_line=143);
-    void render_background(int frame);
+    void render(int frame, int start_line=0, int end_line=143);
     void get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>& pixels);
 
     struct dmgpal {
@@ -146,10 +145,11 @@ private:
     SDL_Surface * buffer; //Output buffer
     SDL_Texture * texture; //Texture used for output
 
-    SDL_Surface * overlay; //overlay surface
+    SDL_Surface * overlay; //overlay surface (if I want to render non-game info)
     SDL_Surface * lps; //Low-priority sprite compositing buffer
     SDL_Surface * hps; //High-priority sprite compositing buffer
-    SDL_Surface * bg; //Background compositing buffer
-    SDL_Surface * win; //Floating window compositing buffer
+
+    SDL_Surface * bg1; //Background map 1 compositing buffer
+    SDL_Surface * bg2; //Background map 2 compositing buffer
 
 };
