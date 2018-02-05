@@ -103,8 +103,8 @@ uint64_t lcd::run(uint64_t run_to) {
             render_cycle = active_cycle + frames_since_active * 17556 + (114 * 144);
         }
         else {
-            //render(frame, next_line, frame_line - 1);
-            //next_line = frame_line;
+            render(frame, next_line, frame_line - 1);
+            next_line = frame_line;
         }
 
         apply(current.addr, current.val, current.data_index, current.cycle);
@@ -114,7 +114,7 @@ uint64_t lcd::run(uint64_t run_to) {
         current = cmd_queue.front();
     }
     if(render_cycle == 0 && ((run_to - active_cycle) % 17556) / 114 >= 144) {
-        //render(frame, next_line, 143);
+        render(frame, next_line, 143);
         printf("PPU: Frame %ld\n", frame);
         frame++;
         next_line = 0;
@@ -125,8 +125,8 @@ uint64_t lcd::run(uint64_t run_to) {
         uint64_t frame_cycle = offset % 17556;
         uint64_t frame_line = frame_cycle / 114;
         uint64_t frames_since_active = offset / 17556;
-        //render(frame, next_line, frame_line - 1);
-        //next_line = frame_line;
+        render(frame, next_line, frame_line - 1);
+        next_line = frame_line;
     }
 
     for(size_t i=0;i<cmd_data.size();i++) {
@@ -477,7 +477,7 @@ void lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                 int x_tile_pix = x_in_pix % 8;
 
                 int tile_num = vram[bgbase+y_tile*32+x_tile];
-                if(control.tile_addr_mode) {
+                if(!control.tile_addr_mode) {
                     tile_num = 256 + int8_t(tile_num);
                 }
                 int base = tile_num * 16;
@@ -516,7 +516,7 @@ void lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
         for(int tile_y = 0; tile_y + (win_scroll_y/8) < 18; tile_y++) {
             for(int tile_x = 0; tile_x + (win_scroll_x/8) < 20; tile_x++) {
                 int tile_num = vram[winbase+tile_y*32+tile_x];
-                if(control.tile_addr_mode) {
+                if(!control.tile_addr_mode) {
                     tile_num = 256+int8_t(tile_num);
                 }
                 int base = tile_num * 16;
