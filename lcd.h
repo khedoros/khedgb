@@ -42,7 +42,7 @@ public:
 private:
     void update_estimates(uint64_t cycle);
     void apply(int addr, uint8_t val, uint64_t index, uint64_t cycle);
-    void render(int frame, int start_line=0, int end_line=143);
+    bool render(int frame, int start_line=0, int end_line=143);
     void get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>& pixels);
 
     struct dmgpal {

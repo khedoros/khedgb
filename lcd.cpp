@@ -85,26 +85,42 @@ lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), b
 
 uint64_t lcd::run(uint64_t run_to) {
     assert(cycle < run_to);
+    uint64_t start_offset = cycle - active_cycle;
+    uint64_t start_frame_cycle = start_offset % 17556;
+    uint64_t start_frame_base = cycle - start_frame_cycle;
+    uint64_t start_frame_line = start_frame_cycle / 114;
+    uint64_t start_line_cycle = start_frame_cycle % 114;
+    uint64_t start_line = start_frame_line;
+    if(start_line_cycle >= (20 + 43)) { //the line should already be rendered; 20 cycles for OAM, 43 cycles for LCD transfer, 51 cycles for HBlank
+        start_line++;
+    }
 
     uint64_t render_cycle = 0;
     while(cmd_queue.size() > 0) {
         util::cmd current = cmd_queue.front();
         uint64_t offset = current.cycle - active_cycle;
         uint64_t frame_cycle = offset % 17556;
-        uint64_t frame_line = frame_cycle / 114;
         uint64_t frames_since_active = offset / 17556;
+        uint64_t frame_line = frame_cycle / 114;
+        uint64_t line_cycle = frame_cycle % 114;
 
-        if(render_cycle == 0 && frame_cycle >= (114 * 144)) { //If next change is in vblank
-            render(frame, next_line, 143);
-
-            printf("PPU: Frame %ld\n", frame);
-            frame++;
-            next_line = 0;
-            render_cycle = active_cycle + frames_since_active * 17556 + (114 * 144);
+        if(line_cycle < (20 + 43)) { //Haven't completed enough cycles to request frame_line to be rendered, as first calculated
+            frame_line --;
         }
-        else {
-            render(frame, next_line, frame_line - 1);
-            next_line = frame_line;
+
+        printf("Active: %ld offset: %ld frame_cycle: %ld frames_since_active: %ld frame_line: %ld line_cycle: %ld\n", active_cycle, offset, frame_cycle, frames_since_active, frame_line, line_cycle);
+
+        printf("Start: %ld end: %ld\n",start_line,frame_line);
+        bool frame_output = false;
+        if(current.cycle >= cycle) {
+            frame_output = render(frame, start_line, frame_line);
+        }
+        start_line = frame_line + 1;
+
+        if(frame_output) {
+            printf("PPU: Frame %ld\n", frame);
+            render_cycle = active_cycle + ((frames_since_active - 1) * 17556) + (114 * 143) + (20 + 43);
+            frame++;
         }
 
         apply(current.addr, current.val, current.data_index, current.cycle);
@@ -113,20 +129,23 @@ uint64_t lcd::run(uint64_t run_to) {
         cycle = current.cycle;
         current = cmd_queue.front();
     }
-    if(render_cycle == 0 && ((run_to - active_cycle) % 17556) / 114 >= 144) {
-        render(frame, next_line, 143);
-        printf("PPU: Frame %ld\n", frame);
-        frame++;
-        next_line = 0;
-        render_cycle = ((run_to - active_cycle) / 17556) * 17556 + (114 * 144);
+
+    uint64_t end_offset = run_to - active_cycle;
+    uint64_t end_frame_cycle = end_offset % 17556;
+    uint64_t end_frame_base = run_to - end_frame_cycle;
+    uint64_t end_frame_line = end_frame_cycle / 114;
+    uint64_t end_line_cycle = end_frame_cycle % 114;
+    uint64_t end_line = end_frame_line;
+    if(end_line_cycle < (20 + 43)) { //the line will be rendered at the next ::run call
+        end_line--;
     }
-    else {
-        uint64_t offset = run_to - active_cycle;
-        uint64_t frame_cycle = offset % 17556;
-        uint64_t frame_line = frame_cycle / 114;
-        uint64_t frames_since_active = offset / 17556;
-        render(frame, next_line, frame_line - 1);
-        next_line = frame_line;
+
+    printf("Start: %ld end: %ld\n",start_line,end_line);
+    bool frame_output = render(frame, start_line, end_line);
+    if(frame_output) {
+        printf("PPU: Frame %ld\n", frame);
+        render_cycle = active_cycle + (((end_offset / 17556) - 1) * 17556) + (114 * 143) + (20 + 43);
+        frame++;
     }
 
     for(size_t i=0;i<cmd_data.size();i++) {
@@ -134,7 +153,6 @@ uint64_t lcd::run(uint64_t run_to) {
     }
     cmd_data.resize(0);
     cycle = run_to;
-    //render(0,0,143);
     return render_cycle; //0 means a frame hasn't been rendered during this timeslice
 }
 
@@ -447,12 +465,15 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>&
     return;
 }
 
-void lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
-
-    if(start_line < 0) start_line = 0;
-    if(start_line >= end_line) return;
-    if(end_line > 143) end_line = 143;
+bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
+    assert(start_line >= 0);
+    assert(end_line - start_line < 154); //Expect not to ever receive over a frame of data
+    fflush(stdin);
+    //assert(start_line <= end_line);
+    if(start_line > end_line) return false;
     bool output_sdl = true;
+    bool output_image = (end_line >= 143);
+
     if(!screen||!texture||!renderer) {
         printf("PPU: problem!\n");
         output_sdl = false;
@@ -602,7 +623,7 @@ void lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
 
         SDL_RenderPresent(renderer);
     }
-    return;
+    return output_image;
 }
 
 void lcd::update_estimates(uint64_t cycle) {
