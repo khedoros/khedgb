@@ -2,6 +2,7 @@
 #include<cstdint>
 #include "rom.h"
 #include "lcd.h"
+#include "apu.h"
 #include<string>
 #include<SDL2/SDL_scancode.h>
 
@@ -45,6 +46,7 @@ public:
     bool valid;
 private:
     lcd screen;
+    apu sound;
     rom cart;
     Vect<uint8_t> wram;
     Vect<uint8_t> hram;

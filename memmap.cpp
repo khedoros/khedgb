@@ -1,6 +1,5 @@
 #include<cstdint>
 #include "memmap.h"
-#include "rom.h"
 #include<iostream>
 #include<fstream>
 #include<cstring>
@@ -14,7 +13,8 @@ const int memmap::timer_clock_select[4] = {
                             
 
 memmap::memmap(const std::string& rom_filename, const std::string& fw_file) : 
-                                                  screen(), cart(rom_filename, fw_file),
+                                                  screen(), sound(),
+                                                  cart(rom_filename, fw_file),
                                                   int_enabled{0,0,0,0,0},
                                                   int_requested{0,0,0,0,0},
                                                   last_int_cycle(0), link_data(0), timer(0),timer_reset(0),timer_control(0),
@@ -134,6 +134,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
         default:
             if(addr > 0xff0f && addr < 0xff3f) {
                 std::cout<<"Read from audio hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+                *((uint8_t *)val) = sound.read(addr, cycle);
             }
             else if(addr > 0xff3f && addr < 0xff4c) {
                 screen.read(addr, val, size, cycle);//memcpy(val, &(vram[addr-0x8000]), size);
@@ -237,6 +238,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
             default:
                 if(addr > 0xff0f && addr < 0xff3f) {
                     std::cout<<"Write to audio hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                    sound.write(addr, *(uint8_t *)val, cycle);
                 }
                 else if(addr > 0xff3f && addr < 0xff4c) {
                     screen.write(addr, val, size, cycle);

@@ -95,6 +95,8 @@ uint64_t lcd::run(uint64_t run_to) {
         start_line++;
     }
 
+    printf("PPU: Start: %ld run_to: %ld\n", cycle, run_to);
+
     uint64_t render_cycle = 0;
     while(cmd_queue.size() > 0) {
         util::cmd current = cmd_queue.front();
@@ -107,12 +109,12 @@ uint64_t lcd::run(uint64_t run_to) {
         if(line_cycle < (20 + 43)) { //Haven't completed enough cycles to request frame_line to be rendered, as first calculated
             frame_line --;           //Shouldn't render the line that this command occurs on, yet
         }
+        printf("Command at: %ld\n", current.cycle);
+        //printf("Active: %ld offset: %ld frame_cycle: %ld frames_since_active: %ld frame_line: %ld line_cycle: %ld\n", active_cycle, offset, frame_cycle, frames_since_active, frame_line, line_cycle);
 
-        printf("Active: %ld offset: %ld frame_cycle: %ld frames_since_active: %ld frame_line: %ld line_cycle: %ld\n", active_cycle, offset, frame_cycle, frames_since_active, frame_line, line_cycle);
-
-        printf("Start: %ld end: %ld\n",start_line,frame_line);
         bool frame_output = false;
-        if(current.cycle >= cycle) {
+        if(current.cycle >= cycle && frame_line >= start_line) {
+            printf("PPU: render Startline: %ld endline: %ld\n",start_line,frame_line);
             frame_output = render(frame, start_line, frame_line);
         }
         start_line = ((frame_line + 1) % 154); //Next line to render will be after current line, and next frame to render will be after current frame. If we crossed over, the next start_line needs to reflect the reset.
@@ -140,7 +142,7 @@ uint64_t lcd::run(uint64_t run_to) {
         end_line--;
     }
 
-    printf("Start: %ld end: %ld\n",start_line,end_line);
+    printf("PPU: render Startline: %ld endline: %ld\n",start_line,end_line);
     bool frame_output = render(frame, start_line, end_line);
     if(frame_output) {
         printf("PPU: Frame %ld\n", frame);
