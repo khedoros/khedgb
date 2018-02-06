@@ -85,11 +85,11 @@ lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), b
 
 uint64_t lcd::run(uint64_t run_to) {
     assert(cycle < run_to);
-    uint64_t start_offset = cycle - active_cycle;
-    uint64_t start_frame_cycle = start_offset % 17556;
-    uint64_t start_frame_base = cycle - start_frame_cycle;
-    uint64_t start_frame_line = start_frame_cycle / 114;
-    uint64_t start_line_cycle = start_frame_cycle % 114;
+    uint64_t start_offset = cycle - active_cycle;              //Cycles since the screen was activated
+    uint64_t start_frame_cycle = start_offset % 17556;         //Cycles into current frame
+    uint64_t start_frame_base = cycle - start_frame_cycle;     //Cycle when current frame started
+    uint64_t start_frame_line = start_frame_cycle / 114;       //Current line in current frame
+    uint64_t start_line_cycle = start_frame_cycle % 114;       //Current cycle in current line
     uint64_t start_line = start_frame_line;
     if(start_line_cycle >= (20 + 43)) { //the line should already be rendered; 20 cycles for OAM, 43 cycles for LCD transfer, 51 cycles for HBlank
         start_line++;
@@ -98,14 +98,14 @@ uint64_t lcd::run(uint64_t run_to) {
     uint64_t render_cycle = 0;
     while(cmd_queue.size() > 0) {
         util::cmd current = cmd_queue.front();
-        uint64_t offset = current.cycle - active_cycle;
-        uint64_t frame_cycle = offset % 17556;
-        uint64_t frames_since_active = offset / 17556;
+        uint64_t offset = current.cycle - active_cycle - 1;       //Cycles between activation of the screen and that command
+        uint64_t frame_cycle = (offset % 17556);          //Last cycle in this frame before command
+        uint64_t frames_since_active = offset / 17556;        //Full frames since becoming active
         uint64_t frame_line = frame_cycle / 114;
         uint64_t line_cycle = frame_cycle % 114;
 
         if(line_cycle < (20 + 43)) { //Haven't completed enough cycles to request frame_line to be rendered, as first calculated
-            frame_line --;
+            frame_line --;           //Shouldn't render the line that this command occurs on, yet
         }
 
         printf("Active: %ld offset: %ld frame_cycle: %ld frames_since_active: %ld frame_line: %ld line_cycle: %ld\n", active_cycle, offset, frame_cycle, frames_since_active, frame_line, line_cycle);
@@ -115,7 +115,7 @@ uint64_t lcd::run(uint64_t run_to) {
         if(current.cycle >= cycle) {
             frame_output = render(frame, start_line, frame_line);
         }
-        start_line = frame_line + 1;
+        start_line = ((frame_line + 1) % 154); //Next line to render will be after current line, and next frame to render will be after current frame. If we crossed over, the next start_line needs to reflect the reset.
 
         if(frame_output) {
             printf("PPU: Frame %ld\n", frame);
@@ -130,7 +130,7 @@ uint64_t lcd::run(uint64_t run_to) {
         current = cmd_queue.front();
     }
 
-    uint64_t end_offset = run_to - active_cycle;
+    uint64_t end_offset = run_to - active_cycle - 1;
     uint64_t end_frame_cycle = end_offset % 17556;
     uint64_t end_frame_base = run_to - end_frame_cycle;
     uint64_t end_frame_line = end_frame_cycle / 114;
@@ -145,6 +145,7 @@ uint64_t lcd::run(uint64_t run_to) {
     if(frame_output) {
         printf("PPU: Frame %ld\n", frame);
         render_cycle = active_cycle + (((end_offset / 17556) - 1) * 17556) + (114 * 143) + (20 + 43);
+        assert(render_cycle < run_to);
         frame++;
     }
 
@@ -472,78 +473,73 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
     //assert(start_line <= end_line);
     if(start_line > end_line) return false;
     bool output_sdl = true;
-    bool output_image = (end_line >= 143);
+    bool output_image = false;
 
     if(!screen||!texture||!renderer) {
         printf("PPU: problem!\n");
         output_sdl = false;
     }
 
-    //Draw the background
-    if(control.priority) { //cpu_controls whether the background displays, in regular DMG mode
-        if(output_sdl && start_line == 0) { //Draw the background color
-            SDL_SetRenderDrawColor(renderer, 85*(3 - bgpal.pal[0]), 85*(3 - bgpal.pal[0]), 85*(3 - bgpal.pal[0]), 255);
-            SDL_RenderClear(renderer);
-        }
-        uint32_t bgbase = 0x1800;
-        if(control.bg_map) bgbase = 0x1c00;
-        for(int y_out_pix = start_line; y_out_pix <= end_line; y_out_pix++) {
-            int y_in_pix = (y_out_pix + bg_scroll_y) & 0xff;
+    for(int line=start_line;line <= end_line; line++) {
+        int render_line = line % 154;
+        if(render_line > 143) continue;
+
+        //Draw the background
+        if(control.priority) { //cpu_controls whether the background displays, in regular DMG mode
+            if(output_sdl && start_line == 0) { //Draw the background color
+                SDL_SetRenderDrawColor(renderer, 85*(3 - bgpal.pal[0]), 85*(3 - bgpal.pal[0]), 85*(3 - bgpal.pal[0]), 255);
+                SDL_RenderClear(renderer);
+            }
+
+            uint32_t bgbase = 0x1800;
+            if(control.bg_map) bgbase = 0x1c00;
+
+            int y_in_pix = (render_line + bg_scroll_y) & 0xff;
             int y_tile = y_in_pix / 8;
             int y_tile_pix = y_in_pix % 8;
+
+            bool unloaded = true;
+            int tile_num = 0;
+            std::vector<uint8_t> tile_pix(8,0);
 
             for(int x_out_pix = 0; x_out_pix < 160; x_out_pix++) {
                 int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
                 int x_tile = x_in_pix / 8;
                 int x_tile_pix = x_in_pix % 8;
 
-                int tile_num = vram[bgbase+y_tile*32+x_tile];
-                if(!control.tile_addr_mode) {
-                    tile_num = 256 + int8_t(tile_num);
+                if(x_tile_pix == 0 || unloaded) {
+                    tile_num = vram[bgbase+y_tile*32+x_tile];
+                    if(!control.tile_addr_mode) {
+                        tile_num = 256 + int8_t(tile_num);
+                    }
+                    get_tile_row(tile_num, y_tile_pix, false, tile_pix);
+                    unloaded = false;
                 }
-                int base = tile_num * 16;
-                int b1=vram[base+y_tile_pix*2];
-                int b2=vram[base+y_tile_pix*2+1];
-                int shift = 128>>(x_tile_pix);
-                int c=((b1 & shift) / shift + 2 * ((b2 & shift) / shift));
-                assert(c==0||c==1||c==2||c==3);
 
-                /*
-                uint32_t color = SDL_MapRGB(this->buffer->format,85*bgpal.pal[c],85*bgpal.pal[c],85*bgpal.pal[c]);
-                ((uint32_t *)this->buffer->pixels)[y_out_pix*(this->buffer->pitch)+x_out_pix] = color;
-
-               */
-
-                if(output_sdl && c != 0) {
-                    SDL_SetRenderDrawColor(renderer, 85*(3-bgpal.pal[c]), 85*(3-bgpal.pal[c]), 85*(3-bgpal.pal[c]), 255);
-                    SDL_RenderDrawPoint(renderer, x_out_pix, y_out_pix);
+                if(output_sdl /*&& c != 0*/) {
+                    SDL_SetRenderDrawColor(renderer, 85*(3-bgpal.pal[tile_pix[x_tile_pix]]), 85*(3-bgpal.pal[tile_pix[x_tile_pix]]), 85*(3-bgpal.pal[tile_pix[x_tile_pix]]), 255);
+                    SDL_RenderDrawPoint(renderer, x_out_pix, render_line);
                 }
             }
         }
-    }
-    else if(output_sdl && start_line == 0) {
-        //clear the screen, because the background isn't going to be drawn
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        SDL_RenderClear(renderer);
-        SDL_RenderPresent(renderer);
-    }
 
-    //Draw the window
-    if(control.window_enable) {
-        uint32_t winbase = 0x1800;
-        if(control.window_map) winbase = 0x1c00;
-        std::vector<uint8_t> line(8,0);
+        //Draw the window
+        if(control.window_enable) {
+            uint32_t winbase = 0x1800;
+            if(control.window_map) winbase = 0x1c00;
+            std::vector<uint8_t> line(8,0);
 
-        for(int tile_y = 0; tile_y + (win_scroll_y/8) < 18; tile_y++) {
-            for(int tile_x = 0; tile_x + (win_scroll_x/8) < 20; tile_x++) {
-                int tile_num = vram[winbase+tile_y*32+tile_x];
-                if(!control.tile_addr_mode) {
-                    tile_num = 256+int8_t(tile_num);
-                }
-                int base = tile_num * 16;
-                for(int y_tile_pix = 0; y_tile_pix < 8 && y_tile_pix + win_scroll_y + tile_y * 8 < 144; y_tile_pix++) {
+            int win_y = (render_line - win_scroll_y);
+            if(win_y >= 0) {
+                int tile_y = win_y / 8;
+                int y_tile_pix = win_y % 8;
+                for(int tile_x = 0; tile_x * 8 + win_scroll_x - 7 < 160; tile_x++) {
+                    int tile_num = vram[winbase+tile_y*32+tile_x];
+                    if(!control.tile_addr_mode) {
+                        tile_num = 256+int8_t(tile_num);
+                    }
                     get_tile_row(tile_num, y_tile_pix, false, line);
-                    for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 < 144; x_tile_pix++) {
+                    for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 - 7 < 160; x_tile_pix++) {
                         /*
                         uint32_t color = SDL_MapRGB(this->buffer->format,85*bgpal.pal[c],85*bgpal.pal[c],85*bgpal.pal[c]);
                         ((uint32_t *)this->buffer->pixels)[y_out_pix*(this->buffer->pitch)+x_out_pix] = color;
@@ -558,71 +554,73 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                 }
             }
         }
-    }
+
     
-    //Draw the sprites
-    if(control.sprite_enable) {
-        for(int spr = 0; spr < 40; spr++) {
-            oam_data sprite_dat;
-            memcpy(&sprite_dat, &oam[spr*4], 4);
-            sprite_dat.ypos -= 16;
-            sprite_dat.xpos -= 8;
-            //int ypos = oam[spr*4+0] - 16;
-            //int xpos = oam[spr*4+1] - 8;
-            uint8_t tile = oam[spr*4+2];
+        //Draw the sprites
+        if(control.sprite_enable) {
+            std::vector<uint8_t> tile_line(8,0);
+            for(int spr = 0; spr < 40; spr++) {
+                oam_data sprite_dat;
+                memcpy(&sprite_dat, &oam[spr*4], 4);
+                sprite_dat.ypos -= 16;
+                sprite_dat.xpos -= 8;
+                //int ypos = oam[spr*4+0] - 16;
+                //int xpos = oam[spr*4+1] - 8;
+                uint8_t tile = oam[spr*4+2];
 
-            int sprite_size = 8 + (control.sprite_size * 8);
+                int sprite_size = 8 + (control.sprite_size * 8);
 
-            if(control.sprite_size) {
-                tile &= 0xfe;
-            }
-
-            int base = tile * 16;
-
-            for(int x=0;x!=8;x++) {
-                int x_i = x;
-                if(sprite_dat.xflip == 1) {
-                    x_i = 7 - x;
+                //If sprite isn't displayed on this line...
+                if(sprite_dat.ypos > render_line || sprite_dat.ypos + sprite_size <= render_line) {
+                    continue;
                 }
 
-                for(int y=0;y!=sprite_size;y++) {
-                    if(sprite_dat.ypos+y >= 0 && sprite_dat.ypos+y < 144 && sprite_dat.xpos+x >=0 && sprite_dat.xpos+x < 160) {
-                        int y_i = y;
-                        if(sprite_dat.yflip == 1) {
-                            y_i = sprite_size - (y + 1);
-                        }
-                        int b1=vram[base+y_i * 2];
-                        int b2=vram[base+y_i * 2 + 1];
-                        int shift = 128>>(x_i);
-                        int col=((b1&shift)/shift + 2*((b2&shift)/shift));
-                        if(!col) continue;
-                        if(sprite_dat.palnum_dmg) {
-                            SDL_SetRenderDrawColor(renderer, 0, 0, 85 * (3 - obj2pal.pal[col]),255);
-                        }
-                        else {
-                            SDL_SetRenderDrawColor(renderer, 0, 85 * (3 - obj1pal.pal[col]),0,255);
-                        }
+                if(control.sprite_size) {
+                    tile &= 0xfe;
+                }
 
-                        SDL_RenderDrawPoint(renderer, sprite_dat.xpos+x, sprite_dat.ypos+y);
+                int y_i = render_line - sprite_dat.ypos;
+                if(sprite_dat.yflip == 1) {
+                    y_i = sprite_size - (y_i + 1);
+                }
+                get_tile_row(tile, y_i, false, tile_line);
+
+                for(int x=0;x!=8;x++) {
+                    int x_i = x;
+                    if(sprite_dat.xflip == 1) {
+                        x_i = 7 - x;
                     }
+
+                    uint8_t col = tile_line[x_i];
+                    if(!col) continue;
+                    if(sprite_dat.palnum_dmg) {
+                        SDL_SetRenderDrawColor(renderer, 0, 0, 85 * (3 - obj2pal.pal[col]),255);
+                    }
+                    else {
+                        SDL_SetRenderDrawColor(renderer, 0, 85 * (3 - obj1pal.pal[col]),0,255);
+                    }
+
+                    SDL_RenderDrawPoint(renderer, sprite_dat.xpos+x, sprite_dat.ypos+render_line);
                 }
             }
+
         }
 
+        if(output_sdl && render_line == 143) {
+            /* Activate when I'm not using SDL_RenderDrawPoint anymore
+            SDL_DestroyTexture(texture);
+
+            texture = SDL_CreateTextureFromSurface(renderer, this->buffer);
+
+            SDL_RenderClear(renderer);
+            SDL_RenderCopy(renderer,texture,NULL,NULL);
+            */
+
+            SDL_RenderPresent(renderer);
+            output_image = true;
+        }
     }
 
-    if(output_sdl) {
-        /* Activate when I'm not using SDL_RenderDrawPoint anymore
-        SDL_DestroyTexture(texture);
-
-        texture = SDL_CreateTextureFromSurface(renderer, this->buffer);
-
-        SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer,texture,NULL,NULL);
-        */
-
-        SDL_RenderPresent(renderer);
-    }
     return output_image;
 }
 
