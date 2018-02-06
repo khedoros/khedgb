@@ -517,8 +517,8 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                 }
 
                 if(output_sdl /*&& c != 0*/) {
-                    SDL_SetRenderDrawColor(renderer, 85*(3-bgpal.pal[tile_pix[x_tile_pix]]), 85*(3-bgpal.pal[tile_pix[x_tile_pix]]), 85*(3-bgpal.pal[tile_pix[x_tile_pix]]), 255);
-                    SDL_RenderDrawPoint(renderer, x_out_pix, render_line);
+                    uint32_t color = SDL_MapRGB(this->buffer->format,85*(3-bgpal.pal[tile_pix[x_tile_pix]]),85*(3-bgpal.pal[tile_pix[x_tile_pix]]),85*(3-bgpal.pal[tile_pix[x_tile_pix]]));
+                    ((uint32_t *)this->buffer->pixels)[render_line*160+x_out_pix] = color;
                 }
             }
         }
@@ -540,15 +540,14 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                     }
                     get_tile_row(tile_num, y_tile_pix, false, line);
                     for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 - 7 < 160; x_tile_pix++) {
-                        /*
-                        uint32_t color = SDL_MapRGB(this->buffer->format,85*bgpal.pal[c],85*bgpal.pal[c],85*bgpal.pal[c]);
-                        ((uint32_t *)this->buffer->pixels)[y_out_pix*(this->buffer->pitch)+x_out_pix] = color;
+                        int ycoord = tile_y * 8 + y_tile_pix;
+                        int xcoord = tile_x * 8 + x_tile_pix;
 
-                        */
-
+                        if(!line[x_tile_pix]) continue;
                         if(output_sdl) {
-                            SDL_SetRenderDrawColor(renderer, 85*bgpal.pal[line[x_tile_pix]], 0, 0, 255);
-                            SDL_RenderDrawPoint(renderer, tile_x*8+x_tile_pix, tile_y*8+y_tile_pix);
+                            uint8_t col = line[x_tile_pix];
+                            uint32_t color = SDL_MapRGB(this->buffer->format,85*(3-bgpal.pal[col]),50*(3-bgpal.pal[col]),50*(3-bgpal.pal[col]));
+                            ((uint32_t *)this->buffer->pixels)[ycoord*160+xcoord] = color;
                         }
                     }
                 }
@@ -564,8 +563,6 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                 memcpy(&sprite_dat, &oam[spr*4], 4);
                 sprite_dat.ypos -= 16;
                 sprite_dat.xpos -= 8;
-                //int ypos = oam[spr*4+0] - 16;
-                //int xpos = oam[spr*4+1] - 8;
                 uint8_t tile = oam[spr*4+2];
 
                 int sprite_size = 8 + (control.sprite_size * 8);
@@ -592,29 +589,32 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                     }
 
                     uint8_t col = tile_line[x_i];
+                    uint32_t color = 0;
                     if(!col) continue;
                     if(sprite_dat.palnum_dmg) {
-                        SDL_SetRenderDrawColor(renderer, 0, 0, 85 * (3 - obj2pal.pal[col]),255);
+                        color = SDL_MapRGB(this->buffer->format, 50 * ( 3-obj2pal.pal[col]), 50 * ( 3-obj2pal.pal[col]), 85 * ( 3-obj2pal.pal[col]));
                     }
                     else {
-                        SDL_SetRenderDrawColor(renderer, 0, 85 * (3 - obj1pal.pal[col]),0,255);
+                        color = SDL_MapRGB(this->buffer->format, 50 * ( 3-obj1pal.pal[col]), 85 * ( 3-obj1pal.pal[col]), 50 * ( 3-obj1pal.pal[col]));
                     }
 
-                    SDL_RenderDrawPoint(renderer, sprite_dat.xpos+x, sprite_dat.ypos+render_line);
+                    int xcoord = sprite_dat.xpos+x;
+                    int ycoord = render_line;
+                    ((uint32_t *)this->buffer->pixels)[ycoord*160+xcoord] = color;
                 }
             }
 
         }
 
         if(output_sdl && render_line == 143) {
-            /* Activate when I'm not using SDL_RenderDrawPoint anymore
-            SDL_DestroyTexture(texture);
+            if(texture) {
+                //SDL_DestroyTexture(texture);
+            }
 
             texture = SDL_CreateTextureFromSurface(renderer, this->buffer);
 
             SDL_RenderClear(renderer);
             SDL_RenderCopy(renderer,texture,NULL,NULL);
-            */
 
             SDL_RenderPresent(renderer);
             output_image = true;

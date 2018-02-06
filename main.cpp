@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     lcd *  ppu = bus.get_lcd();
 
     uint64_t cycle = 144*114; //Cycles since the machine started running (the system starts in vblank)
-    uint64_t tick_size = 10000; //Cycles to run in a batch
+    uint64_t tick_size = 70224/16; //Cycles to run in a batch
     bool continue_running = true;
     uint64_t last_output_cycle = 0; //Last cycle that the ppu output a frame
     uint64_t last_output_tick = 0;  //Last millisecond that the ppu output a frame
@@ -55,7 +55,6 @@ int main(int argc, char *argv[]) {
         //apu->run(cycle + tick_size); TODO: Add audio support
 
         //Frame delay
-        /*
         if(cur_output_cycle != 0) {
             uint64_t now = SDL_GetTicks();
             //uint64_t ms_diff = now - last_output_tick;
@@ -64,7 +63,7 @@ int main(int argc, char *argv[]) {
             if(cycle_diff != 0) {
                 uint64_t delay = (double(cycle_diff*1000) / double(1024*1024));
                 if(delay < 1000) {
-                    SDL_Delay(delay);
+                    SDL_Delay(delay/3);
                 }
                 uint64_t actual_delay = SDL_GetTicks() - now;
                 if(actual_delay > delay) {
@@ -73,7 +72,8 @@ int main(int argc, char *argv[]) {
             }
             last_output_tick = now;
             last_output_cycle = cur_output_cycle;
-        }*/
+            cur_output_cycle = 0;
+        }
         cycle += tick_size;
     }
     return 0;
