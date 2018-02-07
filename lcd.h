@@ -37,7 +37,7 @@ public:
     bool interrupt_triggered(uint64_t cycle);
     uint64_t get_active_cycle();
     uint64_t run(uint64_t cycle_count);
-    uint8_t get_mode(uint64_t cycle);
+    uint8_t get_mode(uint64_t cycle, bool ppu_view = false);
 
 private:
     void update_estimates(uint64_t cycle);

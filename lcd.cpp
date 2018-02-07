@@ -91,9 +91,6 @@ uint64_t lcd::run(uint64_t run_to) {
     uint64_t start_frame_line = start_frame_cycle / 114;       //Current line in current frame
     uint64_t start_line_cycle = start_frame_cycle % 114;       //Current cycle in current line
     uint64_t start_line = start_frame_line;
-    if(start_line_cycle >= (20 + 43)) { //the line should already be rendered; 20 cycles for OAM, 43 cycles for LCD transfer, 51 cycles for HBlank
-        start_line++;
-    }
 
     printf("PPU: Start: %ld run_to: %ld\n", cycle, run_to);
 
@@ -106,18 +103,19 @@ uint64_t lcd::run(uint64_t run_to) {
         uint64_t frame_line = frame_cycle / 114;
         uint64_t line_cycle = frame_cycle % 114;
 
-        if(line_cycle < (20 + 43)) { //Haven't completed enough cycles to request frame_line to be rendered, as first calculated
-            frame_line --;           //Shouldn't render the line that this command occurs on, yet
+        uint64_t render_end_line = frame_line;
+        if(get_mode(current.cycle, true) > 1) { //Haven't completed enough cycles to request frame_line to be rendered, as first calculated
+            render_end_line--;                  //Shouldn't render the line that this command occurs on, yet
         }
-        printf("Command at: %ld\n", current.cycle);
+        printf("PPU: Command at: %ld\n", current.cycle);
         //printf("Active: %ld offset: %ld frame_cycle: %ld frames_since_active: %ld frame_line: %ld line_cycle: %ld\n", active_cycle, offset, frame_cycle, frames_since_active, frame_line, line_cycle);
 
         bool frame_output = false;
-        if(current.cycle >= cycle && frame_line >= start_line) {
+        if(current.cycle >= cycle && render_end_line >= start_line) {
             printf("PPU: render Startline: %ld endline: %ld\n",start_line,frame_line);
-            frame_output = render(frame, start_line, frame_line);
+            frame_output = render(frame, start_line, render_end_line);
         }
-        start_line = ((frame_line + 1) % 154); //Next line to render will be after current line, and next frame to render will be after current frame. If we crossed over, the next start_line needs to reflect the reset.
+        start_line = ((render_end_line + 1) % 154); //Next line to render will be after current line, and next frame to render will be after current frame. If we crossed over, the next start_line needs to reflect the reset.
 
         if(frame_output) {
             printf("PPU: Frame %ld\n", frame);
@@ -346,11 +344,18 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
     return;
 }
 
-uint8_t lcd::get_mode(uint64_t cycle) {
-    if(!cpu_control.display_enable) {
+uint8_t lcd::get_mode(uint64_t cycle, bool ppu_view/*=false*/) {
+    control_reg cnt = cpu_control;
+    uint64_t active = cpu_active_cycle;
+    if(ppu_view) {
+        cnt = control;
+        active = active_cycle;
+    }
+
+    if(!cnt.display_enable) {
         return 1;
     }
-    int frame_cycle = (cycle - cpu_active_cycle) % 17556;
+    int frame_cycle = (cycle - active) % 17556;
     int line = frame_cycle / 114;
 
     assert(line < 154);
@@ -470,10 +475,13 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>&
 
 bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
     assert(start_line >= 0);
+    if(end_line < 0) return false;
+    if(start_line > end_line) {
+        end_line += 154;
+        printf("Changing %d to %d\n", end_line-154, end_line);
+    }
     assert(end_line - start_line < 154); //Expect not to ever receive over a frame of data
     fflush(stdin);
-    //assert(start_line <= end_line);
-    if(start_line > end_line) return false;
     bool output_sdl = true;
     bool output_image = false;
 
