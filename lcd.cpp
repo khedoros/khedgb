@@ -25,7 +25,7 @@ lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), b
             320, 288,
             SDL_WINDOW_RESIZABLE);
     if ( screen == NULL ) {
-        fprintf(stderr, "lcd::Couldn't set 320x240x8 video mode: %s\nStarting without video output.\n",
+        fprintf(stderr, "lcd::Couldn't set 320x288x32 video mode: %s\nStarting without video output.\n",
                 SDL_GetError());
         //exit(1);
         return;
@@ -35,10 +35,10 @@ lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), b
     cur_x_res=160;
     cur_y_res=144;
 
-    //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED/*|SDL_RENDERER_PRESENTVSYNC*/);
+    renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED/*|SDL_RENDERER_PRESENTVSYNC*/);
     //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
     //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE|SDL_RENDERER_PRESENTVSYNC);
-    renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE/*|SDL_RENDERER_PRESENTVSYNC*/);
+    //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE/*|SDL_RENDERER_PRESENTVSYNC*/);
     if(!renderer) {
         fprintf(stderr, "lcd::Couldn't create a renderer: %s\nStarting without video output.\n",
                 SDL_GetError());
@@ -97,11 +97,11 @@ uint64_t lcd::run(uint64_t run_to) {
     uint64_t render_cycle = 0;
     while(cmd_queue.size() > 0) {
         util::cmd current = cmd_queue.front();
-        uint64_t offset = current.cycle - active_cycle - 1;       //Cycles between activation of the screen and that command
+        uint64_t offset = current.cycle - active_cycle;   //Cycles between activation of the screen and that command
         uint64_t frame_cycle = (offset % 17556);          //Last cycle in this frame before command
-        uint64_t frames_since_active = offset / 17556;        //Full frames since becoming active
-        uint64_t frame_line = frame_cycle / 114;
-        uint64_t line_cycle = frame_cycle % 114;
+        uint64_t frames_since_active = offset / 17556;    //Full frames since becoming active
+        uint64_t frame_line = frame_cycle / 114;          //Line in the frame where the command occurs
+        uint64_t line_cycle = frame_cycle % 114;          //Cycle in the line where the command occurs
 
         uint64_t render_end_line = frame_line;
         if(get_mode(current.cycle, true) > 1) { //Haven't completed enough cycles to request frame_line to be rendered, as first calculated
@@ -130,22 +130,26 @@ uint64_t lcd::run(uint64_t run_to) {
         current = cmd_queue.front();
     }
 
-    uint64_t end_offset = run_to - active_cycle - 1;
+    uint64_t end_offset = run_to - active_cycle;
     uint64_t end_frame_cycle = end_offset % 17556;
-    uint64_t end_frame_base = run_to - end_frame_cycle;
+    //uint64_t end_frame_base = run_to - end_frame_cycle;
     uint64_t end_frame_line = end_frame_cycle / 114;
     uint64_t end_line_cycle = end_frame_cycle % 114;
     uint64_t end_line = end_frame_line;
-    if(end_line_cycle < (20 + 43)) { //the line will be rendered at the next ::run call
+    if(get_mode(run_to, true) > 1) { //the line will be rendered at the next ::run call
         end_line--;
     }
 
     printf("PPU: render Startline: %ld endline: %ld\n",start_line,end_line);
-    bool frame_output = render(frame, start_line, end_line);
+    bool frame_output = false;
+    if(run_to >= cycle) {
+        frame_output = render(frame, start_line, end_line);
+    }
+    start_line = ((end_line + 1) % 154);
     if(frame_output) {
         printf("PPU: Frame %ld\n", frame);
         render_cycle = active_cycle + (((end_offset / 17556) - 1) * 17556) + (114 * 143) + (20 + 43);
-        assert(render_cycle < run_to);
+        //assert(render_cycle < run_to);
         frame++;
     }
 
@@ -618,10 +622,10 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
 
         if(output_sdl && render_line == 143) {
             if(texture) {
-                //SDL_DestroyTexture(texture);
+                SDL_DestroyTexture(texture);
             }
 
-            texture = SDL_CreateTextureFromSurface(renderer, this->buffer);
+            texture = SDL_CreateTextureFromSurface(renderer, buffer);
 
             SDL_RenderClear(renderer);
             SDL_RenderCopy(renderer,texture,NULL,NULL);
