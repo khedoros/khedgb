@@ -75,7 +75,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
             halted = false;
             //pc++; //interrupt should return to instruction after HALT
             opcode>>=8;
-            printf("Interrupts enabled, and int_flag: %02x, un-halting\n", int_flag);
+            //printf("Interrupts enabled, and int_flag: %02x, un-halting\n", int_flag);
             return 2;
         }
         bool called = call_interrupts();
@@ -90,7 +90,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         opcode = opcode | (opcode<<8) | (opcode<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
         pc++;
         return 2;
-        printf("Interrupts disabled, but int_flag: %02x, un-halting and locking PC\n", int_flag);
+        //printf("Interrupts disabled, but int_flag: %02x, un-halting and locking PC\n", int_flag);
     }
     else if(stopped && (int_flag & JOYPAD) > 0) {
         stopped = false;
@@ -98,7 +98,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         opcode = opcode | (opcode<<8) | (opcode<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
         //pc+=2;
         return 2;
-        printf("Interrupts disabled, but saw joypad interrupt. un-stopping and locking PC\n");
+        //printf("Interrupts disabled, but saw joypad interrupt. un-stopping and locking PC\n");
     }
 
     int bytes = 0;
@@ -130,10 +130,12 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     }
 
     //Print a CPU trace
+    /*
     registers();
     printf("\t");
     decode(prefix,x,y,z,data);
     printf("\n");
+    */
     if(!halted && !stopped) {//If the CPU hits a HALT or STOP, it needs to stay there.
         pc += bytes;
     }
@@ -778,23 +780,23 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                     //printf("JP $%04x\n",data);
                     break;
                 case 0x1: //0xcb
-                    printf("CB Prefix\n");
+                    //printf("CB Prefix\n");
                     break;
                 case 0x2: //Different from z80, 0xd3
                     //printf("OUT (n), A\n");
-                    printf("---- (diff)\n");
+                    //printf("---- (diff)\n");
                     break;
                 case 0x3: //Different from z80, 0xdb
                     //printf("IN A, (n)\n");
-                    printf("---- (diff)\n");
+                    //printf("---- (diff)\n");
                     break;
                 case 0x4: //Different from z80, 0xe3
                     //printf("EX (SP), HL\n");
-                    printf("---- (diff)\n");
+                    //printf("---- (diff)\n");
                     break;
                 case 0x5: //Different from z80, 0xeb
                     //printf("EX DE, HL\n");
-                    printf("---- (diff)\n");
+                    //printf("---- (diff)\n");
                     break;
                 case 0x6: //Disable interrupts, 0xf3
                     //printf("X: %d Y: %d Z: %d ",x,y,z);
@@ -840,7 +842,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                     //printf("CALL %s, $%04x\n", cc[y],data);
                 }
                 else { //Dead ops, which I think were prefixes in Z80
-                    printf("---- (diff)\n");
+                    //printf("---- (diff)\n");
                 }
                 break;
             case 0x5: //16-bit PUSHes, unconditional call to immediate address, 3 dead ops
@@ -858,7 +860,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                         //printf("CALL $%04x\n",data);
                         break;
                     default: //Different from z80, Dead prefixes, 0xdd, 0xed, 0xfd
-                        printf("---- (diff)\n");
+                        //printf("---- (diff)\n");
                         break;
                     }
                 }
@@ -1140,7 +1142,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
             }
             /*
             if(y>=4)
-                printf("%s %s %s\n", rot[y], r[z], (y==6)?"(diff)":"");*/
+                //printf("%s %s %s\n", rot[y], r[z], (y==6)?"(diff)":"");*/
         }
         else if(x==1) {
             if((1<<(y)) & (*r[z])) {
@@ -1169,7 +1171,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
         }
     }
     else {
-        printf("Prefix \"0x%02x\" doesn't exist in the Game Boy's CPU.\n", pre);
+        //printf("Prefix \"0x%02x\" doesn't exist in the Game Boy's CPU.\n", pre);
     }
     return extra_cycles;
 }
@@ -1234,8 +1236,8 @@ const uint8_t cpu::op_times_extra[256] =
      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 void cpu::registers() {
-    printf("PC: %04x A: %02x B: %02x C: %02x D: %02x E: %02x H: %02x L: %02x SP: %04x F: %02x",
-            pc,af.hi,bc.hi,bc.low,de.hi,de.low,hl.hi,hl.low,sp,af.low);
+    //printf("PC: %04x A: %02x B: %02x C: %02x D: %02x E: %02x H: %02x L: %02x SP: %04x F: %02x",
+        //    pc,af.hi,bc.hi,bc.low,de.hi,de.low,hl.hi,hl.low,sp,af.low);
 }
 
 bool cpu::call_interrupts() {
@@ -1260,7 +1262,7 @@ bool cpu::call_interrupts() {
         //halted = false;
         //stopped = false;
         //push pc
-        printf("INT: calling to %d\n", to_run);
+        //printf("INT: calling to %d\n", to_run);
         bus->write(sp-2, &pc, 2, cycle);
         sp -= 2;
 

@@ -31,6 +31,7 @@ enum lcd_ints {
 class lcd {
 public:
     lcd();
+    ~lcd();
     void write(int addr, void * val, int size, uint64_t cycle);
     void read(int addr, void * val, int size, uint64_t cycle);
     bool interrupt_triggered(uint64_t cycle);
@@ -143,6 +144,7 @@ private:
 
     SDL_Surface * buffer; //Output buffer
     SDL_Texture * texture; //Texture used for output
+    SDL_Texture * prev_texture; //Texture used for output
 
     SDL_Surface * overlay; //overlay surface (if I want to render non-game info)
     SDL_Surface * lps; //Low-priority sprite compositing buffer

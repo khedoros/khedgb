@@ -129,7 +129,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             break;
         default:
             if(addr > 0xff0f && addr < 0xff3f) {
-                std::cout<<"Read from audio hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+                //std::cout<<"Read from audio hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
                 *((uint8_t *)val) = sound.read(addr, cycle);
             }
             else if(addr > 0xff3f && addr < 0xff4c) {
@@ -232,8 +232,8 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 cart.write(addr,val,size,cycle);
                 break;
             default:
-                if(addr > 0xff0f && addr < 0xff3f) {
-                    std::cout<<"Write to audio hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                if(addr > 0xff0f && addr <= 0xff3f) {
+                    //std::cout<<"Write to audio hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                     sound.write(addr, *(uint8_t *)val, cycle);
                 }
                 else if(addr > 0xff3f && addr < 0xff4c) {
@@ -343,13 +343,13 @@ void memmap::update_interrupts(uint32_t frame, uint64_t cycle) {
     if(cycle > last_int_cycle + 1140 && screen.get_mode(cycle) == 1 && ((enabled&0x80) > 0)) {
         int_requested.vblank = 1;
         last_int_cycle = cycle; 
-        printf("INT: vbl set active @ cycle %ld\n", cycle);
+        //printf("INT: vbl set active @ cycle %ld\n", cycle);
     }
 
     //LCDSTAT
     if(screen.interrupt_triggered(cycle)) {
         int_requested.lcdstat = 1;
-        printf("INT: lcdstat set active @ cycle %ld\n", cycle);
+        //printf("INT: lcdstat set active @ cycle %ld\n", cycle);
     }
 
     /*
