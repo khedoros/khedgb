@@ -536,6 +536,8 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
     bool output_sdl = true;
     bool output_image = false;
 
+    std::vector<uint8_t> tile_line(8,0);
+
     if(!screen||!texture||!renderer) {
         printf("PPU: problem!\n");
         output_sdl = false;
@@ -561,7 +563,6 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
 
             bool unloaded = true;
             int tile_num = 0;
-            std::vector<uint8_t> tile_pix(8,0);
 
             for(int x_out_pix = 0; x_out_pix < 160; x_out_pix++) {
                 int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
@@ -573,22 +574,23 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                     if(!control.tile_addr_mode) {
                         tile_num = 256 + int8_t(tile_num);
                     }
-                    get_tile_row(tile_num, y_tile_pix, false, tile_pix);
+                    get_tile_row(tile_num, y_tile_pix, false, tile_line);
                     unloaded = false;
                 }
 
                 if(output_sdl /*&& c != 0*/) {
-                    uint32_t color = SDL_MapRGB(this->buffer->format,85*(3-bgpal.pal[tile_pix[x_tile_pix]]),85*(3-bgpal.pal[tile_pix[x_tile_pix]]),85*(3-bgpal.pal[tile_pix[x_tile_pix]]));
+                    uint32_t color = SDL_MapRGB(this->buffer->format,85*(3-bgpal.pal[tile_line[x_tile_pix]]),85*(3-bgpal.pal[tile_line[x_tile_pix]]),85*(3-bgpal.pal[tile_line[x_tile_pix]]));
                     ((uint32_t *)this->buffer->pixels)[render_line*160+x_out_pix] = color;
                 }
             }
         }
 
+
+
         //Draw the window
         if(control.window_enable) {
             uint32_t winbase = 0x1800;
             if(control.window_map) winbase = 0x1c00;
-            std::vector<uint8_t> line(8,0);
 
             int win_y = (render_line - win_scroll_y);
             if(win_y >= 0) {
@@ -599,15 +601,14 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                     if(!control.tile_addr_mode) {
                         tile_num = 256+int8_t(tile_num);
                     }
-                    get_tile_row(tile_num, y_tile_pix, false, line);
+                    get_tile_row(tile_num, y_tile_pix, false, tile_line);
                     for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 - 7 < 160; x_tile_pix++) {
                         int ycoord = tile_y * 8 + y_tile_pix + win_scroll_y;
                         int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
 
-                        //if(!line[x_tile_pix]) continue;
                         if(output_sdl) {
-                            uint8_t col = line[x_tile_pix];
-                            uint32_t color = SDL_MapRGB(this->buffer->format,85*(3-bgpal.pal[col]),50*(3-bgpal.pal[col]),50*(3-bgpal.pal[col]));
+                            uint8_t col = tile_line[x_tile_pix];
+                            uint32_t color = SDL_MapRGB(this->buffer->format,80*(3-bgpal.pal[col])+15,70*(3-bgpal.pal[col]),70*(3-bgpal.pal[col]));
                             ((uint32_t *)this->buffer->pixels)[ycoord*160+xcoord] = color;
                         }
                     }
@@ -615,21 +616,21 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
             }
         }
 
-    
+
+
         //Draw the sprites
         if(control.sprite_enable) {
-            std::vector<uint8_t> tile_line(8,0);
             for(int spr = 0; spr < 40; spr++) {
                 oam_data sprite_dat;
                 memcpy(&sprite_dat, &oam[spr*4], 4);
-                sprite_dat.ypos -= 16;
-                sprite_dat.xpos -= 8;
+                int sprite_y = sprite_dat.ypos - 16;
+                int sprite_x = sprite_dat.xpos - 8;
                 uint8_t tile = oam[spr*4+2];
 
                 int sprite_size = 8 + (control.sprite_size * 8);
 
                 //If sprite isn't displayed on this line...
-                if(sprite_dat.ypos > render_line || sprite_dat.ypos + sprite_size <= render_line) {
+                if(sprite_y > render_line || sprite_y + sprite_size <= render_line || sprite_y > 159 || sprite_y < 0) {
                     continue;
                 }
 
@@ -637,7 +638,7 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                     tile &= 0xfe;
                 }
 
-                int y_i = render_line - sprite_dat.ypos;
+                int y_i = render_line - sprite_y;
                 if(sprite_dat.yflip == 1) {
                     y_i = sprite_size - (y_i + 1);
                 }
@@ -653,15 +654,23 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                     uint32_t color = 0;
                     if(!col) continue;
                     if(sprite_dat.palnum_dmg) {
-                        color = SDL_MapRGB(this->buffer->format, 50 * ( 3-obj2pal.pal[col]), 50 * ( 3-obj2pal.pal[col]), 85 * ( 3-obj2pal.pal[col]));
+                        color = SDL_MapRGB(this->buffer->format, 70 * ( 3-obj2pal.pal[col]), 70 * ( 3-obj2pal.pal[col]), 80 * ( 3-obj2pal.pal[col])+15);
                     }
                     else {
-                        color = SDL_MapRGB(this->buffer->format, 50 * ( 3-obj1pal.pal[col]), 85 * ( 3-obj1pal.pal[col]), 50 * ( 3-obj1pal.pal[col]));
+                        color = SDL_MapRGB(this->buffer->format, 70 * ( 3-obj1pal.pal[col]), 80 * ( 3-obj1pal.pal[col])+15, 70 * ( 3-obj1pal.pal[col]));
                     }
 
-                    int xcoord = sprite_dat.xpos+x;
+                    int xcoord = sprite_x + x;
                     int ycoord = render_line;
-                    ((uint32_t *)this->buffer->pixels)[ycoord*160+xcoord] = color;
+                    /*
+                    assert(xcoord >= 0);
+                    assert(xcoord < 160);
+                    assert(ycoord >= 0);
+                    assert(ycoord < 144);
+                    */
+                    if(xcoord >= 0 && xcoord < 160) {
+                        ((uint32_t *)this->buffer->pixels)[ycoord*160+xcoord] = color;
+                    }
                 }
             }
 
