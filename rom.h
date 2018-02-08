@@ -31,6 +31,7 @@ class mapper {
 class rom {
     public:
         rom(const std::string& rom_filename, const std::string& firmware_filename);
+        ~rom();
         virtual void read(uint32_t addr, void * val, int size, int cycle);
         virtual void write(uint32_t addr, void * val, int size, int cycle);
 
@@ -66,6 +67,7 @@ class rom {
         Vect<uint8_t> cram;
         header h;
         mapper * map;
+        std::string filename;
 };
 
 class mbc1_rom: public mapper {
@@ -109,7 +111,7 @@ class mbc2_rom: public mapper {
 
 class mbc3_rom: public mapper {
     public:
-        mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc);
+        mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc, std::vector<uint8_t>& rtc_data);
         virtual uint32_t map_rom(uint32_t addr, int cycle);
         virtual uint32_t map_ram(uint32_t addr, int cycle);
         virtual void write(uint32_t addr, void * val, int size, int cycle);
@@ -119,6 +121,8 @@ class mbc3_rom: public mapper {
         bool ram_enabled;
         bool rtc_latch;
         uint8_t rtc[5];
+        uint8_t latched_rtc[5];
+        uint64_t load_timestamp; //64-bit Unix timestamp, representing when the file is loaded (save data stores when the file was saved, so that we can simulate the appropriate passage of time)
 };
 
 class mbc5_rom: public mapper {

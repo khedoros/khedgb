@@ -3,7 +3,7 @@
 #include<iostream>
 #include<cassert>
 
-rom::rom(const std::string& rom_filename, const std::string& firmware_filename = "") : valid(false) {
+rom::rom(const std::string& rom_filename, const std::string& firmware_filename = "") : valid(false), filename(rom_filename) {
     cram.resize(0);
     firmware = false;
     //Take input of the actual ROM data
@@ -145,6 +145,25 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
         cram.resize(512); //512 4-bit values supported in MBC2
     }
 
+    std::vector<uint8_t> rtc_data;
+
+    if(h.has_bat && cram.size() > 0) {
+        uint32_t min_size = cram.size();
+        uint32_t max_size = cram.size();
+        if(h.mapper == MAP_MBC3) { //Take into account the RTC values
+            min_size+=44;
+            max_size+=48;
+        }
+
+        int ret = util::read(rom_filename.substr(0, rom_filename.find_last_of(".")+1) + "sav", cram, min_size, max_size);
+        if(!ret && h.mapper == MAP_MBC3) {
+            size_t rtc_size = cram.size() % 8192;
+            rtc_data.resize(rtc_size, 0);
+            std::copy(cram.end() - rtc_size, cram.end(), rtc_data.begin());
+            cram.resize(cram.size() - rtc_size);
+        }
+    }
+
     if(h.rom_size != h.filesize) {
         std::cerr<<"Filesize: "<<std::dec<<h.filesize<<" Claimed rom size: "<<h.rom_size<<" (oopsie!)"<<std::endl;
         return;
@@ -167,7 +186,10 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
             map = new mbc2_rom(h.rom_size, h.has_bat);
             break;
         case MAP_MBC3:
-            map = new mbc3_rom(h.rom_size, h.ram_size, h.has_bat, h.has_rtc);
+            if(rtc_data.size() != 44 && rtc_data.size() != 48) {
+                rtc_data.resize(48,0);
+            }
+            map = new mbc3_rom(h.rom_size, h.ram_size, h.has_bat, h.has_rtc, rtc_data);
             break;
         case MAP_MBC5:
             map = new mbc5_rom(h.rom_size, h.ram_size, h.has_bat, h.has_rumble);
@@ -177,6 +199,16 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
 
     valid = true;
 
+}
+
+rom::~rom() {
+    if(h.has_bat && cram.size() > 0) {
+        std::ofstream outfile(filename.substr(0, filename.find_last_of(".")+1)+"sav");
+        if(outfile.is_open()) {
+            outfile.write(reinterpret_cast<char *>(&cram[0]), cram.size());
+            outfile.close();
+        }
+    }
 }
 
 void rom::read(uint32_t addr, void * val, int size, int cycle) {
@@ -312,7 +344,9 @@ void mbc2_rom::write(uint32_t addr, void * val, int size, int cycle) {
 
 
 //MBC3 mapper
-mbc3_rom::mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc) : mapper(rom_size, ram_size+5, has_bat), rombank(1), rambank(0), ram_enabled(false), rtc_latch(false), rtc{0,0,0,0,0} {}
+mbc3_rom::mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc, std::vector<uint8_t>& rtc_data) : mapper(rom_size, ram_size+5, has_bat), rombank(1), rambank(0), ram_enabled(false), rtc_latch(false), rtc{0,0,0,0,0}, latched_rtc{0,0,0,0,0}, load_timestamp(0) {
+    //TODO: Add RTC load code
+}
 uint32_t mbc3_rom::map_rom(uint32_t addr, int cycle) {
     if(addr < 0x4000) {
         return addr;

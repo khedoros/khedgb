@@ -622,8 +622,11 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
         }
 
         if(output_sdl && render_line == 143) {
-            if(texture) {
+            int pitch;
+            int * pix;
+            if(texture && ! SDL_LockTexture(texture, NULL, (void **)(&pix), &pitch)) {
                 SDL_DestroyTexture(texture);
+                SDL_UnlockTexture(texture);
             }
 
             texture = SDL_CreateTextureFromSurface(renderer, buffer);
