@@ -555,10 +555,10 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                     }
                     get_tile_row(tile_num, y_tile_pix, false, line);
                     for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 - 7 < 160; x_tile_pix++) {
-                        int ycoord = tile_y * 8 + y_tile_pix;
-                        int xcoord = tile_x * 8 + x_tile_pix;
+                        int ycoord = tile_y * 8 + y_tile_pix + win_scroll_y;
+                        int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
 
-                        if(!line[x_tile_pix]) continue;
+                        //if(!line[x_tile_pix]) continue;
                         if(output_sdl) {
                             uint8_t col = line[x_tile_pix];
                             uint32_t color = SDL_MapRGB(this->buffer->format,85*(3-bgpal.pal[col]),50*(3-bgpal.pal[col]),50*(3-bgpal.pal[col]));

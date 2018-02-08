@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
                     printf("Delayed for %ld ms too long\n", actual_delay - delay);
                 }
             }
-            last_output_tick = now;
+            //last_output_tick = now;
             last_output_cycle = cur_output_cycle;
             cur_output_cycle = 0;
         }
