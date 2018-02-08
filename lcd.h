@@ -31,7 +31,6 @@ enum lcd_ints {
 class lcd {
 public:
     lcd();
-    void dump_tiles();
     void write(int addr, void * val, int size, uint64_t cycle);
     void read(int addr, void * val, int size, uint64_t cycle);
     bool interrupt_triggered(uint64_t cycle);

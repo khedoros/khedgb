@@ -65,10 +65,6 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
     }
 }
 
-void memmap::dump_tiles() {
-    screen.dump_tiles();
-}
-
 void memmap::read(int addr, void * val, int size, uint64_t cycle) {
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
     if(addr >= 0 && addr < 0x8000) { //Cartridge 0x0000-0x7fff

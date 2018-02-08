@@ -18,7 +18,6 @@ enum INT_TYPE {
 class memmap {
 public:
     memmap(const std::string& filename, const std::string& fw_file);
-    void dump_tiles();
     //read: rw==false, write: rw==true
 //    void map(int addr, void * val, int size, bool rw);
     void read(int addr, void * val, int size, uint64_t cycle);

@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
     uint64_t tick_size = 70224/16; //Cycles to run in a batch
     bool continue_running = true;
     uint64_t last_output_cycle = 0; //Last cycle that the ppu output a frame
-    uint64_t last_output_tick = 0;  //Last millisecond that the ppu output a frame
+    //uint64_t last_output_tick = 0;  //Last millisecond that the ppu output a frame
     while(continue_running) {
         continue_running = util::process_events(&bus);
         uint64_t count = proc.run(cycle + tick_size);

@@ -87,9 +87,9 @@ uint64_t lcd::run(uint64_t run_to) {
     assert(cycle < run_to);
     uint64_t start_offset = cycle - active_cycle;              //Cycles since the screen was activated
     uint64_t start_frame_cycle = start_offset % 17556;         //Cycles into current frame
-    uint64_t start_frame_base = cycle - start_frame_cycle;     //Cycle when current frame started
+    //uint64_t start_frame_base = cycle - start_frame_cycle;     //Cycle when current frame started
     uint64_t start_frame_line = start_frame_cycle / 114;       //Current line in current frame
-    uint64_t start_line_cycle = start_frame_cycle % 114;       //Current cycle in current line
+    //uint64_t start_line_cycle = start_frame_cycle % 114;       //Current cycle in current line
     uint64_t start_line = start_frame_line;
 
     printf("PPU: Start: %ld run_to: %ld\n", cycle, run_to);
@@ -101,18 +101,18 @@ uint64_t lcd::run(uint64_t run_to) {
         uint64_t frame_cycle = (offset % 17556);          //Last cycle in this frame before command
         uint64_t frames_since_active = offset / 17556;    //Full frames since becoming active
         uint64_t frame_line = frame_cycle / 114;          //Line in the frame where the command occurs
-        uint64_t line_cycle = frame_cycle % 114;          //Cycle in the line where the command occurs
+        //uint64_t line_cycle = frame_cycle % 114;          //Cycle in the line where the command occurs
 
         uint64_t render_end_line = frame_line;
         if(get_mode(current.cycle, true) > 1) { //Haven't completed enough cycles to request frame_line to be rendered, as first calculated
-            render_end_line--;                  //Shouldn't render the line that this command occurs on, yet
+            render_end_line-=1;                  //Shouldn't render the line that this command occurs on, yet
         }
         printf("PPU: Command at: %ld\n", current.cycle);
         //printf("Active: %ld offset: %ld frame_cycle: %ld frames_since_active: %ld frame_line: %ld line_cycle: %ld\n", active_cycle, offset, frame_cycle, frames_since_active, frame_line, line_cycle);
 
         bool frame_output = false;
         if(current.cycle >= cycle && render_end_line >= start_line) {
-            printf("PPU: render Startline: %ld endline: %ld\n",start_line,frame_line);
+            printf("PPU: render Startline: %ld endline: %ld\n",start_line,render_end_line);
             frame_output = render(frame, start_line, render_end_line);
         }
         start_line = ((render_end_line + 1) % 154); //Next line to render will be after current line, and next frame to render will be after current frame. If we crossed over, the next start_line needs to reflect the reset.
@@ -134,22 +134,21 @@ uint64_t lcd::run(uint64_t run_to) {
     uint64_t end_frame_cycle = end_offset % 17556;
     //uint64_t end_frame_base = run_to - end_frame_cycle;
     uint64_t end_frame_line = end_frame_cycle / 114;
-    uint64_t end_line_cycle = end_frame_cycle % 114;
+    //uint64_t end_line_cycle = end_frame_cycle % 114;
     uint64_t end_line = end_frame_line;
     if(get_mode(run_to, true) > 1) { //the line will be rendered at the next ::run call
-        end_line--;
+        end_line-=1;
     }
 
-    printf("PPU: render Startline: %ld endline: %ld\n",start_line,end_line);
+    printf("PPU: renderend Startline: %ld endline: %ld\n",start_line,end_line);
     bool frame_output = false;
-    if(run_to >= cycle) {
+    if(run_to >= cycle && (end_line >= start_line || start_line - end_line > 30)) {
         frame_output = render(frame, start_line, end_line);
+        start_line = ((end_line + 1) % 154);
     }
-    start_line = ((end_line + 1) % 154);
     if(frame_output) {
         printf("PPU: Frame %ld\n", frame);
         render_cycle = active_cycle + (((end_offset / 17556) - 1) * 17556) + (114 * 143) + (20 + 43);
-        //assert(render_cycle < run_to);
         frame++;
     }
 
@@ -181,9 +180,11 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                 }
                 break;
             case 0xff42:
+                //printf("cycle: %ld (mode: %d line: %d cycle: %d) bg_scroll_y = %d\n", cycle, get_mode(cycle, true), ((cycle-active_cycle)%17556)/114, (cycle - active_cycle)%114, val);
                 bg_scroll_y = val;
                 break;
             case 0xff43:
+                //printf("cycle: %ld (mode: %d line: %d cycle: %d) bg_scroll_x = %d\n", cycle, get_mode(cycle, true), ((cycle-active_cycle)%17556)/114, (cycle - active_cycle)%114 ,val);
                 bg_scroll_x = val;
                 break;
             case 0xff46://OAM DMA
@@ -708,30 +709,4 @@ bool lcd::interrupt_triggered(uint64_t cycle) {
     }
 
     return retval;
-}
-
-void lcd::dump_tiles() {
-    std::ofstream vid(std::string("frame-dead.pgm").c_str());
-    vid<<"P5\n192 128\n3\n";
-    uint8_t buffer[128][192];
-    for(int ytile=0;ytile<16;ytile++) {
-        for(int xtile=0;xtile<24;xtile++) {
-            int base = (xtile *16 + ytile)*16;
-            for(int yp=0;yp<8;yp++) {
-                int b1=vram[base+yp*2];
-                int b2=vram[base+yp*2+1];
-                int shift=128;
-                for(int xp=0;xp<8;xp++) {
-                    int c=(b1 & shift)/shift + 2*((b2 & shift)/shift);
-                    assert(c==0||c==1||c==2||c==3);
-                    buffer[ytile*8+yp][xtile*8+xp]=3-c;
-                    shift/=2;
-                }
-            }
-        }
-    }
-    for(int i=0;i<128;i++) {
-        vid.write(reinterpret_cast<char *>(&buffer[i][0]),192);
-    }
-    vid.close();
 }
