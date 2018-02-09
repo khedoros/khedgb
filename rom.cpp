@@ -209,6 +209,7 @@ rom::~rom() {
             outfile.close();
         }
     }
+    delete map;
 }
 
 void rom::read(uint32_t addr, void * val, int size, int cycle) {
@@ -337,8 +338,8 @@ uint32_t mbc2_rom::map_ram(uint32_t addr, int cycle) {
     return addr;
 }
 void mbc2_rom::write(uint32_t addr, void * val, int size, int cycle) {
-    if(addr < 0x2000 && (addr & 0x100) == 0x100) banknum = *(((uint8_t *)val));
-    else if(addr >= 0x2000 && addr < 0x4000 && (addr & 0x100) == 0) ram_enabled = *(((uint8_t *)val));
+    if(addr >= 0x2000 && (addr & 0x100) == 0x100 && addr < 0x4000) banknum = *(((uint8_t *)val));
+    else if(addr < 0x2000 && addr < 0x4000 && (addr & 0x100) == 0) ram_enabled = *(((uint8_t *)val));
 }
 
 

@@ -579,8 +579,8 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                 }
 
                 if(output_sdl /*&& c != 0*/) {
-                    uint32_t color = SDL_MapRGB(this->buffer->format,85*(3-bgpal.pal[tile_line[x_tile_pix]]),85*(3-bgpal.pal[tile_line[x_tile_pix]]),85*(3-bgpal.pal[tile_line[x_tile_pix]]));
-                    ((uint32_t *)this->buffer->pixels)[render_line*160+x_out_pix] = color;
+                    uint32_t color = SDL_MapRGB(buffer->format,85*(3-bgpal.pal[tile_line[x_tile_pix]]),85*(3-bgpal.pal[tile_line[x_tile_pix]]),85*(3-bgpal.pal[tile_line[x_tile_pix]]));
+                    ((uint32_t *)buffer->pixels)[render_line * 160 + x_out_pix] = color;
                 }
             }
         }
@@ -608,8 +608,8 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
 
                         if(output_sdl) {
                             uint8_t col = tile_line[x_tile_pix];
-                            uint32_t color = SDL_MapRGB(this->buffer->format,80*(3-bgpal.pal[col])+15,70*(3-bgpal.pal[col]),70*(3-bgpal.pal[col]));
-                            ((uint32_t *)this->buffer->pixels)[ycoord*160+xcoord] = color;
+                            uint32_t color = SDL_MapRGB(buffer->format,80*(3-bgpal.pal[col])+15,70*(3-bgpal.pal[col]),70*(3-bgpal.pal[col]));
+                            ((uint32_t *)buffer->pixels)[ycoord * 160 + xcoord] = color;
                         }
                     }
                 }
@@ -630,7 +630,7 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                 int sprite_size = 8 + (control.sprite_size * 8);
 
                 //If sprite isn't displayed on this line...
-                if(sprite_y > render_line || sprite_y + sprite_size <= render_line || sprite_y > 159 || sprite_y < 0) {
+                if(sprite_y > render_line || sprite_y + sprite_size <= render_line) {
                     continue;
                 }
 
@@ -654,22 +654,24 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                     uint32_t color = 0;
                     if(!col) continue;
                     if(sprite_dat.palnum_dmg) {
-                        color = SDL_MapRGB(this->buffer->format, 70 * ( 3-obj2pal.pal[col]), 70 * ( 3-obj2pal.pal[col]), 80 * ( 3-obj2pal.pal[col])+15);
+                        color = SDL_MapRGB(buffer->format, 70 * ( 3-obj2pal.pal[col]), 70 * ( 3-obj2pal.pal[col]), 80 * ( 3-obj2pal.pal[col])+15);
                     }
                     else {
-                        color = SDL_MapRGB(this->buffer->format, 70 * ( 3-obj1pal.pal[col]), 80 * ( 3-obj1pal.pal[col])+15, 70 * ( 3-obj1pal.pal[col]));
+                        color = SDL_MapRGB(buffer->format, 70 * ( 3-obj1pal.pal[col]), 80 * ( 3-obj1pal.pal[col])+15, 70 * ( 3-obj1pal.pal[col]));
                     }
 
                     int xcoord = sprite_x + x;
                     int ycoord = render_line;
+                    if(xcoord > 159 || xcoord < 0) continue;
                     /*
                     assert(xcoord >= 0);
                     assert(xcoord < 160);
                     assert(ycoord >= 0);
                     assert(ycoord < 144);
                     */
+
                     if(xcoord >= 0 && xcoord < 160) {
-                        ((uint32_t *)this->buffer->pixels)[ycoord*160+xcoord] = color;
+                        ((uint32_t *)this->buffer->pixels)[ycoord * 160 + xcoord] = color;
                     }
                 }
             }
