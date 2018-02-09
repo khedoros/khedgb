@@ -265,6 +265,7 @@ mapper::mapper(int rom_size, int ram_size, bool bat, bool rtc/*=false*/) : has_b
 uint32_t mapper::map_rom(uint32_t addr, int cycle) {
     return addr;
 }
+mapper::~mapper() {}
 uint32_t mapper::map_ram(uint32_t addr, int cycle) {
     if(ramsize > addr - 0xa000) {
         return addr-0xa000;

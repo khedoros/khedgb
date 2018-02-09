@@ -63,20 +63,16 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
 
     //Poll interrupts
     uint8_t int_flag = 0;
+    uint8_t int_enable = 0;
     bus->update_interrupts(frame,cycle);
     bus->read(0xff0f, &int_flag, 1, cycle);
+    bus->read(0xffff, &int_enable, 1, cycle);
     if(interrupts) { //IME
         if(stopped && (int_flag & JOYPAD) > 0) {
             stopped = false;
-            pc++; //interrupt should return to instruction after STOP
-            opcode>>=8;
         }
-        else if(halted && int_flag > 0) {
+        else if(halted && (int_flag & int_enable & 0x1f) > 0) {
             halted = false;
-            //pc++; //interrupt should return to instruction after HALT
-            opcode>>=8;
-            //printf("Interrupts enabled, and int_flag: %02x, un-halting\n", int_flag);
-            return 2;
         }
         bool called = call_interrupts();
         if(called) {
@@ -84,21 +80,29 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
             return cycles;
         }
     }
-    else if(halted && int_flag > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
-        //halted = false;
-        opcode >>= 8; //Grab the next byte after HALT
-        opcode = opcode | (opcode<<8) | (opcode<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
-        pc++;
-        return 2;
+    else if(halted && (int_flag & int_enable & 0x1f) > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
+        printf("HALT: opcode: %08x\n", opcode);
+        halted = false;
+        uint32_t op2 = ((opcode & 0xff00)>>8);
+        opcode &= 0xff; //Grab the next byte after HALT
+        opcode = opcode | (opcode<<8) | (op2<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
+        uint64_t time = dec_and_exe(opcode);
+        pc--;
+        return time;
+        //pc++;
+        //return 2;
         //printf("Interrupts disabled, but int_flag: %02x, un-halting and locking PC\n", int_flag);
     }
     else if(stopped && (int_flag & JOYPAD) > 0) {
         stopped = false;
-        opcode >>= 8;
-        opcode = opcode | (opcode<<8) | (opcode<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
+        //opcode &= 0xff;
+        //opcode = opcode | (opcode<<8) | (opcode<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
         //pc+=2;
-        return 2;
+        //return 2;
         //printf("Interrupts disabled, but saw joypad interrupt. un-stopping and locking PC\n");
+    }
+    else if(halted || stopped) {
+        return 2;
     }
 
     int bytes = 0;
@@ -130,12 +134,10 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     }
 
     //Print a CPU trace
-    /*
     registers();
     printf("\t");
     decode(prefix,x,y,z,data);
     printf("\n");
-    */
     if(!halted && !stopped) {//If the CPU hits a HALT or STOP, it needs to stay there.
         pc += bytes;
     }
@@ -1236,8 +1238,8 @@ const uint8_t cpu::op_times_extra[256] =
      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 void cpu::registers() {
-    //printf("PC: %04x A: %02x B: %02x C: %02x D: %02x E: %02x H: %02x L: %02x SP: %04x F: %02x",
-        //    pc,af.hi,bc.hi,bc.low,de.hi,de.low,hl.hi,hl.low,sp,af.low);
+    printf("PC: %04x A: %02x B: %02x C: %02x D: %02x E: %02x H: %02x L: %02x SP: %04x F: %02x",
+            pc,af.hi,bc.hi,bc.low,de.hi,de.low,hl.hi,hl.low,sp,af.low);
 }
 
 bool cpu::call_interrupts() {
@@ -1259,9 +1261,6 @@ bool cpu::call_interrupts() {
             call = false;
     }
     if(call) {
-        //halted = false;
-        //stopped = false;
-        //push pc
         //printf("INT: calling to %d\n", to_run);
         bus->write(sp-2, &pc, 2, cycle);
         sp -= 2;

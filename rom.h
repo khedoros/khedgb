@@ -17,7 +17,8 @@ enum map_type {
 
 class mapper {
     public:
-        mapper(int rom_size, int ram_size, bool has_bat, bool has_rtc=false); 
+        mapper(int rom_size, int ram_size, bool has_bat, bool has_rtc=false);
+        virtual ~mapper();
         virtual uint32_t map_rom(uint32_t addr, int cycle);
         virtual uint32_t map_ram(uint32_t addr, int cycle);
         virtual void write(uint32_t addr, void * val, int size, int cycle);
