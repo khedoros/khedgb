@@ -200,16 +200,16 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff04:
                 div_reset = cycle;
-                //std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 break;
             case 0xff05:
-                //std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 break;
             case 0xff06:
-                //std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 break;
             case 0xff07:
-                //std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 break;
             case 0xff0f:
                 assert(size == 1);
@@ -264,33 +264,46 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
 }
 
 void memmap::keydown(SDL_Scancode k) { //TODO: Implement joypad
+    bool changed = false;
+
     switch(k) {
         case SDL_SCANCODE_W:
+            if(!directions.up && !(joypad & 0x10)) changed = true;
             directions.up=1;
             break;
         case SDL_SCANCODE_A:
+            if(!directions.left && !(joypad & 0x10)) changed = true;
             directions.left=1;
             break;
         case SDL_SCANCODE_S:
+            if(!directions.down && !(joypad & 0x10)) changed = true;
             directions.down=1;
             break;
         case SDL_SCANCODE_D:
+            if(!directions.right && !(joypad & 0x10)) changed = true;
             directions.right=1;
             break;
         case SDL_SCANCODE_G:
+            if(!btns.select && !(joypad & 0x20)) changed = true;
             btns.select=1;
             break;
         case SDL_SCANCODE_H:
+            if(!btns.start && !(joypad & 0x20)) changed = true;
             btns.start=1;
             break;
         case SDL_SCANCODE_K:
+            if(!btns.b && !(joypad & 0x20)) changed = true;
             btns.b=1;
             break;
         case SDL_SCANCODE_L:
+            if(!btns.a && !(joypad & 0x20)) changed = true;
             btns.a=1;
             break;
         default:
             break;
+    }
+    if(changed) {
+        int_requested.joypad = 1;
     }
 }
 
@@ -336,6 +349,7 @@ INT_TYPE memmap::get_interrupt() {
     else {return NONE;}
 }
 
+//Update any interrupt states that are dependent on time
 void memmap::update_interrupts(uint32_t frame, uint64_t cycle) {
     uint8_t enabled = 0;
     screen.read(0xff40, &enabled, 1, cycle);
@@ -352,16 +366,13 @@ void memmap::update_interrupts(uint32_t frame, uint64_t cycle) {
         //printf("INT: lcdstat set active @ cycle %ld\n", cycle);
     }
 
-    /*
     //TIMER
     if(int_enabled.timer) { printf("Warning: timer interrupt enabled, but not implemented yet.\n");}
-
     //SERIAL
     if(int_enabled.serial) { printf("Warning: serial interrupt enabled, but not implemented yet.\n");}
 
-    //JOYPAD
-    if(int_enabled.joypad) { printf("Warning: joypad interrupt enabled, but not implemented yet.\n");}
-    */
+    //JOYPAD: Not dependent on time; its state is automatically updated when input events are processed.
+    //if(int_enabled.joypad) { printf("Warning: joypad interrupt enabled, but not implemented yet.\n");}
 }
 
 bool memmap::has_firmware() {

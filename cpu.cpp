@@ -82,7 +82,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         }
     }
     else if(halted && halt_bug) { //HALT bug: PC is stuck for one instruction after exiting halt mode
-        printf("HALT: opcode: %08x\n", opcode);
+        //printf("HALT: opcode: %08x\n", opcode);
         halted = false;
         halt_bug = false;
         uint32_t op2 = ((opcode & 0xffff00)>>8);
@@ -136,10 +136,12 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     }
 
     //Print a CPU trace
+    /*
     registers();
     printf("\t");
     decode(prefix,x,y,z,data);
     printf("\n");
+    */
     if(!halted && !stopped) {//If the CPU hits a HALT or STOP, it needs to stay there.
         pc += bytes;
     }
