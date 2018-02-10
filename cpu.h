@@ -46,6 +46,7 @@ public:
     cpu(memmap * bus, bool has_firmware=false);
     uint64_t run(uint64_t run_to);
     bool halted;
+    bool halt_bug;
     bool stopped;
     uint64_t cycle;
     uint64_t frame;

@@ -121,7 +121,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             break;
         case 0xff0f:
-            *((uint8_t *)val) = int_requested.reg;
+            *((uint8_t *)val) = 0xe0 | int_requested.reg;
             //std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             break;
         case 0xff44: //TODO: Move this to PPU, base on global cycle count instead of frame cycle count
@@ -254,7 +254,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
     }
     else if (addr == 0xffff) { //Interrupt enabled register
         assert(size == 1);
-        int_enabled.reg = *((uint8_t *)val);
+        int_enabled.reg = (0xe0 | *((uint8_t *)val));
         //printf("Interrupts enabled: %02X\n",int_enabled.reg);
         //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
     }

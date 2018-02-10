@@ -14,6 +14,7 @@ cpu::cpu(memmap * b, bool has_firmware): bus(b),
 {
     interrupts = false;
     halted = false;
+    halt_bug = false;
     stopped = false;
     cycle = 16416; //Start in VBlank
     frame = 0;
@@ -80,18 +81,19 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
             return cycles;
         }
     }
-    else if(halted && (int_flag & int_enable & 0x1f) > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
+    else if(halted && halt_bug) { //HALT bug: PC is stuck for one instruction after exiting halt mode
         printf("HALT: opcode: %08x\n", opcode);
         halted = false;
-        uint32_t op2 = ((opcode & 0xff00)>>8);
+        halt_bug = false;
+        uint32_t op2 = ((opcode & 0xffff00)>>8);
         opcode &= 0xff; //Grab the next byte after HALT
         opcode = opcode | (opcode<<8) | (op2<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
         uint64_t time = dec_and_exe(opcode);
         pc--;
         return time;
-        //pc++;
-        //return 2;
-        //printf("Interrupts disabled, but int_flag: %02x, un-halting and locking PC\n", int_flag);
+    } 
+    else if(halted && ((int_flag & int_enable) & 0x1f) > 0) {
+        halted = false;
     }
     else if(stopped && (int_flag & JOYPAD) > 0) {
         stopped = false;
@@ -456,6 +458,14 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
         else if(x==1) { //HALT and LD r,r' operations  0x40 - 0x7f
             if(y==6 && z==6) { //Copy from memory location to (same) memory location is replaced by HALT, 0x76
                 halted = true;
+                uint8_t int_flag = 0;
+                uint8_t int_enable = 0;
+                bus->update_interrupts(frame,cycle);
+                bus->read(0xff0f, &int_flag, 1, cycle);
+                bus->read(0xffff, &int_enable, 1, cycle);
+                if(((int_flag & int_enable) & 0x1f) > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
+                    halt_bug = true;
+                }
                 //printf("HALT\n");
             }
             else { //Fairly regular LD ops, 0x40 - 0x7f, except for 0x76
