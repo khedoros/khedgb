@@ -120,6 +120,9 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
         case 0x1e:
             h.has_ram = true;  h.has_bat = true;  h.has_rtc = false; h.has_rumble = true;  h.mapper = MAP_MBC5;
             break;
+        case 0xfc:
+            h.has_ram = true; h.has_bat = true; h.has_rtc = false; h.has_rumble = false; h.mapper = MAP_CAMERA;
+            break;
         default:
             std::cerr<<"Cart type "<<std::hex<<int(h.cart_type)<<" will probably never be supported :-("<<std::endl;
             h.mapper = MAP_UNSUPPORTED;
@@ -194,6 +197,9 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
         case MAP_MBC5:
             map = new mbc5_rom(h.rom_size, h.ram_size, h.has_bat, h.has_rumble);
             break;
+        case MAP_CAMERA:
+            map = new camera_rom(h.rom_size, h.ram_size, h.has_bat);
+            break;
         default: return;
     }
 
@@ -254,7 +260,7 @@ void rom::write(uint32_t addr, void * val, int size, int cycle) {
     }
 }
 
-std::string rom::mapper_names[6] = {"None", "MBC1", "MBC2", "MBC3", "MBC5", "Unsupported"};
+std::string rom::mapper_names[7] = {"None", "MBC1", "MBC2", "MBC3", "MBC5", "GameBoy Camera", "Unsupported"};
 uint32_t rom::rom_sizes[9] = {32*1024, 64*1024, 128*1024, 256*1024, 512*1024, 1024*1024, 2048*1024, 4096*1024, 8192*1024};
 uint32_t rom::ram_sizes[6] = {0, 2048, 8192, 32768, 131072, 65536};
 
@@ -394,6 +400,47 @@ void mbc3_rom::write(uint32_t addr, void * val, int size, int cycle) {
         else if(*(((uint8_t *)val)) == 0) {
             rtc_latch = false;
         }
+    }
+}
+
+
+
+//GameBoy Pocket Camera mapper
+camera_rom::camera_rom(int rom_size, int ram_size, bool has_bat) : mapper(rom_size, ram_size, has_bat), rombank(1), rambank(0), ram_enabled(false) {
+}
+uint32_t camera_rom::map_rom(uint32_t addr, int cycle) {
+    if(addr < 0x4000) {
+        return addr;
+    }
+
+    addr -= 0x4000;
+    return addr+(uint32_t(rombank) * 0x4000);
+}
+uint32_t camera_rom::map_ram(uint32_t addr, int cycle) {
+    if(rambank < 0x04) {
+        addr -= 0xa000;
+        if(addr >= ramsize || !ram_enabled) {
+            return 0xffffff;
+        }
+        return addr+(uint32_t(rambank) * 0x2000);
+    }
+    return 0;
+}
+void camera_rom::write(uint32_t addr, void * val, int size, int cycle) {
+    printf("ROM: camera addr: %04x val: %02x\n", addr, *((uint8_t *)val));
+    if(addr < 0x2000) {
+        if(*((uint8_t *)val) == 0x0a) {
+            ram_enabled = true;
+        }
+        else {
+            ram_enabled = false;
+        }
+    }
+    else if(addr < 0x4000) {
+        rombank = *(((uint8_t *)val));
+    }
+    else if(addr < 0x6000) {
+        rambank = *(((uint8_t *)val));
     }
 }
 

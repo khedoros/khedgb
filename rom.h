@@ -12,6 +12,7 @@ enum map_type {
     MAP_MBC2,
     MAP_MBC3,
     MAP_MBC5,
+    MAP_CAMERA, 
     MAP_UNSUPPORTED
 };
 
@@ -56,7 +57,7 @@ class rom {
         bool firmware;
         bool valid;
 
-        static std::string mapper_names[6];
+        static std::string mapper_names[7];
         static uint32_t rom_sizes[9];
         static uint32_t ram_sizes[6];
         
@@ -124,6 +125,18 @@ class mbc3_rom: public mapper {
         uint8_t rtc[5];
         uint8_t latched_rtc[5];
         uint64_t load_timestamp; //64-bit Unix timestamp, representing when the file is loaded (save data stores when the file was saved, so that we can simulate the appropriate passage of time)
+};
+
+class camera_rom: public mapper {
+    public:
+        camera_rom(int rom_size, int ram_size, bool has_bat);
+        virtual uint32_t map_rom(uint32_t addr, int cycle);
+        virtual uint32_t map_ram(uint32_t addr, int cycle);
+        virtual void write(uint32_t addr, void * val, int size, int cycle);
+    private:
+        uint8_t rombank;
+        uint8_t rambank;
+        bool ram_enabled;
 };
 
 class mbc5_rom: public mapper {
