@@ -417,14 +417,11 @@ uint32_t camera_rom::map_rom(uint32_t addr, int cycle) {
     return addr+(uint32_t(rombank) * 0x4000);
 }
 uint32_t camera_rom::map_ram(uint32_t addr, int cycle) {
-    if(rambank < 0x04) {
-        addr -= 0xa000;
-        if(addr >= ramsize || !ram_enabled) {
-            return 0xffffff;
-        }
-        return addr+(uint32_t(rambank) * 0x2000);
+    addr -= 0xa000;
+    if(!ram_enabled) {
+        return 0xffffff;
     }
-    return 0;
+    return addr+(uint32_t(rambank) * 0x2000);
 }
 void camera_rom::write(uint32_t addr, void * val, int size, int cycle) {
     printf("ROM: camera addr: %04x val: %02x\n", addr, *((uint8_t *)val));
@@ -437,10 +434,11 @@ void camera_rom::write(uint32_t addr, void * val, int size, int cycle) {
         }
     }
     else if(addr < 0x4000) {
-        rombank = *(((uint8_t *)val));
+        rombank = (*(((uint8_t *)val))&0x3f);
+        if(! *((uint8_t *)val)) rombank++;
     }
     else if(addr < 0x6000) {
-        rambank = *(((uint8_t *)val));
+        rambank = (*(((uint8_t *)val))&0x0f);
     }
 }
 

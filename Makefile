@@ -1,4 +1,5 @@
-CXXFLAGS:=-g -std=c++11 -Wall
+#CXXFLAGS:=-g -std=c++11 -Wall
+CXXFLAGS:=-std=c++11 -O3
 LDFLAGS:= $(shell sdl2-config --libs --cflags) -lminizip
 
 khedgb: main.o cpu.o cpu.h memmap.o memmap.h lcd.o lcd.h apu.o apu.h rom.o rom.h decode.o util.o util.h
