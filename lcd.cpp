@@ -82,6 +82,12 @@ lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), b
     //printf("lcd::Pushing video update to renderer\n");
     SDL_RenderPresent(renderer);
     //printf("lcd::constructor reached end\n");
+    
+    cmd_data_size = 0;
+    cmd_data.resize(10);
+    for(int i=0;i<10;i++) {
+        cmd_data[i].resize(0xa0);
+    }
 }
 
 lcd::~lcd() {
@@ -125,6 +131,10 @@ lcd::~lcd() {
         SDL_FreeSurface(bg2);
         bg2 = NULL;
     }
+    for(int i=0;i<10;i++) {
+        cmd_data[i].resize(0);
+    }
+    cmd_data.resize(0);
 }
 
 uint64_t lcd::run(uint64_t run_to) {
@@ -162,7 +172,8 @@ uint64_t lcd::run(uint64_t run_to) {
         start_line = ((render_end_line + 1) % 154); //Next line to render will be after current line, and next frame to render will be after current frame. If we crossed over, the next start_line needs to reflect the reset.
 
         if(frame_output) {
-            //printf("PPU: Frame %ld\n", frame);
+            if(frame%100==0)
+                printf("PPU: Frame %ld\n", frame);
             render_cycle = active_cycle + ((frames_since_active - 1) * 17556) + (114 * 143) + (20 + 43);
             frame++;
         }
@@ -191,15 +202,13 @@ uint64_t lcd::run(uint64_t run_to) {
         start_line = ((end_line + 1) % 154);
     }
     if(frame_output) {
-        printf("PPU: Frame %ld\n", frame);
+        if(frame % 100==0)
+            printf("PPU: Frame %ld\n", frame);
         render_cycle = active_cycle + (((end_offset / 17556) - 1) * 17556) + (114 * 143) + (20 + 43);
         frame++;
     }
 
-    for(size_t i=0;i<cmd_data.size();i++) {
-        cmd_data[i].resize(0);
-    }
-    cmd_data.resize(0);
+    cmd_data_size = 0;
     cycle = run_to;
     return render_cycle; //0 means a frame hasn't been rendered during this timeslice
 }
@@ -232,8 +241,8 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                 bg_scroll_x = val;
                 break;
             case 0xff46://OAM DMA
-                assert(cmd_data.size() > index);
-                assert(cmd_data[index].size() == 0xa0);
+                assert(cmd_data_size > index);
+                assert(cmd_data_size < cmd_data.size());
                 memcpy(&oam[0],&cmd_data[index][0],0xa0);
                 break;
             case 0xff47:
@@ -349,9 +358,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff46://OAM DMA
                 {
                     memcpy(&cpu_oam[0],val,0xa0);
-                    uint64_t index = cmd_data.size();
-                    cmd_data.resize(index + 1);
-                    cmd_data[index].resize(0xa0);
+                    uint64_t index = cmd_data_size;
+                    cmd_data_size++;
                     for(int i=0;i<0xa0;i++) {
                         cmd_data[index][i] = cpu_oam[i];
                     }

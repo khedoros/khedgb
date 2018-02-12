@@ -127,6 +127,10 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
         case 0xff44: //TODO: Move this to PPU, base on global cycle count instead of frame cycle count
             *((uint8_t *)val) = (((cycle - screen.get_active_cycle()) % 17556) / 114);
             break;
+        case 0xff70: //CGB WRAM size switch
+            //TODO: Implement with CGB stuff
+            *((uint8_t *)val) = 0;
+            break;
         default:
             if(addr > 0xff0f && addr < 0xff3f) {
                 //std::cout<<"Read from audio hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
@@ -230,6 +234,9 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff50: //disables CPU firmware
                 cart.write(addr,val,size,cycle);
+                break;
+            case 0xff70: //CGB WRAM page switch
+                //TODO: Implement as part of CGB support
                 break;
             default:
                 if(addr > 0xff0f && addr <= 0xff3f) {
@@ -367,9 +374,9 @@ void memmap::update_interrupts(uint32_t frame, uint64_t cycle) {
     }
 
     //TIMER
-    if(int_enabled.timer) { printf("Warning: timer interrupt enabled, but not implemented yet.\n");}
+    //if(int_enabled.timer) { printf("Warning: timer interrupt enabled, but not implemented yet.\n");}
     //SERIAL
-    if(int_enabled.serial) { printf("Warning: serial interrupt enabled, but not implemented yet.\n");}
+    //if(int_enabled.serial) { printf("Warning: serial interrupt enabled, but not implemented yet.\n");}
 
     //JOYPAD: Not dependent on time; its state is automatically updated when input events are processed.
     //if(int_enabled.joypad) { printf("Warning: joypad interrupt enabled, but not implemented yet.\n");}

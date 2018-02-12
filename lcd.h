@@ -78,6 +78,7 @@ private:
     //Needed for rendering, so must be mirrored to "catch up" with the CPU's view of the PPU state
     std::list<util::cmd> cmd_queue; //List of commands to catch up PPU with CPU
     std::vector<std::vector<uint8_t>> cmd_data; //necessary to store a snapshot of DMA data, for example
+    uint32_t cmd_data_size = 0;
     Vect<uint8_t> vram;
     Vect<uint8_t> oam;
     uint64_t cycle;      //Last cycle executed during previous invocation of "lcd::run()"

@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
 
         //cur_output_cycle represents which cycle the ppu decided to render a frame at
         uint64_t cur_output_cycle = 0;
-        if(!headless) {
+        if(!headless && continue_running) {
             cur_output_cycle = ppu->run(cycle + tick_size);
         }
         //apu->run(cycle + tick_size); TODO: Add audio support
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
             if(cycle_diff != 0) {
                 uint64_t delay = (double(cycle_diff*1000) / double(1024*1024));
                 if(delay < 1000) {
-                    SDL_Delay(delay/3);
+                    //SDL_Delay(delay/3);
                 }
                 uint64_t actual_delay = SDL_GetTicks() - now;
                 if(actual_delay > delay) {
