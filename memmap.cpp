@@ -5,7 +5,7 @@
 #include<cstring>
 #include<cassert>
 
-const int memmap::timer_clock_select[4] = {
+const unsigned int memmap::timer_clock_select[4] = {
       256, //4096Hz
         4, //262144Hz
        16, //65536Hz
@@ -17,8 +17,9 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
                                                   cart(rom_filename, fw_file),
                                                   int_enabled{0,0,0,0,0},
                                                   int_requested{0,0,0,0,0},
-                                                  last_int_cycle(0), link_data(0), timer(0),timer_reset(0),timer_control(0),
-                                                  timer_running(false),timer_deadline(0), div_clock(0), timer_clock(0)
+                                                  last_int_cycle(0), link_data(0), div_reset(0), timer(0), timer_modulus(0), timer_control(0),
+                                                  timer_running(false), clock_divisor(timer_clock_select[0]), timer_reset(0), timer_deadline(0), 
+                                                  div_clock(0)
 {
 
     valid = cart.valid;
@@ -112,13 +113,21 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             *(uint8_t *)val = ((cycle - div_reset) / 64) % 256;
             break;
         case 0xff05:
-            std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            if(!timer_running) {
+                *(uint8_t *)val = timer;
+            }
+            else {
+                *(uint8_t *)val = (uint64_t(timer) + ((cycle - timer_reset) / clock_divisor)) % (256 - timer_modulus);
+            }
+            //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             break;
         case 0xff06:
-            std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            *(uint8_t *)val = timer_modulus;
+            //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             break;
         case 0xff07:
-            std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            *(uint8_t *)val = timer_control;
+            //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             break;
         case 0xff0f:
             *((uint8_t *)val) = 0xe0 | int_requested.reg;
@@ -204,15 +213,26 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff04:
                 div_reset = cycle;
-                std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                //std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 break;
             case 0xff05:
+                timer = *(uint8_t *)val;
+                if(timer_running) {
+                    timer_reset = cycle;
+                    timer_deadline = cycle + (256 - timer) * clock_divisor;
+                }
                 std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 break;
             case 0xff06:
+                timer_modulus = *(uint8_t *)val;
+                //if(timer_running) {
+                //TODO: Finish implementing timer behavior
                 std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 break;
             case 0xff07:
+                //TODO: Finish implementing timer behavior
+                timer_running = (((*(uint8_t *)val) & 0x04) == 4);
+                clock_divisor = timer_clock_select[((*(uint8_t *)val) & 0x03)];
                 std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 break;
             case 0xff0f:
@@ -373,6 +393,7 @@ void memmap::update_interrupts(uint32_t frame, uint64_t cycle) {
         //printf("INT: lcdstat set active @ cycle %ld\n", cycle);
     }
 
+    //TODO: Finish implementing timer behavior
     //TIMER
     //if(int_enabled.timer) { printf("Warning: timer interrupt enabled, but not implemented yet.\n");}
     //SERIAL
