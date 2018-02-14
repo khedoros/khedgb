@@ -49,8 +49,6 @@ public:
     bool halt_bug;
     bool stopped;
     uint64_t cycle;
-    uint64_t frame;
-
 
 private:
     uint64_t dec_and_exe(uint32_t opcode);
@@ -81,4 +79,5 @@ private:
     uint16_t * const rp[4];
     uint16_t * const rp2[4];
     bool interrupts;       //Interrupt Master Enable
+    bool set_ime;          //Use to delay one cycle after EI is run
 };

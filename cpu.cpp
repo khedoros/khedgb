@@ -13,11 +13,11 @@ cpu::cpu(memmap * b, bool has_firmware): bus(b),
         rp2{&bc.pair, &de.pair, &hl.pair, &af.pair}
 {
     interrupts = false;
+    set_ime = false;
     halted = false;
     halt_bug = false;
     stopped = false;
     cycle = 16416; //Start in VBlank
-    frame = 0;
     af.pair=0;
     bc.pair=0;
     de.pair=0;
@@ -65,19 +65,26 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     //Poll interrupts
     uint8_t int_flag = 0;
     uint8_t int_enable = 0;
-    bus->update_interrupts(frame,cycle);
+    uint64_t retval = 0;
+    bus->update_interrupts(cycle);
     bus->read(0xff0f, &int_flag, 1, cycle);
     bus->read(0xffff, &int_enable, 1, cycle);
     if(interrupts) { //IME
+        bool was_halted = true;
         if(stopped && (int_flag & JOYPAD) > 0) {
             stopped = false;
         }
         else if(halted && (int_flag & int_enable & 0x1f) > 0) {
             halted = false;
+            was_halted = true;
         }
         bool called = call_interrupts();
         if(called) {
             cycles += 5;
+            if(was_halted) {
+                was_halted = false;
+                cycles++;
+            }
             return cycles;
         }
     }
@@ -90,21 +97,27 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         opcode = opcode | (opcode<<8) | (op2<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
         uint64_t time = dec_and_exe(opcode);
         pc--;
-        return time;
+        retval = time + 1; //CPU takes 4 clocks (1 CPU clock) to exit halt
     } 
     else if(halted && ((int_flag & int_enable) & 0x1f) > 0) {
         halted = false;
+        cycles++;
     }
     else if(stopped && (int_flag & JOYPAD) > 0) {
         stopped = false;
-        //opcode &= 0xff;
-        //opcode = opcode | (opcode<<8) | (opcode<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
-        //pc+=2;
-        //return 2;
-        //printf("Interrupts disabled, but saw joypad interrupt. un-stopping and locking PC\n");
     }
     else if(halted || stopped) {
-        return 2;
+        retval = 2;
+    }
+
+    //Next instruction after EI is run before possibly jumping into interrupts
+    if(set_ime) {
+        interrupts = true;
+        set_ime = false;
+    }
+    //EI *could* be the instruction after halt
+    if(retval) {
+        return retval;
     }
 
     int bytes = 0;
@@ -116,12 +129,12 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     if(op == 0xcb) {
         prefix = 0xcb;
         op = ((opcode&0xFF00)>>(8));
-        cycles = ((op&0x7) == 6) ? 4 : 2;
+        cycles += ((op&0x7) == 6) ? 4 : 2;
         bytes = 2;
     }
     else {
         bytes = op_bytes[op];
-        cycles = op_times[op];
+        cycles += op_times[op];
     }
 
     int x = (op&0xc0)>>(6); // 11000000
@@ -136,12 +149,10 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     }
 
     //Print a CPU trace
-    /*
     registers();
     printf("\t");
     decode(prefix,x,y,z,data);
     printf("\n");
-    */
     if(!halted && !stopped) {//If the CPU hits a HALT or STOP, it needs to stay there.
         pc += bytes;
     }
@@ -462,7 +473,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                 halted = true;
                 uint8_t int_flag = 0;
                 uint8_t int_enable = 0;
-                bus->update_interrupts(frame,cycle);
+                bus->update_interrupts(cycle);
                 bus->read(0xff0f, &int_flag, 1, cycle);
                 bus->read(0xffff, &int_enable, 1, cycle);
                 if(((int_flag & int_enable) & 0x1f) > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
@@ -818,7 +829,9 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                     //printf("DI\n");
                     break;
                 case 0x7: //Enable interrupts, 0xfb
-                    interrupts = true;
+                    if(!interrupts) {
+                        set_ime = true;
+                    }
                     //printf("EI\n");
                     break;
                 }

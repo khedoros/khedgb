@@ -25,7 +25,7 @@ public:
     void keydown(SDL_Scancode k);
     void keyup(SDL_Scancode k);
     INT_TYPE get_interrupt();
-    void update_interrupts(uint32_t frame, uint64_t cycle);
+    void update_interrupts(uint64_t cycle);
     //void map(int addr, void * const val, int size, bool rw);
     bool has_firmware();
     lcd * get_lcd();
