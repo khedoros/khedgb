@@ -50,11 +50,12 @@ private:
     Vect<uint8_t> wram;
     Vect<uint8_t> hram;
 
+    //Interrupt registers
     int_flags int_enabled; //0xffff interrupt enable/disable flags
     int_flags int_requested; //0xff0f interrupt requested flags
     uint64_t last_int_cycle;
-    uint8_t link_data;
 
+    //Joypad registers
     struct buttons {
         union {
             struct {
@@ -78,6 +79,14 @@ private:
     buttons directions;
     buttons btns;
 
+    //Serial link registers
+    uint8_t link_data; //0xff01 (serial data register)
+    bool serial_transfer; //0xff02 bit 7 (serial command register, transfer state)
+    bool internal_clock;  //0xff02 bit 0 (serial command register, clock selection)
+    uint64_t transfer_start; //cycle when transfer was initiated
+    uint8_t bits_transferred; //how many bits have been transmitted
+
+    //Timer registers
     //uint8_t div; //0xff04 top 8 bits of clock-divider register, which increments at 16384Hz. Calculated based on current cycle, and last time it was reset.
     uint64_t div_reset; //0xff04 counter cycle reset
     uint8_t timer; //0xff05 timer value

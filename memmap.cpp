@@ -104,10 +104,21 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             //printf("Stubbed out read to gamepad (not implemented yet)\n");
             break;
         case 0xff01:
-            std::cout<<"Read from link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            //std::cout<<"Read from link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            printf("Read from serial: 0x%04x (got 0x%02x)\n", addr, link_data);
+            *(uint8_t *)val = link_data;
             break;
         case 0xff02:
-            std::cout<<"Read from link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            printf("Read from serial: 0x%04x (got 0x%02x)\n", addr, (serial_transfer * 0x80) | internal_clock);
+            /* I think I'm sufficiently covering this in the interrupt update function
+            if(serial_transfer && internal_clock && transfer_start + 1024 <= cycle) { //transfer has gone long enough to end
+                serial_transfer = false;
+                internal_clock = false;
+                bits_transferred = 0;
+                transfer_start = -1;
+            }
+            */
+            *(uint8_t *)val = (serial_transfer * 0x80) | internal_clock;
             break;
         case 0xff04: //DIV register. 16KHz increment, (1024*1024)/16384=64, and the register overflows every 256 increments
             *(uint8_t *)val = ((cycle - div_reset) / 64) % 256;
@@ -200,17 +211,23 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff01: //Fake implementation, for serial output from Blarg roms
                 link_data = *((uint8_t *)val);
-                //std::cout<<"Write to link cable: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                printf("Write to serial: 0x%04x = 0x%02x\n", addr, *(uint8_t *)val);
                 break;
-            case 0xff02: //Fake implementation
+            case 0xff02:
                 {
                     int cmd = *((uint8_t *)val);
-                    if(cmd == 0x81) {
+                    if(cmd == 0x81) { //Immediate output for Blarg/debug stuff
                         std::cout<<"Blarg: "<<link_data<<std::endl;
-                        link_data = 0xff;
+                        //link_data = 0xff;
+                    }
+                    serial_transfer = ((cmd & 0x80) == 0x80);
+                    internal_clock = ((cmd & 0x01) == 0x01);
+                    if(serial_transfer) {
+                        bits_transferred = 0;
+                        transfer_start = cycle;
                     }
                 }
-                //std::cout<<"Write to link cable: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                printf("Write to serial: 0x%04x = 0x%02x\n", addr, *(uint8_t *)val);
                 break;
             case 0xff04:
                 div_reset = cycle;
@@ -429,6 +446,28 @@ void memmap::update_interrupts(uint64_t cycle) {
     }
     //if(int_enabled.timer) { printf("Warning: timer interrupt enabled, but not implemented yet.\n");}
     //SERIAL
+    if(serial_transfer && internal_clock && cycle >= transfer_start) {
+        unsigned int bit = (cycle - transfer_start) / 128;
+        if(bit >= 7) {
+            transfer_start = -1;
+            serial_transfer = false;
+            link_data = 0xff;
+            bits_transferred = 0;
+        }
+        else if(bit == bits_transferred + 1) {
+            bits_transferred = bit;
+            link_data<<=(1);
+            link_data |= 1;
+        }
+        if(bit == 7) {
+            bits_transferred = 0;
+            serial_transfer = false;
+            transfer_start = -1;
+            int_requested.serial = 1;
+        }
+    }
+
+
     //if(int_enabled.serial) { printf("Warning: serial interrupt enabled, but not implemented yet.\n");}
 
     //JOYPAD: Not dependent on time; its state is automatically updated when input events are processed.
