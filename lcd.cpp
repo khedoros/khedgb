@@ -486,6 +486,10 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
                 else {
                     int frame_cycle = (cycle - cpu_active_cycle) % 17556;
                     int line = frame_cycle / 114;
+                    //Weird timing bug, that line 153 reads as line 0 for most of the time
+                    if(line == 153 && frame_cycle % 114 >= 4) {
+                        line = 0;
+                    }
                     *((uint8_t *)val) = line;
                 }
                 break;

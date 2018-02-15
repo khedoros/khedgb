@@ -111,7 +111,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             break;
         case 0xff04: //DIV register. 16KHz increment, (1024*1024)/16384=64, and the register overflows every 256 increments
             *(uint8_t *)val = ((cycle - div_reset) / 64) % 256;
-            std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<((cycle - div_reset) / 64) % 256<<std::endl;
+            //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<((cycle - div_reset) / 64) % 256<<std::endl;
             break;
         case 0xff05:
             if(!timer_running) {
@@ -120,15 +120,15 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             else {
                 *(uint8_t *)val = (uint64_t(timer) + ((cycle - timer_reset) / clock_divisor)) % (256 - timer_modulus) + timer_modulus;
             }
-            std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<(uint64_t(timer) + ((cycle - timer_reset) / clock_divisor)) % (256 - timer_modulus) + timer_modulus<<std::endl;
+            //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<(uint64_t(timer) + ((cycle - timer_reset) / clock_divisor)) % (256 - timer_modulus) + timer_modulus<<std::endl;
             break;
         case 0xff06:
             *(uint8_t *)val = timer_modulus;
-            std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(timer_modulus)<<std::endl;
+            //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(timer_modulus)<<std::endl;
             break;
         case 0xff07:
             *(uint8_t *)val = 0xf8 | timer_control;
-            std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<"= 0x"<<timer_control<<std::endl;
+            //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<"= 0x"<<timer_control<<std::endl;
             break;
         case 0xff0f:
             *((uint8_t *)val) = 0xe0 | int_requested.reg;
@@ -214,7 +214,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff04:
                 div_reset = cycle;
-                std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<std::endl;
+                //printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld (DIV set to 0)\n", addr, *(uint8_t *)val, cycle);
                 break;
             case 0xff05:
                 timer = *(uint8_t *)val;
@@ -223,8 +223,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                     timer_reset = cycle;
                     timer_deadline = cycle + (256 - timer) * clock_divisor + 1; //delay of 1 cycle between overflow and IF flag being set
                 }
-                printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld, new deadline %lld\n", addr,timer,cycle, timer_deadline);
-                //std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<std::endl;
+                //printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld, new deadline %lld\n", addr,timer,cycle, timer_deadline);
                 break;
             case 0xff06:
                 if(timer_running) { //Calculate new timer baseline (timer+timer_reset values) @ time of change
@@ -233,8 +232,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                     timer_deadline = cycle + (256 - timer) * clock_divisor + 1;
                 }
                 timer_modulus = *(uint8_t *)val;
-                printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld, calc'd timer value: %02x, new deadline %lld\n", addr, timer_modulus, cycle, timer, timer_deadline);
-                //std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<std::endl;
+                //printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld, calc'd timer value: %02x, new deadline %lld\n", addr, timer_modulus, cycle, timer, timer_deadline);
                 break;
             case 0xff07:
             {
@@ -259,15 +257,13 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 timer_running = new_running;
                 clock_divisor = new_divisor;
             }
-                printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld, calc'd timer value: %02x, new deadline: %lld, running: %d, divisor: %d\n",
-                        addr, int(*(uint8_t *)val), cycle, timer, timer_deadline, timer_running, clock_divisor);
-                //std::cout<<"Write to timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<std::endl;
+                //printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld, calc'd timer value: %02x, new deadline: %lld, running: %d, divisor: %d\n",
+                //        addr, int(*(uint8_t *)val), cycle, timer, timer_deadline, timer_running, clock_divisor);
                 break;
             case 0xff0f:
                 assert(size == 1);
                 int_requested.reg = *((uint8_t *)val);
                 //printf("Interrupts requested: %02X\n",int_requested.reg);
-                //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 break;
             case 0xff46: //OAM DMA
                 {
@@ -428,7 +424,7 @@ void memmap::update_interrupts(uint64_t cycle) {
             int_requested.timer = 1;
             uint8_t cur_time = (uint64_t(timer) + ((cycle - timer_reset) / clock_divisor)) % (256 - timer_modulus) + timer_modulus;
             timer_deadline = cycle + (256 - cur_time) * clock_divisor + 1;
-            printf("Triggered timer interrupt at cycle %lld, current time: %02x, next deadline: %lld\n", cycle, cur_time, timer_deadline);
+            //printf("Triggered timer interrupt at cycle %lld, current time: %02x, next deadline: %lld\n", cycle, cur_time, timer_deadline);
         }
     }
     //if(int_enabled.timer) { printf("Warning: timer interrupt enabled, but not implemented yet.\n");}
