@@ -693,6 +693,7 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
         if(output_sdl && render_line == 143) {
             if(prev_texture) {
                 SDL_DestroyTexture(prev_texture);
+                prev_texture = NULL;
             }
 
             if(texture) {

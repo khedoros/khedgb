@@ -19,7 +19,7 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
                                                   int_requested{0,0,0,0,0},
                                                   last_int_cycle(0), link_data(0), div_reset(0), timer(0), timer_modulus(0), timer_control(0),
                                                   timer_running(false), clock_divisor(timer_clock_select[0]), timer_reset(0), timer_deadline(-1), 
-                                                  div_clock(0), 
+                                                  div_clock(0), sgb_active(false),
                                                   bit_ptr(0), sgb_buffered(false), sgb_cur_joypad(0), sgb_joypad_count(1), sgb_cmd_index(0), sgb_cmd_count(0)
 {
 
@@ -103,7 +103,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
                 if((joypad & 0x10) == 0) {
                     keyval |= directions[sgb_cur_joypad].keys;
                 }
-                if(joypad == 0x30) { //SGB output current joypad number
+                if(joypad == 0x30 && sgb_active) { //SGB output current joypad number
                     sgb_cur_joypad++;
                     sgb_cur_joypad %= sgb_joypad_count;
                     if(sgb_joypad_count > 1) {
@@ -214,33 +214,33 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff00:
                 joypad = (*((uint8_t *)val) & 0x30);
                 //printf("Joypad received %02x\n", joypad);
-                if(joypad == 0) { //SGB Low Pulse (reset)
+                if(joypad == 0 && sgb_active) { //SGB Low Pulse (reset)
                     bit_ptr = -1;
                     sgb_buffered = false;
                     for(int i=0;i<16;++i) sgb_buffer[i]=0;
                     //printf(" reset\n");
                 }
-                else if(joypad == 0x30) { //Both channels deselected
+                else if(joypad == 0x30 && sgb_active) { //Both channels deselected
                     if(!sgb_buffered) { //SGB High Pulse (value buffer)
                         sgb_buffered = true;
                         bit_ptr++;
                         //printf(" buffer\n");
                     }
                 }
-                else if(joypad == 0x20 && bit_ptr < 128 && sgb_buffered) { //SGB "0"
+                else if(joypad == 0x20 && bit_ptr < 128 && sgb_buffered && sgb_active) { //SGB "0"
                     //int byte = bit_ptr / 8;
                     //int bit = bit_ptr % 8;
                     sgb_buffered = false;
                     //printf(" 0\n");
                 }
-                else if(joypad == 0x10 && bit_ptr < 128 && sgb_buffered) { //SGB "1"
+                else if(joypad == 0x10 && bit_ptr < 128 && sgb_buffered && sgb_active) { //SGB "1"
                     int byte = bit_ptr / 8;
                     int bit = bit_ptr % 8;
                     sgb_buffer[byte] |= 1<<(bit);
                     sgb_buffered = false;
                     //printf(" 1 (byte %d, bit %d)\n",byte,bit);
                 }
-                else if(joypad == 0x20 && bit_ptr == 128 && sgb_buffered) { //SGB STOP bit
+                else if(joypad == 0x20 && bit_ptr == 128 && sgb_buffered && sgb_active) { //SGB STOP bit
                     sgb_buffered = false;
                     //printf(" end\n");
                     sgb_exec(sgb_buffer);
@@ -523,6 +523,13 @@ lcd * memmap::get_lcd() {
     return &screen;
 }
 
+bool memmap::set_sgb(bool active) {
+    if(cart.supports_sgb()) {
+        sgb_active = active;
+    }
+    return sgb_active;
+}
+
 void memmap::sgb_exec(Vect<uint8_t>& s_b) {
     //If we're on the first packet, read the data
     if(sgb_cmd_index == 0) {
@@ -536,7 +543,13 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b) {
 
     printf("%d / %d: ", sgb_cmd_index+1, sgb_cmd_count);
 
-    for(int i = 0; i < 16; ++i) {
+    int i=0;
+    if(sgb_cmd_index == 0) {
+        i = 1;
+        printf("0x%02x 0x%02x ", sgb_cmd, sgb_cmd_count);
+    }
+
+    for(; i < 16; ++i) {
         sgb_cmd_data[sgb_cmd_index * 16 + i] = s_b[i];
         printf("%02x ", s_b[i]);
     }

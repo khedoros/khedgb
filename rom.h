@@ -36,6 +36,7 @@ class rom {
         ~rom();
         virtual void read(uint32_t addr, void * val, int size, int cycle);
         virtual void write(uint32_t addr, void * val, int size, int cycle);
+        bool supports_sgb();
 
         struct header {
             uint8_t title[17]; //16 chars and null, just in case 0134-0143

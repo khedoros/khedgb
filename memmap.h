@@ -29,6 +29,7 @@ public:
     //void map(int addr, void * const val, int size, bool rw);
     bool has_firmware();
     lcd * get_lcd();
+    bool set_sgb(bool active);
     struct int_flags {
         union {
             struct {
@@ -80,6 +81,7 @@ private:
     buttons btns[4];
 
     //Super GameBoy registers
+    bool sgb_active;
     void sgb_exec(Vect<uint8_t>& s_b);
     Vect<uint8_t> sgb_buffer;
     Vect<uint8_t> sgb_cmd_data;

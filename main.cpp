@@ -30,6 +30,20 @@ int main(int argc, char *argv[]) {
     if(!bus.valid) {
         return 1;
     }
+
+    if(std::string("--sgb") == argv[argc - 1]) {
+        bool active = bus.set_sgb(true);
+        if(active) {
+            printf("Activating Super GameBoy mode\n");
+        }
+        else {
+            printf("Cartridge reports that it's not supported. Disabling.\n");
+        }
+    }
+    else {
+        bus.set_sgb(false);
+        printf("Disabling Super GameBoy mode (--sgb to activate it)\n");
+    }
     cpu    proc(&bus,bus.has_firmware());
     lcd *  ppu = bus.get_lcd();
 
@@ -63,7 +77,7 @@ int main(int argc, char *argv[]) {
             if(cycle_diff != 0) {
                 uint64_t delay = (double(cycle_diff*1000) / double(1024*1024));
                 if(delay < 1000) {
-                    //SDL_Delay(delay/3);
+                    SDL_Delay(delay/3);
                 }
                 uint64_t actual_delay = SDL_GetTicks() - now;
                 if(actual_delay > delay) {

@@ -59,6 +59,7 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
 
     h.cgb_flag = rom_data[0x143];
     h.support_sgb = (rom_data[0x146] == 3);
+    
     h.cart_type = rom_data[0x147];
 
     h.has_sensor = false; //not supported by any of the MBCs I plan on implementing
@@ -128,7 +129,7 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
             h.mapper = MAP_UNSUPPORTED;
             return;
     }
-    
+
     uint8_t rom_size = rom_data[0x148];
     uint8_t ram_size = rom_data[0x149];
     if(rom_size >= 0 && rom_size < 9) {
@@ -258,6 +259,10 @@ void rom::write(uint32_t addr, void * val, int size, int cycle) {
     else {
         map->write(addr, val, size, cycle);
     }
+}
+
+bool rom::supports_sgb() {
+    return h.support_sgb;
 }
 
 std::string rom::mapper_names[7] = {"None", "MBC1", "MBC2", "MBC3", "MBC5", "GameBoy Camera", "Unsupported"};
