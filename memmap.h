@@ -85,7 +85,7 @@ private:
     void sgb_exec(Vect<uint8_t>& s_b);
     Vect<uint8_t> sgb_buffer;
     Vect<uint8_t> sgb_cmd_data;
-    uint8_t bit_ptr;
+    uint8_t sgb_bit_ptr;
     bool sgb_buffered;
     uint8_t sgb_cur_joypad;
     uint8_t sgb_joypad_count;

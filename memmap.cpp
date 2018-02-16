@@ -20,7 +20,7 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
                                                   last_int_cycle(0), link_data(0), div_reset(0), timer(0), timer_modulus(0), timer_control(0),
                                                   timer_running(false), clock_divisor(timer_clock_select[0]), timer_reset(0), timer_deadline(-1), 
                                                   div_clock(0), sgb_active(false),
-                                                  bit_ptr(0), sgb_buffered(false), sgb_cur_joypad(0), sgb_joypad_count(1), sgb_cmd_index(0), sgb_cmd_count(0)
+                                                  sgb_bit_ptr(0), sgb_buffered(false), sgb_cur_joypad(0), sgb_joypad_count(1), sgb_cmd_count(0), sgb_cmd_index(0)
 {
 
     valid = cart.valid;
@@ -215,7 +215,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 joypad = (*((uint8_t *)val) & 0x30);
                 //printf("Joypad received %02x\n", joypad);
                 if(joypad == 0 && sgb_active) { //SGB Low Pulse (reset)
-                    bit_ptr = -1;
+                    sgb_bit_ptr = -1;
                     sgb_buffered = false;
                     for(int i=0;i<16;++i) sgb_buffer[i]=0;
                     //printf(" reset\n");
@@ -223,24 +223,23 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 else if(joypad == 0x30 && sgb_active) { //Both channels deselected
                     if(!sgb_buffered) { //SGB High Pulse (value buffer)
                         sgb_buffered = true;
-                        bit_ptr++;
+                        sgb_bit_ptr++;
                         //printf(" buffer\n");
                     }
                 }
-                else if(joypad == 0x20 && bit_ptr < 128 && sgb_buffered && sgb_active) { //SGB "0"
-                    //int byte = bit_ptr / 8;
-                    //int bit = bit_ptr % 8;
+                else if(joypad == 0x20 && sgb_bit_ptr < 128 && sgb_buffered && sgb_active) { //SGB "0"
+                    //Array is initialized to 0, so I don't need to actually *set* 0.
                     sgb_buffered = false;
                     //printf(" 0\n");
                 }
-                else if(joypad == 0x10 && bit_ptr < 128 && sgb_buffered && sgb_active) { //SGB "1"
-                    int byte = bit_ptr / 8;
-                    int bit = bit_ptr % 8;
+                else if(joypad == 0x10 && sgb_bit_ptr < 128 && sgb_buffered && sgb_active) { //SGB "1"
+                    int byte = sgb_bit_ptr / 8;
+                    int bit = sgb_bit_ptr % 8;
                     sgb_buffer[byte] |= 1<<(bit);
                     sgb_buffered = false;
                     //printf(" 1 (byte %d, bit %d)\n",byte,bit);
                 }
-                else if(joypad == 0x20 && bit_ptr == 128 && sgb_buffered && sgb_active) { //SGB STOP bit
+                else if(joypad == 0x20 && sgb_bit_ptr == 128 && sgb_buffered && sgb_active) { //SGB STOP bit
                     sgb_buffered = false;
                     //printf(" end\n");
                     sgb_exec(sgb_buffer);
@@ -489,13 +488,14 @@ void memmap::update_interrupts(uint64_t cycle) {
     //SERIAL
     if(serial_transfer && internal_clock && cycle >= transfer_start) {
         unsigned int bit = (cycle - transfer_start) / 128;
+        assert(bit < 256);
         if(bit >= 7) {
             transfer_start = -1;
             serial_transfer = false;
             link_data = 0xff;
             bits_transferred = 0;
         }
-        else if(bit == bits_transferred + 1) {
+        else if(bit == (bits_transferred + 1)) {
             bits_transferred = bit;
             link_data<<=(1);
             link_data |= 1;
@@ -536,31 +536,222 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b) {
         sgb_cmd = s_b[0]>>3; //what's the command in this packet
         sgb_cmd_count = s_b[0] & 0x07; //how many packets are expected
         sgb_cmd_data.resize(sgb_cmd_count*16); //allocate space to store the data
-        printf("SGB command %02x, expected %02x packets\n", sgb_cmd, sgb_cmd_count);
+        //printf("SGB command %02x, expected %02x packets\n", sgb_cmd, sgb_cmd_count);
     }
 
     assert(sgb_cmd_data.size() == sgb_cmd_count * 16 && sgb_cmd_data.size() > 0);
 
     printf("%d / %d: ", sgb_cmd_index+1, sgb_cmd_count);
 
-    int i=0;
     if(sgb_cmd_index == 0) {
-        i = 1;
         printf("0x%02x 0x%02x ", sgb_cmd, sgb_cmd_count);
     }
+    else {
+        printf("          ");
+    }
 
-    for(; i < 16; ++i) {
+    for(int i=0; i < 16; ++i) {
         sgb_cmd_data[sgb_cmd_index * 16 + i] = s_b[i];
         printf("%02x ", s_b[i]);
     }
-
-    printf("\n");
 
     sgb_cmd_index++;
 
     if(sgb_cmd_count == sgb_cmd_index) {
         sgb_cmd_index = 0;
         switch(sgb_cmd) {
+            case 0x00: //PAL01
+                printf(": PAL01    Set palettes 0 and 1\n");
+                for(int pal=0;pal<2;pal++) {
+                    printf("\tPAL %d: ", pal);
+                    for(int col=0;col+pal<4;col++) {
+                        int offset = pal * 8 + col * 2 + 1;
+                        int col_dat = ((sgb_cmd_data[offset+1]<<8)&0x7fff)+sgb_cmd_data[offset];
+                        int red = (col_dat & 0x1f) * 8;
+                        int green = ((col_dat>>5)&0x1f) * 8;
+                        int blue = (col_dat>>10) * 8;
+
+                        printf(" COL %d: (%d, %d, %d)\t", col+pal, red, green, blue);
+                    }
+                    printf("\n");
+                }
+                break;
+            case 0x01: //PAL23
+                printf(": PAL23    Set palettes 2 and 3\n");
+                for(int pal=0;pal<2;pal++) {
+                    printf("\tPAL %d: ", pal+2);
+                    for(int col=0;col+pal<4;col++) {
+                        int offset = pal * 8 + col * 2 + 1;
+                        int col_dat = ((sgb_cmd_data[offset+1]<<8)&0x7fff)+sgb_cmd_data[offset];
+                        int red = (col_dat & 0x1f) * 8;
+                        int green = ((col_dat>>5)&0x1f) * 8;
+                        int blue = (col_dat>>10) * 8;
+
+                        printf(" COL %d: (%d, %d, %d)\t", col+pal, red, green, blue);
+                    }
+                    printf("\n");
+               }
+               break;
+            case 0x02: //PAL03
+                printf(": PAL03    Set palettes 0 and 3\n");
+                for(int pal=0;pal<2;pal++) {
+                    printf("\tPAL %d: ", 3*pal);
+                    for(int col=0;col+pal<4;col++) {
+                        int offset = pal * 8 + col * 2 + 1;
+                        int col_dat = ((sgb_cmd_data[offset+1]<<8)&0x7fff)+sgb_cmd_data[offset];
+                        int red = (col_dat & 0x1f) * 8;
+                        int green = ((col_dat>>5)&0x1f) * 8;
+                        int blue = (col_dat>>10) * 8;
+
+                        printf(" COL %d: (%d, %d, %d)\t", col+pal, red, green, blue);
+                    }
+                    printf("\n");
+               }
+               break;
+            case 0x03: //PAL12
+                printf(": PAL12    Set palettes 1 and 2\n");
+                for(int pal=0;pal<2;pal++) {
+                    printf("\tPAL %d: ", pal+1);
+                    for(int col=0;col+pal<4;col++) {
+                        int offset = pal * 8 + col * 2 + 1;
+                        int col_dat = ((sgb_cmd_data[offset+1]<<8)&0x7fff)+sgb_cmd_data[offset];
+                        int red = (col_dat & 0x1f) * 8;
+                        int green = ((col_dat>>5)&0x1f) * 8;
+                        int blue = (col_dat>>10) * 8;
+
+                        printf(" COL %d: (%d, %d, %d)\t", col+pal, red, green, blue);
+                    }
+                    printf("\n");
+               }
+               break;
+            case 0x04: //ATTR_BLK
+                {
+                    int data_groups = sgb_cmd_data[1] & 0x1f;
+                    printf(": ATTR_BLK Apply color palette attributes to %d areas\n", data_groups);
+                    for(int group=0;group<data_groups;++group) {
+                        int offset = 2 + group * 6;
+                        int control = sgb_cmd_data[offset];
+                        int pal_in = (sgb_cmd_data[1 + offset] & 0x03);
+                        int pal_on = ((sgb_cmd_data[1 + offset]>>2) & 0x03);
+                        int pal_out = ((sgb_cmd_data[1 + offset]>>4) & 0x03);
+                        int x0 = sgb_cmd_data[2+offset] & 0x1f;
+                        int y0 = sgb_cmd_data[3+offset] & 0x1f;
+                        int x1 = sgb_cmd_data[4+offset] & 0x1f;
+                        int y1 = sgb_cmd_data[5+offset] & 0x1f;
+                        printf("\tFor (%02x, %02x) - (%02x, %02x), ", x0, y0, x1, y1);
+                        switch(control) {
+                            case 0:
+                                printf("nothing\n");
+                                break;
+                            case 1:
+                                printf("%d to inside+border\n", pal_in);
+                                break;
+                            case 2:
+                                printf("%d to border\n", pal_on);
+                                break;
+                            case 3:
+                                printf("%d to inside, %d to border\n", pal_in, pal_on);
+                                break;
+                            case 4:
+                                printf("%d to outside\n", pal_out);
+                                break;
+                            case 5:
+                                printf("%d to inside, %d to outside\n", pal_in, pal_out);
+                                break;
+                            case 6:
+                                printf("%d to border, %d to outside\n", pal_on, pal_out);
+                                break;
+                            case 7:
+                                printf("%d to inside, %d to border, %d to outside\n", pal_in, pal_on, pal_out);
+                                break;
+                        }
+                    }
+                }
+                break;
+            case 0x06: //ATTR_DIV
+                {
+                    printf(": ATTR_DIV Divide palette attributes by line: ");
+                    int br = (sgb_cmd_data[1] & 0x03);
+                    int tl = (sgb_cmd_data[1] & 0x03);
+                    int on = (sgb_cmd_data[1] & 0x03);
+                    bool hv = ((sgb_cmd_data[1] & 0x40) == 0x40);
+                    int line = sgb_cmd_data[2] & 0x1f;
+                    if(hv) { //vertical
+                        printf("Divide at x=%d, left to %d, line to %d, right to %d\n", line, tl, on, br);
+                    }
+                    else { //Horizontal
+                        printf("Divide at y=%d, top to %d, line to %d, bottom to %d\n", line, tl, on, br);
+                    }
+                }
+                break;
+            case 0x07: //ATTRIBUTE_CHR
+                {
+                    printf(": ATTR_CHR explicitly specify palette attributes:\n");
+                    int x0 = sgb_cmd_data[1];
+                    int y0 = sgb_cmd_data[2];
+                    int items = sgb_cmd_data[4] * 256 + sgb_cmd_data[3];
+                    bool hv = ((sgb_cmd_data[5] & 1) == 1);
+                    char screen[360] = {'-'};
+                    for(int i=0; i<items; i++) {
+                        int byte = i / 4;
+                        int bit = i % 4;
+                        int col = ((sgb_cmd_data[6+byte] & (0xc0>>(bit*2)))>>((3-bit)*2));
+                        screen[y0*20+x0] = col + '0';
+
+                        if(hv) {
+                            y0++;
+                            if(y0 == 18) {
+                                x0++;
+                                y0=0;
+                            }
+                        }
+                        else {
+                            x0++;
+                            if(x0 == 20) {
+                                y0++;
+                                x0=0;
+                            }
+                        }
+                    }
+                    for(int i=0;i<360;i++) {
+                        printf("%c ", screen[i]);
+                        if((i+1)%20 == 0) printf("\n");
+                    }
+                }
+                break;
+            case 0x0a: //PAL_SET, use after PAL_TRN and/or ATTR_TRN
+                {
+                    int pal0 = sgb_cmd_data[2] * 256 + sgb_cmd_data[1];
+                    int pal1 = sgb_cmd_data[4] * 256 + sgb_cmd_data[3];
+                    int pal2 = sgb_cmd_data[6] * 256 + sgb_cmd_data[5];
+                    int pal3 = sgb_cmd_data[8] * 256 + sgb_cmd_data[7];
+                    int attr_file = sgb_cmd_data[9] & 0x3f;
+                    bool cancel = ((sgb_cmd_data[9] & 0x40) == 0x40);
+                    bool use_attr = ((sgb_cmd_data[9] & 0x80) == 0x80);
+                    printf(": PAL_SET  apply previous system palette and/or attr data : pal0: %d pal1: %d pal2: %d pal3: %d use attr: %d attr file: %d cancel: %d\n", pal0, pal1, pal2, pal3, use_attr, attr_file, cancel);
+                }
+                break;
+            case 0x0b: //PAL_TRN
+                printf(": PAL_TRN  Transfer 4k of VRAM to SNES memory as palette data\n");
+                //sends 0x1000 bytes from GB VRAM 000-fff to SNES 3000-3fff
+                //each palette is 4 16-bit colors (8 bytes), so this is 512 palettes
+                break;
+            case 0x0e: //ICON_EN
+                {
+                    bool palette  = ((sgb_cmd_data[1] & 1) == 1);
+                    bool settings = ((sgb_cmd_data[1] & 2) == 2);
+                    bool reg_file = ((sgb_cmd_data[1] & 4) == 4);
+                    printf(": ICON_EN  palette: %d settings: %d reg file transfer: %d\n", palette,settings,reg_file);
+                }
+                break;
+            case 0x0f: //DATA_SND
+                {
+                    uint16_t addr = (sgb_cmd_data[2]<<8) + sgb_cmd_data[1];
+                    uint8_t bank = sgb_cmd_data[3];
+                    uint8_t count = sgb_cmd_data[4];
+                    printf(": DATA_SND Send %d bytes to SNES WRAM %02x:%04x\n", count, bank, addr);
+                }
+                break;
             case 0x11: //MLT_REQ
                 switch(sgb_cmd_data[1] & 0x03) {
                     case 0x00:
@@ -571,16 +762,64 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b) {
                         break;
                     case 0x02:
                         sgb_joypad_count = 1;
+                        break;
                     case 0x03:
                         sgb_joypad_count = 4;
                         break;
                 }
+                printf(": MLT_REQ  Set joypad count to %d\n", sgb_joypad_count);
                 sgb_cur_joypad = 0;
                 break;
+            case 0x13: //CHR_TRN
+                printf(": CHR_TRN  Character data transfer from VRAM, chars %02x - %02x\n", (sgb_cmd_data[1] & 1) * 0x80, (sgb_cmd_data[1] & 1) * 0x80 + 0x7f);
+                //bit0: tile numbers
+                //bit1: officially, tile type (0=bg, 1=obj), but might not work?
+                //4K transfer, 128 16-byte tiles (8x8, 16 colors) (wait? not 32-byte tiles??)
+                break;
+            case 0x14: //CHR_TRN
+                printf(": PCT_TRN  Screen+Color data transfer from VRAM\n");
+                //4K transfer of map and palette data
+                //000-7FF: 32x32 16-bit values for bg map
+                //800-87f: palettes 4-7, 16 colors of 16bits each
+                //880-fff: don't care
+                //BG map: bit  0 - 9: character number
+                //        bit 10 -12: palette number
+                //        bit     13: BG priority
+                //        bit     14: x-flip
+                //        bit     15: y-flip
+                break;
+            case 0x15: //ATTR_TRN
+                printf(": ATTR_TRN Transfer attribute files to SNES\n");
+                //ATF (attribute file) is a 20x18 array of 1-byte color attributes.
+                //This transfers ATF0-ATF44 (4050 bytes) from GB VRAM 000-FD1 to SNES ATF banks.
+                //Each ATF has the same data format as command 0x07: 90 bytes, 4 2-bit attributes per byte, arranged in 20x18
+            case 0x17: //MASK_EN
+                printf(": MASK_EN  ");
+                switch(sgb_cmd_data[1] & 0x03) {
+                    case 0:
+                        printf("Cancel masking\n");
+                        break;
+                    case 1:
+                        printf("Freeze screen\n");
+                        break;
+                    case 2:
+                        printf("Screen to black\n");
+                        break;
+                    case 3:
+                        printf("Screen to color 00\n");
+                        break;
+                }
+                break;
+            case 0x19: //PAL_PRI
+                printf(": PAL_PRI  Player/Application pal priority: %d\n", sgb_cmd_data[1]);
+                break;
             default:
-                printf("Unsupported SGB command: %02x\n", sgb_cmd);
+                printf(": Unsupported SGB command: %02x\n", sgb_cmd);
                 break;
         }
+    }
+    else {
+        printf("\n");
     }
 }
 /*
