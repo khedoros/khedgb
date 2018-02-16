@@ -19,16 +19,20 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
                                                   int_requested{0,0,0,0,0},
                                                   last_int_cycle(0), link_data(0), div_reset(0), timer(0), timer_modulus(0), timer_control(0),
                                                   timer_running(false), clock_divisor(timer_clock_select[0]), timer_reset(0), timer_deadline(-1), 
-                                                  div_clock(0)
+                                                  div_clock(0), 
+                                                  bit_ptr(0), sgb_buffered(false), sgb_cur_joypad(0), sgb_joypad_count(1), sgb_cmd_index(0), sgb_cmd_count(0)
 {
 
     valid = cart.valid;
     if(!valid) return;
 
-    directions.keys = 0x00;
-    btns.keys = 0x00;
+    for(int i=0;i<4;i++) {
+        directions[i].keys = 0x00;
+        btns[i].keys = 0x00;
+    }
     wram.resize(0x2000);
     hram.resize(0x7f);
+    sgb_buffer.resize(16,0);
 
     if(fw_file == "") {
         uint8_t temp = 0;
@@ -94,31 +98,32 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             {
                 uint8_t keyval = 0xf0;
                 if((joypad & 0x20) == 0) {
-                    keyval |= btns.keys;
+                    keyval |= btns[sgb_cur_joypad].keys;
                 }
                 if((joypad & 0x10) == 0) {
-                    keyval |= directions.keys;
+                    keyval |= directions[sgb_cur_joypad].keys;
+                }
+                if(joypad == 0x30) { //SGB output current joypad number
+                    sgb_cur_joypad++;
+                    sgb_cur_joypad %= sgb_joypad_count;
+                    if(sgb_joypad_count > 1) {
+                        printf("SGB: current pad: %d/%d\n", sgb_cur_joypad+1, sgb_joypad_count);
+                    }
+                    keyval |= sgb_cur_joypad;
                 }
                 *((uint8_t *)val) = (0xc0 | joypad | (~keyval));
+                //printf("Joy: returning %02x\n", uint8_t(0xc0|joypad|(~keyval)));
             }
             //printf("Stubbed out read to gamepad (not implemented yet)\n");
             break;
         case 0xff01:
             //std::cout<<"Read from link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
-            printf("Read from serial: 0x%04x (got 0x%02x)\n", addr, link_data);
+            //printf("Read from serial: 0x%04x (got 0x%02x)\n", addr, link_data);
             *(uint8_t *)val = link_data;
             break;
         case 0xff02:
-            printf("Read from serial: 0x%04x (got 0x%02x)\n", addr, (serial_transfer * 0x80) | internal_clock);
-            /* I think I'm sufficiently covering this in the interrupt update function
-            if(serial_transfer && internal_clock && transfer_start + 1024 <= cycle) { //transfer has gone long enough to end
-                serial_transfer = false;
-                internal_clock = false;
-                bits_transferred = 0;
-                transfer_start = -1;
-            }
-            */
             *(uint8_t *)val = (serial_transfer * 0x80) | internal_clock;
+            //printf("Read from serial: 0x%04x (got 0x%02x)\n", addr, (serial_transfer * 0x80) | internal_clock);
             break;
         case 0xff04: //DIV register. 16KHz increment, (1024*1024)/16384=64, and the register overflows every 256 increments
             *(uint8_t *)val = ((cycle - div_reset) / 64) % 256;
@@ -208,10 +213,46 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
         switch(addr) {
             case 0xff00:
                 joypad = (*((uint8_t *)val) & 0x30);
+                //printf("Joypad received %02x\n", joypad);
+                if(joypad == 0) { //SGB Low Pulse (reset)
+                    bit_ptr = -1;
+                    sgb_buffered = false;
+                    for(int i=0;i<16;++i) sgb_buffer[i]=0;
+                    //printf(" reset\n");
+                }
+                else if(joypad == 0x30) { //Both channels deselected
+                    if(!sgb_buffered) { //SGB High Pulse (value buffer)
+                        sgb_buffered = true;
+                        bit_ptr++;
+                        //printf(" buffer\n");
+                    }
+                }
+                else if(joypad == 0x20 && bit_ptr < 128 && sgb_buffered) { //SGB "0"
+                    //int byte = bit_ptr / 8;
+                    //int bit = bit_ptr % 8;
+                    sgb_buffered = false;
+                    //printf(" 0\n");
+                }
+                else if(joypad == 0x10 && bit_ptr < 128 && sgb_buffered) { //SGB "1"
+                    int byte = bit_ptr / 8;
+                    int bit = bit_ptr % 8;
+                    sgb_buffer[byte] |= 1<<(bit);
+                    sgb_buffered = false;
+                    //printf(" 1 (byte %d, bit %d)\n",byte,bit);
+                }
+                else if(joypad == 0x20 && bit_ptr == 128 && sgb_buffered) { //SGB STOP bit
+                    sgb_buffered = false;
+                    //printf(" end\n");
+                    sgb_exec(sgb_buffer);
+                }
+                else {
+                    //printf("\n");
+                }
+
                 break;
             case 0xff01: //Fake implementation, for serial output from Blarg roms
                 link_data = *((uint8_t *)val);
-                printf("Write to serial: 0x%04x = 0x%02x\n", addr, *(uint8_t *)val);
+                //printf("Write to serial: 0x%04x = 0x%02x\n", addr, *(uint8_t *)val);
                 break;
             case 0xff02:
                 {
@@ -227,7 +268,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                         transfer_start = cycle;
                     }
                 }
-                printf("Write to serial: 0x%04x = 0x%02x\n", addr, *(uint8_t *)val);
+                //printf("Write to serial: 0x%04x = 0x%02x\n", addr, *(uint8_t *)val);
                 break;
             case 0xff04:
                 div_reset = cycle;
@@ -331,41 +372,41 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
     }
 }
 
-void memmap::keydown(SDL_Scancode k) { //TODO: Implement joypad
+void memmap::keydown(SDL_Scancode k) {
     bool changed = false;
 
     switch(k) {
         case SDL_SCANCODE_W:
-            if(!directions.up && !(joypad & 0x10)) changed = true;
-            directions.up=1;
+            if(!directions[0].up && !(joypad & 0x10)) changed = true;
+            directions[0].up=1;
             break;
         case SDL_SCANCODE_A:
-            if(!directions.left && !(joypad & 0x10)) changed = true;
-            directions.left=1;
+            if(!directions[0].left && !(joypad & 0x10)) changed = true;
+            directions[0].left=1;
             break;
         case SDL_SCANCODE_S:
-            if(!directions.down && !(joypad & 0x10)) changed = true;
-            directions.down=1;
+            if(!directions[0].down && !(joypad & 0x10)) changed = true;
+            directions[0].down=1;
             break;
         case SDL_SCANCODE_D:
-            if(!directions.right && !(joypad & 0x10)) changed = true;
-            directions.right=1;
+            if(!directions[0].right && !(joypad & 0x10)) changed = true;
+            directions[0].right=1;
             break;
         case SDL_SCANCODE_G:
-            if(!btns.select && !(joypad & 0x20)) changed = true;
-            btns.select=1;
+            if(!btns[0].select && !(joypad & 0x20)) changed = true;
+            btns[0].select=1;
             break;
         case SDL_SCANCODE_H:
-            if(!btns.start && !(joypad & 0x20)) changed = true;
-            btns.start=1;
+            if(!btns[0].start && !(joypad & 0x20)) changed = true;
+            btns[0].start=1;
             break;
         case SDL_SCANCODE_K:
-            if(!btns.b && !(joypad & 0x20)) changed = true;
-            btns.b=1;
+            if(!btns[0].b && !(joypad & 0x20)) changed = true;
+            btns[0].b=1;
             break;
         case SDL_SCANCODE_L:
-            if(!btns.a && !(joypad & 0x20)) changed = true;
-            btns.a=1;
+            if(!btns[0].a && !(joypad & 0x20)) changed = true;
+            btns[0].a=1;
             break;
         default:
             break;
@@ -375,31 +416,31 @@ void memmap::keydown(SDL_Scancode k) { //TODO: Implement joypad
     }
 }
 
-void memmap::keyup(SDL_Scancode k) { //TODO: Implement joypad
+void memmap::keyup(SDL_Scancode k) {
     switch(k) {
         case SDL_SCANCODE_W:
-            directions.up=0;
+            directions[0].up=0;
             break;
         case SDL_SCANCODE_A:
-            directions.left=0;
+            directions[0].left=0;
             break;
         case SDL_SCANCODE_S:
-            directions.down=0;
+            directions[0].down=0;
             break;
         case SDL_SCANCODE_D:
-            directions.right=0;
+            directions[0].right=0;
             break;
         case SDL_SCANCODE_G:
-            btns.select=0;
+            btns[0].select=0;
             break;
         case SDL_SCANCODE_H:
-            btns.start=0;
+            btns[0].start=0;
             break;
         case SDL_SCANCODE_K:
-            btns.b=0;
+            btns[0].b=0;
             break;
         case SDL_SCANCODE_L:
-            btns.a=0;
+            btns[0].a=0;
             break;
         default:
             break;
@@ -482,6 +523,53 @@ lcd * memmap::get_lcd() {
     return &screen;
 }
 
+void memmap::sgb_exec(Vect<uint8_t>& s_b) {
+    //If we're on the first packet, read the data
+    if(sgb_cmd_index == 0) {
+        sgb_cmd = s_b[0]>>3; //what's the command in this packet
+        sgb_cmd_count = s_b[0] & 0x07; //how many packets are expected
+        sgb_cmd_data.resize(sgb_cmd_count*16); //allocate space to store the data
+        printf("SGB command %02x, expected %02x packets\n", sgb_cmd, sgb_cmd_count);
+    }
+
+    assert(sgb_cmd_data.size() == sgb_cmd_count * 16 && sgb_cmd_data.size() > 0);
+
+    printf("%d / %d: ", sgb_cmd_index+1, sgb_cmd_count);
+
+    for(int i = 0; i < 16; ++i) {
+        sgb_cmd_data[sgb_cmd_index * 16 + i] = s_b[i];
+        printf("%02x ", s_b[i]);
+    }
+
+    printf("\n");
+
+    sgb_cmd_index++;
+
+    if(sgb_cmd_count == sgb_cmd_index) {
+        sgb_cmd_index = 0;
+        switch(sgb_cmd) {
+            case 0x11: //MLT_REQ
+                switch(sgb_cmd_data[1] & 0x03) {
+                    case 0x00:
+                        sgb_joypad_count = 1;
+                        break;
+                    case 0x01:
+                        sgb_joypad_count = 2;
+                        break;
+                    case 0x02:
+                        sgb_joypad_count = 1;
+                    case 0x03:
+                        sgb_joypad_count = 4;
+                        break;
+                }
+                sgb_cur_joypad = 0;
+                break;
+            default:
+                printf("Unsupported SGB command: %02x\n", sgb_cmd);
+                break;
+        }
+    }
+}
 /*
 0x0000-0x3FFF: Permanently-mapped ROM bank.
 0x4000-0x7FFF: Area for switchable ROM banks.

@@ -76,8 +76,20 @@ private:
         };
     };
     uint8_t joypad; //0xff00, just stores the flags for which lines are active
-    buttons directions;
-    buttons btns;
+    buttons directions[4]; // pads 2-4 are SGB-only (and just dummies, for now)
+    buttons btns[4];
+
+    //Super GameBoy registers
+    void sgb_exec(Vect<uint8_t>& s_b);
+    Vect<uint8_t> sgb_buffer;
+    Vect<uint8_t> sgb_cmd_data;
+    uint8_t bit_ptr;
+    bool sgb_buffered;
+    uint8_t sgb_cur_joypad;
+    uint8_t sgb_joypad_count;
+    uint8_t sgb_cmd_count;
+    uint8_t sgb_cmd;
+    uint8_t sgb_cmd_index;
 
     //Serial link registers
     uint8_t link_data; //0xff01 (serial data register)
