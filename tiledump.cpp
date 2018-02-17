@@ -2,6 +2,7 @@
 #include<fstream>
 #include<cstdint>
 #include<cstdio>
+#include<cassert>
 
 using namespace std;
 
@@ -28,7 +29,7 @@ int main(int argc, char *argv[]) {
     in2.read(reinterpret_cast<char *>(&raw_tiles[0x1000]), 0x1000);
     in2.close();
     in3.read(reinterpret_cast<char *>(&bgmap[0]), 0x800);
-    in3.read(reinterpret_cast<char *>(&bgmap[0]), 0x800);
+    //in3.read(reinterpret_cast<char *>(&bgmap[0]), 0x800);
     //in3.read(reinterpret_cast<char *>(&pals[0]), 0x80);
     in3.close();
 
@@ -84,7 +85,16 @@ int main(int argc, char *argv[]) {
             for(int xt = 0; xt < 32; xt++) {
                 int bg_attrib = bgmap[yt*32+xt];
                 int tile = bg_attrib&0x3ff;
-                int pal = ((bg_attrib&0xc00)>>10) - 4;
+                printf("(%d, %d, tile: %d, pal: ", yt, xt, tile);
+                tile&=0xff; //quell misbehavior
+                int pal = ((bg_attrib&0x1c00)>>10);
+                printf("%d\n", pal);
+                if(pal<0) pal = 0;
+                if(pal>3) pal=3;
+                //assert(tile>=0);
+                //assert(tile<256);
+                //assert(pal>=0);
+                //assert(pal<4);
                 //printf("%04x ", tile);
                 for(int xp=0;xp<8;xp++) {
                    int palindex = tiles[64*tile+8*yp+xp];

@@ -702,6 +702,8 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                     int x0 = sgb_cmd_data[1];
                     int y0 = sgb_cmd_data[2];
                     int items = sgb_cmd_data[4] * 256 + sgb_cmd_data[3];
+                    if(items > 360) items = 360;
+                    //printf("x0: %d y0: %d items: %d\n", x0,y0,items);
                     bool hv = ((sgb_cmd_data[5] & 1) == 1);
                     char screen[360] = {'-'};
                     for(int i=0; i<items; i++) {
@@ -745,7 +747,15 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                 break;
             case 0x0b: //PAL_TRN
                 printf(": PAL_TRN  Transfer 4k of VRAM to SNES memory as palette data\n");
-                //sends 0x1000 bytes from GB VRAM 000-fff to SNES 3000-3fff
+                 {
+                    std::ofstream chr_out((std::string("pal_trn_dat-") + std::to_string(cycle) + ".dat").c_str());
+                    char buffer[0x1000] = {0};
+                    read(0x8000, buffer, 0x1000, cycle);
+                    chr_out.write(buffer, 0x1000);
+                    chr_out.close();
+                }
+                SDL_Delay(5000);
+               //sends 0x1000 bytes from GB VRAM 000-fff to SNES 3000-3fff
                 //each palette is 4 16-bit colors (8 bytes), so this is 512 palettes
                 break;
             case 0x0e: //ICON_EN
@@ -785,25 +795,27 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
             case 0x13: //CHR_TRN
                 printf(": CHR_TRN  Character data transfer from VRAM, chars %02x - %02x\n", (sgb_cmd_data[1] & 1) * 0x80, (sgb_cmd_data[1] & 1) * 0x80 + 0x7f);
                 {
-                    std::ofstream chr_out((std::string("chr13_dat-") + std::to_string(cycle) + ".dat").c_str());
-                    char buffer[0x1000];
-                    read(0x8000, buffer, 0x1000, 0);
+                    std::ofstream chr_out((std::string("chr_trn_dat-") + std::to_string(cycle) + ".dat").c_str());
+                    char buffer[0x1000] = {0};
+                    read(0x8000, buffer, 0x1000, cycle);
                     chr_out.write(buffer, 0x1000);
                     chr_out.close();
                 }
+                SDL_Delay(5000);
                 //bit0: tile numbers
                 //bit1: officially, tile type (0=bg, 1=obj), but might not work?
                 //4K transfer, 128 16-byte tiles (8x8, 16 colors) (wait? not 32-byte tiles??)
                 break;
-            case 0x14: //CHR_TRN
+            case 0x14: //PCT_TRN
                 printf(": PCT_TRN  Screen+Color data transfer from VRAM\n");
                 {
-                    std::ofstream chr_out((std::string("chr14_dat-") + std::to_string(cycle) + ".dat").c_str());
-                    char buffer[0x1000];
-                    read(0x8000, buffer, 0x1000, 0);
+                    std::ofstream chr_out((std::string("pct_trn_dat-") + std::to_string(cycle) + ".dat").c_str());
+                    char buffer[0x1000] = {0};
+                    read(0x8000, buffer, 0x1000, cycle);
                     chr_out.write(buffer, 0x1000);
                     chr_out.close();
                 }
+                SDL_Delay(5000);
            //4K transfer of map and palette data
                 //000-7FF: 32x32 16-bit values for bg map
                 //800-87f: palettes 4-7, 16 colors of 16bits each
@@ -816,7 +828,15 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                 break;
             case 0x15: //ATTR_TRN
                 printf(": ATTR_TRN Transfer attribute files to SNES\n");
-                //ATF (attribute file) is a 20x18 array of 1-byte color attributes.
+                {
+                    std::ofstream chr_out((std::string("attr_trn_dat-") + std::to_string(cycle) + ".dat").c_str());
+                    char buffer[0x1000] = {0};
+                    read(0x8000, buffer, 0x1000, cycle);
+                    chr_out.write(buffer, 0x1000);
+                    chr_out.close();
+                }
+                SDL_Delay(5000);
+               //ATF (attribute file) is a 20x18 array of 1-byte color attributes.
                 //This transfers ATF0-ATF44 (4050 bytes) from GB VRAM 000-FD1 to SNES ATF banks.
                 //Each ATF has the same data format as command 0x07: 90 bytes, 4 2-bit attributes per byte, arranged in 20x18
             case 0x17: //MASK_EN
