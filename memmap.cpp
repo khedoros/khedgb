@@ -242,7 +242,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 else if(joypad == 0x20 && sgb_bit_ptr == 128 && sgb_buffered && sgb_active) { //SGB STOP bit
                     sgb_buffered = false;
                     //printf(" end\n");
-                    sgb_exec(sgb_buffer);
+                    sgb_exec(sgb_buffer, cycle);
                 }
                 else {
                     //printf("\n");
@@ -530,7 +530,7 @@ bool memmap::set_sgb(bool active) {
     return sgb_active;
 }
 
-void memmap::sgb_exec(Vect<uint8_t>& s_b) {
+void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
     //If we're on the first packet, read the data
     if(sgb_cmd_index == 0) {
         sgb_cmd = s_b[0]>>3; //what's the command in this packet
@@ -668,6 +668,18 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b) {
                     }
                 }
                 break;
+            case 0x05: //ATTR_LIN
+                {
+                    printf(": ATTR_LIN Set individual lines of palette attributes:\n");
+                    int count = sgb_cmd_data[1];
+                    for(int line = 0; line < count; line++) {
+                        int line_num = (sgb_cmd_data[line+2] & 0x1f);
+                        int pal_num  = ((sgb_cmd_data[line+2]>>5)&3);
+                        bool hv = ((sgb_cmd_data[line+2] & 0x80) == 0x80);
+                        printf("\tLine %d: num: %d set to pal: %d h/v: %d\n", line, line_num, pal_num, hv);
+                    }
+                }
+                break;  
             case 0x06: //ATTR_DIV
                 {
                     printf(": ATTR_DIV Divide palette attributes by line: ");
@@ -772,13 +784,27 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b) {
                 break;
             case 0x13: //CHR_TRN
                 printf(": CHR_TRN  Character data transfer from VRAM, chars %02x - %02x\n", (sgb_cmd_data[1] & 1) * 0x80, (sgb_cmd_data[1] & 1) * 0x80 + 0x7f);
+                {
+                    std::ofstream chr_out((std::string("chr13_dat-") + std::to_string(cycle) + ".dat").c_str());
+                    char buffer[0x1000];
+                    read(0x8000, buffer, 0x1000, 0);
+                    chr_out.write(buffer, 0x1000);
+                    chr_out.close();
+                }
                 //bit0: tile numbers
                 //bit1: officially, tile type (0=bg, 1=obj), but might not work?
                 //4K transfer, 128 16-byte tiles (8x8, 16 colors) (wait? not 32-byte tiles??)
                 break;
             case 0x14: //CHR_TRN
                 printf(": PCT_TRN  Screen+Color data transfer from VRAM\n");
-                //4K transfer of map and palette data
+                {
+                    std::ofstream chr_out((std::string("chr14_dat-") + std::to_string(cycle) + ".dat").c_str());
+                    char buffer[0x1000];
+                    read(0x8000, buffer, 0x1000, 0);
+                    chr_out.write(buffer, 0x1000);
+                    chr_out.close();
+                }
+           //4K transfer of map and palette data
                 //000-7FF: 32x32 16-bit values for bg map
                 //800-87f: palettes 4-7, 16 colors of 16bits each
                 //880-fff: don't care

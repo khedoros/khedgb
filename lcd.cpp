@@ -35,10 +35,10 @@ lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), b
     cur_x_res=160;
     cur_y_res=144;
 
-    renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED/*|SDL_RENDERER_PRESENTVSYNC*/);
+    //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED/*|SDL_RENDERER_PRESENTVSYNC*/);
     //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
     //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE|SDL_RENDERER_PRESENTVSYNC);
-    //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE/*|SDL_RENDERER_PRESENTVSYNC*/);
+    renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE/*|SDL_RENDERER_PRESENTVSYNC*/);
     if(!renderer) {
         fprintf(stderr, "lcd::Couldn't create a renderer: %s\nStarting without video output.\n",
                 SDL_GetError());
@@ -454,7 +454,7 @@ uint64_t lcd::get_active_cycle() {
 
 //Reads the CPU's view of the current state of the PPU
 void lcd::read(int addr, void * val, int size, uint64_t cycle) {
-    if(size > 1) return;
+    if(size > 1 && size != 0x1000) return;
     //assert(size==1);
     if(addr >= 0x8000 && addr < 0xa000) {
         if(get_mode(cycle) != 3) {

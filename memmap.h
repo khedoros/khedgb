@@ -82,7 +82,7 @@ private:
 
     //Super GameBoy registers
     bool sgb_active;
-    void sgb_exec(Vect<uint8_t>& s_b);
+    void sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle);
     Vect<uint8_t> sgb_buffer;
     Vect<uint8_t> sgb_cmd_data;
     uint8_t sgb_bit_ptr;
