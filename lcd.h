@@ -44,6 +44,10 @@ private:
     void apply(int addr, uint8_t val, uint64_t index, uint64_t cycle);
     bool render(int frame, int start_line=0, int end_line=143);
     void get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>& pixels);
+    uint32_t map_bg_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
+    uint32_t map_win_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
+    uint32_t map_oam1_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
+    uint32_t map_oam2_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
 
     struct dmgpal {
         uint8_t pal[4];
@@ -90,6 +94,11 @@ private:
     dmgpal bgpal;        //0xff47
     dmgpal obj1pal;      //0xff48
     dmgpal obj2pal;      //0xff49
+
+    Vect<uint32_t> sys_bgpal;
+    Vect<uint32_t> sys_winpal;
+    Vect<uint32_t> sys_obj1pal;
+    Vect<uint32_t> sys_obj2pal;
 
     uint8_t win_scroll_y;//0xff4a
     uint8_t win_scroll_x;//0xff4b

@@ -88,6 +88,18 @@ lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), b
     for(int i=0;i<10;i++) {
         cmd_data[i].resize(0xa0);
     }
+
+    //Set default palettes
+    sys_bgpal.resize(4);
+    sys_winpal.resize(4);
+    sys_obj1pal.resize(4);
+    sys_obj2pal.resize(4);
+    for(int i=0;buffer && i<4;i++) {
+        sys_bgpal[i] = SDL_MapRGB(buffer->format, 85*(3-i), 85*(3-i), 85*(3-i));
+        sys_winpal[i] = SDL_MapRGB(buffer->format, 80*(3-i)+15, 70*(3-i), 70*(3-i));
+        sys_obj1pal[i] = SDL_MapRGB(buffer->format, 70*(3-i), 80*(3-i)+15, 70*(3-i));
+        sys_obj2pal[i] = SDL_MapRGB(buffer->format, 70*(3-i), 70*(3-i), 80*(3-i)+15);
+    }
 }
 
 lcd::~lcd() {
@@ -550,9 +562,14 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
 
     std::vector<uint8_t> tile_line(8,0);
 
+    uint32_t * pixels = NULL;
+
     if(!screen||!texture||!renderer) {
         printf("PPU: problem!\n");
         output_sdl = false;
+    }
+    else {
+        pixels = ((uint32_t *)buffer->pixels);
     }
 
     for(int line=start_line;line <= end_line; line++) {
@@ -591,8 +608,7 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                 }
 
                 if(output_sdl /*&& c != 0*/) {
-                    uint32_t color = SDL_MapRGB(buffer->format,85*(3-bgpal.pal[tile_line[x_tile_pix]]),85*(3-bgpal.pal[tile_line[x_tile_pix]]),85*(3-bgpal.pal[tile_line[x_tile_pix]]));
-                    ((uint32_t *)buffer->pixels)[render_line * 160 + x_out_pix] = color;
+                    pixels[render_line * 160 + x_out_pix] = sys_bgpal[bgpal.pal[tile_line[x_tile_pix]]];
                 }
             }
         }
@@ -619,9 +635,7 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                         int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
 
                         if(output_sdl) {
-                            uint8_t col = tile_line[x_tile_pix];
-                            uint32_t color = SDL_MapRGB(buffer->format,80*(3-bgpal.pal[col])+15,70*(3-bgpal.pal[col]),70*(3-bgpal.pal[col]));
-                            ((uint32_t *)buffer->pixels)[ycoord * 160 + xcoord] = color;
+                            pixels[ycoord * 160 + xcoord] = sys_winpal[bgpal.pal[tile_line[x_tile_pix]]];
                         }
                     }
                 }
@@ -666,10 +680,10 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                     uint32_t color = 0;
                     if(!col) continue;
                     if(sprite_dat.palnum_dmg) {
-                        color = SDL_MapRGB(buffer->format, 70 * ( 3-obj2pal.pal[col]), 70 * ( 3-obj2pal.pal[col]), 80 * ( 3-obj2pal.pal[col])+15);
+                        color = sys_obj2pal[obj2pal.pal[col]];
                     }
                     else {
-                        color = SDL_MapRGB(buffer->format, 70 * ( 3-obj1pal.pal[col]), 80 * ( 3-obj1pal.pal[col])+15, 70 * ( 3-obj1pal.pal[col]));
+                        color = sys_obj1pal[obj1pal.pal[col]];
                     }
 
                     int xcoord = sprite_x + x;
@@ -683,7 +697,7 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                     */
 
                     if(xcoord >= 0 && xcoord < 160) {
-                        ((uint32_t *)this->buffer->pixels)[ycoord * 160 + xcoord] = color;
+                        pixels[ycoord * 160 + xcoord] = color;
                     }
                 }
             }
@@ -783,4 +797,20 @@ bool lcd::interrupt_triggered(uint64_t cycle) {
     }
 
     return retval;
+}
+
+uint32_t lcd::map_bg_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a/*=255*/) {
+    //uint32_t color = SDL_MapRGB(buffer->format,85*(3-bgpal.pal[tile_line[x_tile_pix]]),85*(3-bgpal.pal[tile_line[x_tile_pix]]),85*(3-bgpal.pal[tile_line[x_tile_pix]]));
+}
+
+uint32_t lcd::map_win_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a/*=255*/) {
+    //uint32_t color = SDL_MapRGB(buffer->format,80*(3-bgpal.pal[col])+15,70*(3-bgpal.pal[col]),70*(3-bgpal.pal[col]));
+}
+
+uint32_t lcd::map_oam1_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a/*=255*/) {
+    //uint32_t color = SDL_MapRGB(buffer->format, 70 * ( 3-obj1pal.pal[col]), 80 * ( 3-obj1pal.pal[col])+15, 70 * ( 3-obj1pal.pal[col]));
+}
+
+uint32_t lcd::map_oam2_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a/*=255*/) {
+    //uint32_t color = SDL_MapRGB(buffer->format, 70 * ( 3-obj2pal.pal[col]), 70 * ( 3-obj2pal.pal[col]), 80 * ( 3-obj2pal.pal[col])+15);
 }
