@@ -12,7 +12,8 @@ lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), b
              cpu_control{.val=0x91}, cpu_status(0), cpu_bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_lyc(0), cpu_dma_addr(0), 
              cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}},
              cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
-             screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL) {
+             screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL),
+             sgb_dump_filename("") {
     vram.resize(0x2000);
     oam.resize(0xa0);
     cpu_vram.resize(0x2000);
@@ -180,6 +181,7 @@ uint64_t lcd::run(uint64_t run_to) {
         if(current.cycle >= cycle && render_end_line >= start_line) {
             //printf("PPU: render Startline: %ld endline: %ld\n",start_line,render_end_line);
             frame_output = render(frame, start_line, render_end_line);
+
         }
         start_line = ((render_end_line + 1) % 154); //Next line to render will be after current line, and next frame to render will be after current frame. If we crossed over, the next start_line needs to reflect the reset.
 
@@ -549,6 +551,13 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>&
 }
 
 bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
+    if(sgb_dump_filename != "") {
+        std::ofstream chr_out(sgb_dump_filename.c_str());
+        chr_out.write(reinterpret_cast<char *>(&vram[0x800]), 0x1000);
+        chr_out.close();
+        sgb_dump_filename = "";
+    }
+
     assert(start_line >= 0);
     if(end_line < 0) return false;
     if(start_line > end_line) {
@@ -813,4 +822,8 @@ uint32_t lcd::map_oam1_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a/*=255*/) {
 
 uint32_t lcd::map_oam2_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a/*=255*/) {
     //uint32_t color = SDL_MapRGB(buffer->format, 70 * ( 3-obj2pal.pal[col]), 70 * ( 3-obj2pal.pal[col]), 80 * ( 3-obj2pal.pal[col])+15);
+}
+
+void lcd::sgb_trigger_dump(std::string filename) {
+    sgb_dump_filename = filename;
 }

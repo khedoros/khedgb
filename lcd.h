@@ -5,6 +5,7 @@
 #include<SDL2/SDL.h>
 #include "util.h"
 #include<list>
+#include<string>
 
 /*
  * ff40: LCD control R/W (various settings)
@@ -38,6 +39,7 @@ public:
     uint64_t get_active_cycle();
     uint64_t run(uint64_t cycle_count);
     uint8_t get_mode(uint64_t cycle, bool ppu_view = false);
+    void sgb_trigger_dump(std::string filename);
 
 private:
     void update_estimates(uint64_t cycle);
@@ -162,5 +164,7 @@ private:
 
     SDL_Surface * bg1; //Background map 1 compositing buffer
     SDL_Surface * bg2; //Background map 2 compositing buffer
+
+    std::string sgb_dump_filename;
 
 };

@@ -21,14 +21,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     uint8_t raw_tiles[0x2000] = {0};
-    uint16_t bgmap[0x400] = {0};
+    uint16_t bgmap[0x800] = {0};
     uint16_t pals[0x40] = {0};
     uint8_t tiles[8*8*256] = {0};
     in1.read(reinterpret_cast<char *>(&raw_tiles[0]), 0x1000);
     in1.close();
     in2.read(reinterpret_cast<char *>(&raw_tiles[0x1000]), 0x1000);
     in2.close();
-    in3.read(reinterpret_cast<char *>(&bgmap[0]), 0x800);
+    in3.read(reinterpret_cast<char *>(&bgmap[0]), 0x1000);
     //in3.read(reinterpret_cast<char *>(&bgmap[0]), 0x800);
     //in3.read(reinterpret_cast<char *>(&pals[0]), 0x80);
     in3.close();
@@ -41,17 +41,17 @@ int main(int argc, char *argv[]) {
         printf("Tile %d\n", tile);
         int offset = tile * 32;
         for(int line = 0; line < 8; line++) {
-            offset += line * 2;
             uint8_t byte0 = raw_tiles[offset];
             uint8_t byte1 = raw_tiles[offset+1];
             uint8_t byte2 = raw_tiles[offset+16];
             uint8_t byte3 = raw_tiles[offset+17];
+            offset += 2;
             for(int pix = 0;pix<8;pix++) {
-                uint8_t col = (byte0&1) | 2*(byte1&1) | 4*(byte2&1) | 8*(byte3&1);
-                byte0>>=1;
-                byte1>>=1;
-                byte2>>=1;
-                byte3>>=1;
+                uint8_t col = ((byte0&0x80)>>7) | 2*((byte1&0x80)>>7) | 4*((byte2&0x80)>>7) | 8*((byte3&0x80)>>7);
+                byte0<<=1;
+                byte1<<=1;
+                byte2<<=1;
+                byte3<<=1;
                 printf("%01x%01x", col, col);
                 //of<<int(col)<<" ";
                 tiles[64*tile+8*line+pix] = col;
