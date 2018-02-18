@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     in3.close();
 
     for(int i=0;i<0x40;i++) {
-        pals[i]=i;
+        pals[i]=bgmap[0x400+i];
     }
     //Decode tile data into tiles array, and print decoded images
     for(int tile=0;tile<256;tile++) {
@@ -63,6 +63,7 @@ int main(int argc, char *argv[]) {
     }
 
     //print out raw bgmap data
+    printf("\nBGMAP\n");
     for(int i=0;i<32;i++) {
         for(int j=0;j<32;j++)
             printf("%04x ", bgmap[i*32+j]);
@@ -70,6 +71,7 @@ int main(int argc, char *argv[]) {
     }
 
     //print out palette data
+    printf("\nPALS\n");
     for(int i=0;i<4;i++) {
         for(int j=0;j<16;j++) {
             printf("%04x ", pals[i*16+j]);
@@ -87,7 +89,9 @@ int main(int argc, char *argv[]) {
                 int tile = bg_attrib&0x3ff;
                 printf("(%d, %d, tile: %d, pal: ", yt, xt, tile);
                 tile&=0xff; //quell misbehavior
-                int pal = ((bg_attrib&0x1c00)>>10);
+                int pal = ((bg_attrib&0x1c00)>>10)-4;
+                bool vf = ((bg_attrib&0x8000) == 0x8000);
+                bool hf = ((bg_attrib&0x4000) == 0x4000);
                 printf("%d\n", pal);
                 if(pal<0) pal = 0;
                 if(pal>3) pal=3;
@@ -96,8 +100,12 @@ int main(int argc, char *argv[]) {
                 //assert(pal>=0);
                 //assert(pal<4);
                 //printf("%04x ", tile);
+                int ypp = yp;
+                if(vf) ypp = 7- yp;
                 for(int xp=0;xp<8;xp++) {
-                   int palindex = tiles[64*tile+8*yp+xp];
+                    int xpp = xp;
+                    if(hf) xpp = 7 - xp;
+                    int palindex = tiles[64*tile+8*ypp+xpp];
                     int color = pals[pal*16+palindex];
                     int r = (color & 0x1f);
                     color>>=5;
