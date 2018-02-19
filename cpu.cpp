@@ -107,7 +107,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         stopped = false;
     }
     else if(halted || stopped) {
-        retval = 2;
+        retval = 1;
     }
 
     //Next instruction after EI is run before possibly jumping into interrupts
@@ -130,6 +130,9 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         prefix = 0xcb;
         op = ((opcode&0xFF00)>>(8));
         cycles += ((op&0x7) == 6) ? 4 : 2;
+        if((op&7)!=6 && (op&0xc0)==0x40) {
+            cycles--;
+        }
         bytes = 2;
     }
     else {
