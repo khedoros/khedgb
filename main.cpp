@@ -16,14 +16,19 @@ int main(int argc, char *argv[]) {
     std::cout<<"Passing in rom file name of "<<romfile<<" and fw file name of "<<fwfile<<std::endl;
 
     bool headless = false;
+    bool audio = true;
 
     if( SDL_Init(SDL_INIT_EVERYTHING|SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER|SDL_INIT_NOPARACHUTE) < 0 ) {
-        if( SDL_Init(SDL_INIT_NOPARACHUTE|SDL_INIT_AUDIO) < 0) {
-            fprintf(stderr,"Couldn't initialize SDL: %s\n", SDL_GetError());
-            exit(1);
+        std::cout<<"Couldn't init \"everything\", so we'll try skipping audio."<<std::endl;
+        if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_NOPARACHUTE) < 0) {
+            std::cout<<"Video init failed, trying to start with audio."<<std::endl;
+            if( SDL_Init(SDL_INIT_NOPARACHUTE|SDL_INIT_AUDIO) < 0) {
+                fprintf(stderr,"Couldn't initialize SDL audio: %s\n", SDL_GetError());
+                audio = false;
+            }
+            headless = true;
+            std::cout<<"Running in headless mode"<<std::endl;
         }
-        headless = true;
-        std::cout<<"Running in headless mode"<<std::endl;
     }
 
     memmap bus(romfile, fwfile);
@@ -46,6 +51,7 @@ int main(int argc, char *argv[]) {
     }
     cpu    proc(&bus,bus.has_firmware());
     lcd *  ppu = bus.get_lcd();
+    apu *  sound = bus.get_apu();
 
     uint64_t cycle = 144*114; //Cycles since the machine started running (the system starts in vblank)
     uint64_t tick_size = 70224/16; //Cycles to run in a batch
@@ -66,7 +72,9 @@ int main(int argc, char *argv[]) {
         if(!headless && continue_running) {
             cur_output_cycle = ppu->run(cycle + tick_size);
         }
-        //apu->run(cycle + tick_size); TODO: Add audio support
+        if(audio && continue_running) {
+            sound->run(cycle + tick_size); //TODO: Add audio support
+        }
 
         //Frame delay
         if(cur_output_cycle != 0) {
