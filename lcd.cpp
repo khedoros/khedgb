@@ -5,15 +5,16 @@
 #include<fstream>
 #include<string>
 
-lcd::lcd() : debug(false), cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), bg_scroll_x(0), 
+lcd::lcd() : debug(false), cycle(0), next_line(0), control{.val=0x00}, bg_scroll_y(0), bg_scroll_x(0), 
              bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, 
              win_scroll_y(0), win_scroll_x(0), active_cycle(0), frame(0), 
              lyc_next_cycle(0), m0_next_cycle(0), m1_next_cycle(0), m2_next_cycle(0), 
-             cpu_control{.val=0x91}, cpu_status(0), cpu_bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_lyc(0), cpu_dma_addr(0), 
+             cpu_control{.val=0x00}, cpu_status(0), cpu_bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_lyc(0), cpu_dma_addr(0), 
              cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}},
              cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
              screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL),
              sgb_dump_filename("") {
+
     vram.resize(0x2000);
     oam.resize(0xa0);
     cpu_vram.resize(0x2000);
@@ -813,7 +814,7 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
                     assert(ycoord < 144);
                     */
 
-                    if(xcoord >= 0 && xcoord < 160) {
+                    if(xcoord >= 0 && xcoord < 160 && (pixels[ycoord * 160 + xcoord] == sys_bgpal[0] || !sprite_dat.priority)) {
                         pixels[ycoord * 160 + xcoord] = color;
                     }
                 }
