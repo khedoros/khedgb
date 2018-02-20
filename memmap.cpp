@@ -523,6 +523,10 @@ lcd * memmap::get_lcd() {
     return &screen;
 }
 
+apu * memmap::get_apu() {
+    return &sound;
+}
+
 bool memmap::set_sgb(bool active) {
     if(cart.supports_sgb()) {
         sgb_active = active;

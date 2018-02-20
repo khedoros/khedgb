@@ -5,6 +5,7 @@ apu::apu() {}
 
 void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
     //printf("addr: %04x val: %02x ", addr, val);
+
     switch(addr) {
         //sound 1: rectangle with sweep + envelope
         case 0xff10: //sound 1 sweep
@@ -93,4 +94,10 @@ void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
 
 uint8_t apu::read(uint16_t addr, uint64_t cycle) {
     return 0xff;
+}
+
+void apu::run(uint64_t run_to) {
+}
+
+void apu::apply() {
 }

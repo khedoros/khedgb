@@ -29,6 +29,7 @@ public:
     //void map(int addr, void * const val, int size, bool rw);
     bool has_firmware();
     lcd * get_lcd();
+    apu * get_apu();
     bool set_sgb(bool active);
     struct int_flags {
         union {
