@@ -5,7 +5,7 @@
 #include<fstream>
 #include<string>
 
-lcd::lcd() : cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), bg_scroll_x(0), 
+lcd::lcd() : debug(false), cycle(144*114), next_line(0), control{.val=0x91}, bg_scroll_y(0), bg_scroll_x(0), 
              bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, 
              win_scroll_y(0), win_scroll_x(0), active_cycle(0), frame(0), 
              lyc_next_cycle(0), m0_next_cycle(0), m1_next_cycle(0), m2_next_cycle(0), 
@@ -295,19 +295,29 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
     assert(size==1||(addr==0xff46&&size==0xa0));
     //printf("PPU: 0x%04X = 0x%02x @ %ld (mode %d)\n", addr, *((uint8_t *)val), cycle, get_mode(cycle));
     if(addr >= 0x8000 && addr < 0xa000) {
-        //if(get_mode(cycle) != 3) {
+        if(get_mode(cycle) != 3 || !cpu_control.display_enable) {
             memcpy(&(cpu_vram[addr-0x8000]), val, size);
-            cmd_queue.push_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
-        //}
+            cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+        }
+        if(debug) {
+            uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
+            int line_cycle = (cycle - cpu_active_cycle) % 114;
+            timing_queue.emplace_back(util::cmd{line,line_cycle,0,0});
+        }
         //else {
         //    printf("PPU: Cycle %010ld Denied write during mode   3: 0x%04x = 0x%02x\n", cycle, addr, *((uint8_t *)val));
         //}
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
-        //if(get_mode(cycle) < 2) {
+        if(get_mode(cycle) < 2 || !cpu_control.display_enable) {
             memcpy(&(cpu_oam[addr - 0xfe00]), val, size);
-            cmd_queue.push_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
-        //}
+            cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+        }
+        if(debug) {
+            uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
+            int line_cycle = (cycle - cpu_active_cycle) % 114;
+            timing_queue.emplace_back(util::cmd{line,line_cycle,1,0});
+        }
         //else {
         //    printf("PPU: Cycle %010ld Denied write during mode 2/3: 0x%04x = 0x%02x\n", cycle, addr, *((uint8_t *)val));
         //}
@@ -338,6 +348,12 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                     " display on: "<<cpu_control.display_enable<<std::endl;
                 */
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+
+                if(debug) {
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
+                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    timing_queue.emplace_back(util::cmd{line,line_cycle,2,0});
+                }
                 break;
             case 0xff41: 
                 {
@@ -352,10 +368,20 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff42:
                 cpu_bg_scroll_y = *((uint8_t *)val);
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                if(debug) {
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
+                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    timing_queue.emplace_back(util::cmd{line,line_cycle,3,0});
+                }
                 break;
             case 0xff43:
                 cpu_bg_scroll_x = *((uint8_t *)val);
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                if(debug) {
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
+                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    timing_queue.emplace_back(util::cmd{line,line_cycle,4,0});
+                }
                 break;
             case 0xff45:
                 {
@@ -380,6 +406,11 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                     cpu_dma_addr = *((uint8_t *)val);
                     cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), index});
                 }
+                for(int offset=0;debug && offset<160;offset++) { //OAM DMA is 1 cycle per byte transferred, with 40*4 bytes
+                    uint64_t line = ((cycle + offset - cpu_active_cycle) % 17556) / 114;
+                    int line_cycle = (cycle + offset - cpu_active_cycle) % 114;
+                    timing_queue.emplace_back(util::cmd{line,line_cycle,5,0});
+                }
                 break;
             case 0xff47:
                 cpu_bgpal.pal[0] = *((uint8_t *)val) & 0x03;
@@ -387,6 +418,11 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_bgpal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
                 cpu_bgpal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                if(debug) {
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
+                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    timing_queue.emplace_back(util::cmd{line,line_cycle,6,0});
+                }
                 break;
             case 0xff48:
                 cpu_obj1pal.pal[0] = *((uint8_t *)val) & 0x03;
@@ -394,6 +430,11 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_obj1pal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
                 cpu_obj1pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                if(debug) {
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
+                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    timing_queue.emplace_back(util::cmd{line,line_cycle,7,0});
+                }
                 break;
             case 0xff49:
                 cpu_obj2pal.pal[0] = *((uint8_t *)val) & 0x03;
@@ -401,14 +442,29 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_obj2pal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
                 cpu_obj2pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                if(debug) {
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
+                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    timing_queue.emplace_back(util::cmd{line,line_cycle,8,0});
+                }
                 break;
             case 0xff4a:
                 cpu_win_scroll_y = *((uint8_t *)val);
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                if(debug) {
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
+                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    timing_queue.emplace_back(util::cmd{line,line_cycle,9,0});
+                }
                 break;
             case 0xff4b:
                 cpu_win_scroll_x = *((uint8_t *)val);
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                if(debug) {
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
+                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    timing_queue.emplace_back(util::cmd{line,line_cycle,0x0a,0});
+                }
                 break;
             default:
                 std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
@@ -565,7 +621,7 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
         //printf("Changing %d to %d\n", end_line-154, end_line);
     }
     assert(end_line - start_line < 154); //Expect not to ever receive over a frame of data
-    fflush(stdin);
+    //fflush(stdin);
     bool output_sdl = true;
     bool output_image = false;
 
@@ -583,7 +639,59 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
 
     for(int line=start_line;line <= end_line; line++) {
         int render_line = line % 154;
-        if(render_line > 143) continue;
+        if(debug && render_line == 153 && output_sdl) {
+
+            //Draw the guides
+            SDL_Rect white_rect  = { 0,0,114,154};
+            SDL_Rect yellow_rect = { 0,0, 20,144};
+            SDL_Rect pink_rect   = {20,0, 43,144};
+            SDL_SetRenderDrawColor(renderer, 255,255,255,150);
+            SDL_RenderFillRect(renderer, &white_rect);
+            if(control.display_enable) {
+                SDL_SetRenderDrawColor(renderer, 255,255,200,150);
+                SDL_RenderFillRect(renderer, &yellow_rect);
+                SDL_SetRenderDrawColor(renderer, 255,200,200,150);
+                SDL_RenderFillRect(renderer, &pink_rect);
+                SDL_SetRenderDrawColor(renderer, 20,20,20,150);
+                SDL_RenderDrawRect(renderer, &white_rect);
+            }
+
+            uint64_t last_seen = 0;
+            while(timing_queue.size() > 0 && timing_queue.front().cycle >= last_seen) {
+                util::cmd c = timing_queue.front();
+                uint64_t line = c.cycle;
+                last_seen = line;
+                int line_cycle = c.addr;
+                uint8_t type = c.val;
+                if(type == 1 || type == 5) { //OAM writes
+                    if(line_cycle < 63 && line < 144 && control.display_enable) { //Forbidden
+                        SDL_SetRenderDrawColor(renderer, 255,0,0,255);
+                        SDL_RenderDrawPoint(renderer, line_cycle, line);
+                    }
+                    else {
+                        SDL_SetRenderDrawColor(renderer, 0,255,0,255);
+                        SDL_RenderDrawPoint(renderer, line_cycle, line);
+                    }
+                }
+                else if(type == 0) { //VRAM writes
+                    if(line_cycle >= 20 && line_cycle < 63 && line < 144 && control.display_enable) { //VRAM writes
+                        SDL_SetRenderDrawColor(renderer, 255,0,0,255);
+                        SDL_RenderDrawPoint(renderer, line_cycle, line);
+                    }
+                    else {
+                        SDL_SetRenderDrawColor(renderer, 0,255,0,255);
+                        SDL_RenderDrawPoint(renderer, line_cycle, line);
+                    }
+                }
+                else {
+                    SDL_SetRenderDrawColor(renderer, 0,0,255,255);
+                    SDL_RenderDrawPoint(renderer, line_cycle, line);
+                }
+                timing_queue.pop_front();
+            }
+            SDL_RenderPresent(renderer);
+        }
+        else if(render_line > 143) continue;
 
         //Draw the background
         if(control.priority) { //cpu_controls whether the background displays, in regular DMG mode
@@ -728,7 +836,9 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
             SDL_RenderClear(renderer);
             SDL_RenderCopy(renderer,texture,NULL,NULL);
 
-            SDL_RenderPresent(renderer);
+            if(!debug) {
+                SDL_RenderPresent(renderer);
+            }
             output_image = true;
         }
     }
@@ -810,20 +920,32 @@ bool lcd::interrupt_triggered(uint64_t cycle) {
 
 uint32_t lcd::map_bg_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a/*=255*/) {
     //uint32_t color = SDL_MapRGB(buffer->format,85*(3-bgpal.pal[tile_line[x_tile_pix]]),85*(3-bgpal.pal[tile_line[x_tile_pix]]),85*(3-bgpal.pal[tile_line[x_tile_pix]]));
+    return 0;
 }
 
 uint32_t lcd::map_win_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a/*=255*/) {
     //uint32_t color = SDL_MapRGB(buffer->format,80*(3-bgpal.pal[col])+15,70*(3-bgpal.pal[col]),70*(3-bgpal.pal[col]));
+    return 0;
 }
 
 uint32_t lcd::map_oam1_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a/*=255*/) {
     //uint32_t color = SDL_MapRGB(buffer->format, 70 * ( 3-obj1pal.pal[col]), 80 * ( 3-obj1pal.pal[col])+15, 70 * ( 3-obj1pal.pal[col]));
+    return 0;
 }
 
 uint32_t lcd::map_oam2_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a/*=255*/) {
     //uint32_t color = SDL_MapRGB(buffer->format, 70 * ( 3-obj2pal.pal[col]), 70 * ( 3-obj2pal.pal[col]), 80 * ( 3-obj2pal.pal[col])+15);
+    return 0;
 }
 
 void lcd::sgb_trigger_dump(std::string filename) {
     sgb_dump_filename = filename;
+}
+
+void lcd::set_debug(bool db) {
+    debug = db;
+}
+
+void lcd::toggle_debug() {
+    debug = !debug;
 }

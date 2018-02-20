@@ -407,6 +407,9 @@ void memmap::keydown(SDL_Scancode k) {
             if(!btns[0].a && !(joypad & 0x20)) changed = true;
             btns[0].a=1;
             break;
+        case SDL_SCANCODE_E:
+            screen.toggle_debug();
+            break;
         default:
             break;
     }
