@@ -1,13 +1,14 @@
-#include "util.h"
+#include "cpu.h"
 #include "memmap.h"
 #include "rom.h"
+#include "util.h"
 #include<SDL2/SDL.h>
 #include<minizip/unzip.h>
 #include<iostream>
 #include<fstream>
 
 namespace util {
-bool process_events(memmap * bus) {
+bool process_events(cpu * proc, memmap * bus) {
     SDL_Event event;
     int newx,newy;
     while(SDL_PollEvent(&event)) {
@@ -19,6 +20,9 @@ bool process_events(memmap * bus) {
                         (event.key.keysym.scancode==SDL_SCANCODE_C&&(event.key.keysym.mod==KMOD_LCTRL))) {
                     SDL_Quit();
                     return false;
+                }
+                else if(event.key.keysym.scancode==SDL_SCANCODE_T) {
+                    proc->toggle_trace();
                 }
                 else {
                     bus->keydown(event.key.keysym.scancode);

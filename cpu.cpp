@@ -1,9 +1,31 @@
 //SHARP LR35902.
 //4MHz (4194304Hz) 
+//The CPU is paired with memory clocked at 1MHz, so the speed is bound by the memory clock.
 
 #include<iostream>
 #include<cassert>
 #include "cpu.h"
+
+
+//CPU status flags
+#define ZERO_FLAG       0x80 //Set when result is 9
+#define SUB_FLAG        0x40 //Set when instruction is a subtraction, cleared otherwise
+#define HALF_CARRY_FLAG 0x20 //Set upon carry from bit3
+#define CARRY_FLAG      0x10 //Set upon carry from bit7
+
+#define set(f) (af.low |= f)
+#define clear(f) (af.low &= (~f))
+#define zero() ((af.low & ZERO_FLAG)>>(7))
+#define sub() ((af.low & SUB_FLAG)>>(6))
+#define hc() ((af.low & HALF_CARRY_FLAG)>>(5))
+#define carry() ((af.low & CARRY_FLAG)>>(4))
+
+//Interrupt addresses
+#define VBL_INT_ADDR 0x0040
+#define LCD_INT_ADDR 0x0048
+#define TIM_INT_ADDR 0x0050
+#define SER_INT_ADDR 0x0058
+#define JOY_INT_ADDR 0x0060
 
 void decode(int pre,int x,int y,int z,int data);
 
@@ -12,6 +34,7 @@ cpu::cpu(memmap * b, bool has_firmware): bus(b),
         rp{&bc.pair, &de.pair, &hl.pair, &sp},
         rp2{&bc.pair, &de.pair, &hl.pair, &af.pair}
 {
+    trace = false;
     interrupts = false;
     set_ime = false;
     halted = false;
@@ -152,10 +175,13 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     }
 
     //Print a CPU trace
-    registers();
-    printf("\t");
-    decode(prefix,x,y,z,data);
-    printf("\n");
+    if(trace) {
+        registers();
+        printf("\t");
+        decode(prefix,x,y,z,data);
+        printf("\n");
+    }
+
     if(!halted && !stopped) {//If the CPU hits a HALT or STOP, it needs to stay there.
         pc += bytes;
     }
@@ -1304,4 +1330,9 @@ bool cpu::call_interrupts() {
         pc = to_run;
     }
     return call;
+}
+
+bool cpu::toggle_trace() {
+    trace = !trace;
+    return trace;
 }

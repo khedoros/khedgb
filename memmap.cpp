@@ -13,14 +13,12 @@ const unsigned int memmap::timer_clock_select[4] = {
                             
 
 memmap::memmap(const std::string& rom_filename, const std::string& fw_file) : 
-                                                  screen(), sound(),
-                                                  cart(rom_filename, fw_file),
-                                                  int_enabled{0,0,0,0,0},
-                                                  int_requested{0,0,0,0,0},
-                                                  last_int_cycle(0), link_data(0), div_reset(0), timer(0), timer_modulus(0), timer_control(0),
-                                                  timer_running(false), clock_divisor(timer_clock_select[0]), timer_reset(0), timer_deadline(-1), 
-                                                  div_clock(0), sgb_active(false),
-                                                  sgb_bit_ptr(0), sgb_buffered(false), sgb_cur_joypad(0), sgb_joypad_count(1), sgb_cmd_count(0), sgb_cmd_index(0)
+/*hardware connected to the memmap*/              screen(), sound(), cart(rom_filename, fw_file),
+/*interrupt hardware              */              int_enabled{0,0,0,0,0}, int_requested{0,0,0,0,0}, last_int_cycle(0), 
+/*Super GameBoy values            */              sgb_active(false), sgb_bit_ptr(0), sgb_buffered(false), sgb_cur_joypad(0), sgb_joypad_count(1), sgb_cmd_count(0), sgb_cmd_index(0),
+/*serial/link cable               */              link_data(0), serial_transfer(false), internal_clock(false), transfer_start(-1), bits_transferred(0),
+/*div register + timer            */              div_reset(0), timer(0), timer_modulus(0), timer_control(0),
+/*                                */              timer_running(false), clock_divisor(timer_clock_select[0]), timer_reset(0), timer_deadline(-1) 
 {
 
     valid = cart.valid;

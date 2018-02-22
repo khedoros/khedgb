@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
     uint64_t last_output_cycle = 0; //Last cycle that the ppu output a frame
     //uint64_t last_output_tick = 0;  //Last millisecond that the ppu output a frame
     while(continue_running) {
-        continue_running = util::process_events(&bus);
+        continue_running = util::process_events(&proc, &bus);
         uint64_t count = proc.run(cycle + tick_size);
         if(!count) {
             continue_running = false;

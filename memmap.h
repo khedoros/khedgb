@@ -103,7 +103,7 @@ private:
 
     //Timer registers
     //uint8_t div; //0xff04 top 8 bits of clock-divider register, which increments at 16384Hz. Calculated based on current cycle, and last time it was reset.
-    uint64_t div_reset; //0xff04 counter cycle reset
+    uint64_t div_reset; //0xff04 counter cycle reset. Used to calculate value of div. Stores last clock that div was reset at. DIV updates at 16384Hz (every 64CPU cycles)
     uint8_t timer; //0xff05 timer value
     uint8_t timer_modulus; //0xff06 Modulus value for timer.
     uint8_t timer_control; //0xff07 Controls speed and start/stop of timer. 
@@ -112,7 +112,6 @@ private:
     uint64_t timer_reset; //Clock when the timer was started, speed was changed, or timer was written while running
     static const unsigned int timer_clock_select[4]; //0xff07 bit 0+1, table of number of CPU clocks to tick the timer
     uint64_t timer_deadline; //Time the clock will expire
-    uint64_t div_clock; //0xff04: Used to calculate value of div. Stores last clock that div was reset at. DIV updates at 16384Hz (every 64CPU cycles)
 };
 /*
  * 0x0000-0x3FFF: Permanently-mapped ROM bank.

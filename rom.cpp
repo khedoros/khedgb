@@ -254,6 +254,11 @@ void rom::write(uint32_t addr, void * val, int size, int cycle) {
         addr = map->map_ram(addr, cycle);
         if(addr < 0xffffff) {
             memcpy(&(cram[addr]), val, size);
+            if(h.mapper == MAP_MBC2) {
+                for(int i=0;i<size;i++) {
+                    (*((uint8_t *)val)) |= 0xf0;
+                }
+            }
         }
     }
     else {
