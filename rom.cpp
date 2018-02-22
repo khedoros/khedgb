@@ -465,8 +465,9 @@ uint32_t mbc5_rom::map_ram(uint32_t addr, int cycle) {
     if(!ram_enabled) {
         return 0xffffff;
     }
+    addr-=0xa000;
     addr+=(uint32_t(rambank) * 0x2000);
-    return 0;
+    return addr;
 }
 
 void mbc5_rom::write(uint32_t addr, void * val, int size, int cycle) {

@@ -31,7 +31,8 @@ lcd_control control;
 uint8_t tiles[0x1800]; //0x8000-0x97FF
 uint8_t bg_maps[0x800]; //0x9800-0x9FFF
 sprite sprites[40]; //OAM, 0xFE00-0xFE9F
-
+scroll bgscroll{0,0}; //0-255 for each
+scroll winscroll{0,0}; //7-166 for x, 0-143 for y
 
 uint8_t sprite_slots[10]; //theoretical registers to hold sprites chosen for the line
 
@@ -43,31 +44,33 @@ void find_sprites(int line) {
     int slot_index = 0;
     //Produces sprites in range, from low to high sprite numbers
     for(int sprite=0;sprite<40;sprite++) {
-        int y = sprites[sprite].y
+        int y = sprites[sprite].y;
         if(y <= line && y + 8 + 8*control.sprite_size > line && slot_index < 10) {
             sprite_slots[slot_index++] = sprite;
         }
     }
     //Clear any extra slots
-    for(index=slot_index;index<10;index++) sprite_slots[index] = -1;
+    for(int index=slot_index;index<10;index++) sprite_slots[index] = -1;
 }
 
 
 int render_tiles(int line) {
     int cycles = 0; //cycles spent doing the rendering
-    uint8_t output_level = 0; //
+    uint8_t output_level = 0; //how many pixels have been written in the line
     fifo_slot fifo[16]; //theoretical fifo slot to aid in rendering
     uint8_t fifo_level = 0; //how many pixels the fifo has loaded
 
     //Tile info to be fetched
     uint8_t tile = 0;
-    uint8_t int byte0 = 0;
-    uint8_t int byte1 = 0;
+    uint8_t byte0 = 0;
+    uint8_t byte1 = 0;
     bool doing_window = false; //doing bg when not doing window
 
     while(output_level < 160) { //While not done drawing the line
         while(fifo_level <= 8) { //While there's 8 or more free pixels in the fifo
+            fifo_level = 8;
         }
+        output_level = 160;
     }
     return cycles;
 }
