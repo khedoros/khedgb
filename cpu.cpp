@@ -92,12 +92,9 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     bus->update_interrupts(cycle);
     bus->read(0xff0f, &int_flag, 1, cycle);
     bus->read(0xffff, &int_enable, 1, cycle);
-    if(interrupts) { //IME
-        bool was_halted = true;
-        if(stopped && (int_flag & JOYPAD) > 0) {
-            stopped = false;
-        }
-        else if(halted && (int_flag & int_enable & 0x1f) > 0) {
+    if(interrupts && !stopped) { //IME
+        bool was_halted = false; //Exiting halt when jumping to an interrupt takes an extra cycle
+        if(halted && (int_flag & int_enable & 0x1f) > 0) {
             halted = false;
             was_halted = true;
         }
@@ -111,6 +108,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
             return cycles;
         }
     }
+    //Interrupts disabled, interrupts are *pending*, but HALT was activated
     else if(halted && halt_bug) { //HALT bug: PC is stuck for one instruction after exiting halt mode
         //printf("HALT: opcode: %08x\n", opcode);
         halted = false;
@@ -118,17 +116,20 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         uint32_t op2 = ((opcode & 0xffff00)>>8);
         opcode &= 0xff; //Grab the next byte after HALT
         opcode = opcode | (opcode<<8) | (op2<<16); //Use that byte as the next instruction and its arguments, since PC is stuck
-        uint64_t time = dec_and_exe(opcode);
-        pc--;
+        uint64_t time = dec_and_exe(opcode); //run the wonky operation
+        pc--; //back pc up by one, because it was "stuck"
         retval = time + 1; //CPU takes 4 clocks (1 CPU clock) to exit halt
     } 
+    //IME=0, and exiting halt mode due to a new interrupt triggering
     else if(halted && ((int_flag & int_enable) & 0x1f) > 0) {
         halted = false;
         cycles++;
     }
+    //IME=0, and exiting stop mode due to joypad input
     else if(stopped && (int_flag & JOYPAD) > 0) {
         stopped = false;
     }
+    //Staying in halted or stopped mode for another cycle
     else if(halted || stopped) {
         retval = 1;
     }
@@ -138,7 +139,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         interrupts = true;
         set_ime = false;
     }
-    //EI *could* be the instruction after halt
+
     if(retval) {
         return retval;
     }
@@ -505,7 +506,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                 bus->update_interrupts(cycle);
                 bus->read(0xff0f, &int_flag, 1, cycle);
                 bus->read(0xffff, &int_enable, 1, cycle);
-                if(((int_flag & int_enable) & 0x1f) > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
+                if(!interrupts && ((int_flag & int_enable) & 0x1f) > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
                     halt_bug = true;
                 }
                 //printf("HALT\n");
@@ -1297,7 +1298,7 @@ void cpu::registers() {
     bus->read(0xff0f, &iflag, 1, cycle);
     bus->read(0xffff, &ienab, 1, cycle);
     printf("PC: %04x A: %02x B: %02x C: %02x D: %02x E: %02x H: %02x L: %02x SP: %04x F: %02x IME: %d IE: %02x IF: %02x",
-            pc,af.hi,bc.hi,bc.low,de.hi,de.low,hl.hi,hl.low,sp,af.low, interrupts, ienab, iflag);
+            pc,af.hi,bc.hi,bc.low,de.hi,de.low,hl.hi,hl.low,sp,af.low, interrupts, ienab&0x1f, iflag&0x1f);
 }
 
 bool cpu::call_interrupts() {
