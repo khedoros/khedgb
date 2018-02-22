@@ -148,9 +148,6 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             *((uint8_t *)val) = 0xe0 | int_requested.reg;
             //std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             break;
-        case 0xff44: //TODO: Move this to PPU, base on global cycle count instead of frame cycle count
-            *((uint8_t *)val) = (((cycle - screen.get_active_cycle()) % 17556) / 114);
-            break;
         case 0xff70: //CGB WRAM size switch
             //TODO: Implement with CGB stuff
             *((uint8_t *)val) = 0;
@@ -161,7 +158,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
                 *((uint8_t *)val) = sound.read(addr, cycle);
             }
             else if(addr > 0xff3f && addr < 0xff4c) {
-                screen.read(addr, val, size, cycle);//memcpy(val, &(vram[addr-0x8000]), size);
+                screen.read(addr, val, size, cycle);
                 //std::cout<<"Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             }
             else if(addr > 0xff4e && addr < 0xff6c) {
@@ -448,7 +445,6 @@ void memmap::keyup(SDL_Scancode k) {
 }
 
 INT_TYPE memmap::get_interrupt() {
-
     //printf("get_interrupt requested: %02X enabled: %02X to fire: %02X\n", int_requested.reg, int_enabled.reg, (int_enabled.reg & int_requested.reg));
     if(int_enabled.vblank && int_requested.vblank)        {int_requested.vblank = 0;  return VBLANK; }
     else if(int_enabled.lcdstat && int_requested.lcdstat) {int_requested.lcdstat = 0; return LCDSTAT;}
@@ -486,6 +482,7 @@ void memmap::update_interrupts(uint64_t cycle) {
         }
     }
     //if(int_enabled.timer) { printf("Warning: timer interrupt enabled, but not implemented yet.\n");}
+
     //SERIAL
     if(serial_transfer && internal_clock && cycle >= transfer_start) {
         unsigned int bit = (cycle - transfer_start) / 128;
@@ -508,9 +505,8 @@ void memmap::update_interrupts(uint64_t cycle) {
             int_requested.serial = 1;
         }
     }
-
-
     //if(int_enabled.serial) { printf("Warning: serial interrupt enabled, but not implemented yet.\n");}
+
 
     //JOYPAD: Not dependent on time; its state is automatically updated when input events are processed.
     //if(int_enabled.joypad) { printf("Warning: joypad interrupt enabled, but not implemented yet.\n");}

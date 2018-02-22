@@ -113,8 +113,6 @@ private:
     uint64_t frame;      //current frame count
 
 
-    //Needed for proper responses to the CPU. A lot of these are mirrored versions of the PPU-view registers.
-    uint64_t lyc_next_cycle; //cycle of next time to trigger lyc interrupt
 
     /*
         0 201-207 clks, 2 about 77-83 clks, and 3 about 169-175 clks
@@ -127,9 +125,12 @@ private:
         3(vramro)=6192 cycles/frame
     */
 
+    //Needed for proper responses to the CPU. A lot of these are mirrored versions of the PPU-view registers.
+    uint64_t lyc_next_cycle; //cycle of next time to trigger lyc interrupt
     uint32_t m0_next_cycle;  //cycle of next time to trigger m0 interrupt (h-blank)
     uint32_t m1_next_cycle;  //cycle of next time to trigger m1 interrupt (v-blank)
     uint32_t m2_next_cycle;  //cycle of next time to trigger m2 interrupt (oam access)
+
     //Modes cycle: (2-3-0) 144 times, then to 1, with about 20, 
 
     Vect<uint8_t> cpu_vram;

@@ -329,11 +329,13 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 {
                     control_reg old_val{.val = cpu_control.val};
                     cpu_control.val = *((uint8_t *)val);
+                    //Re-activates STAT interrupts when screen is reenabled
                     if(cpu_control.display_enable && !old_val.display_enable) {
                         cpu_active_cycle = cycle;
                         update_estimates(cycle);
                     }
-                    else if(old_val.display_enable != cpu_control.display_enable) {
+                    //Disables STAT interrupts when screen is disabled
+                    else if(old_val.display_enable && !cpu_control.display_enable) {
                         update_estimates(cycle);
                     }
                 }
@@ -359,7 +361,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff41: 
                 {
                     uint8_t old_val = cpu_status; 
-                    cpu_status = *((uint8_t *)val)&0xf8; 
+                    cpu_status = *((uint8_t *)val)&0x78;
+                    //If status flags are changed and screen is active, update times for newly active/inactive interrupts
                     if(cpu_status != old_val && cpu_control.display_enable) {
                         update_estimates(cycle);
                     }
@@ -391,11 +394,13 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                     if(cpu_lyc > 153) { //Out of range to actually trigger
                         lyc_next_cycle = -1;
                     }
+                    //If LYC is a new value, then we need to recalculate the interrupt time
                     else if(old_val != cpu_lyc && cpu_control.display_enable) {
                         update_estimates(cycle);
                     }
                 }
                 break;
+            //TODO: Make the steps of this obey the OAM search and LCD write periods (modes 2+3)
             case 0xff46://OAM DMA
                 {
                     memcpy(&cpu_oam[0],val,0xa0);
@@ -449,7 +454,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                     timing_queue.emplace_back(util::cmd{line,line_cycle,8,0});
                 }
                 break;
-            case 0xff4a:
+            case 0xff4a: //TODO: Actually influences mode3 timing
                 cpu_win_scroll_y = *((uint8_t *)val);
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 if(debug) {
@@ -458,7 +463,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                     timing_queue.emplace_back(util::cmd{line,line_cycle,9,0});
                 }
                 break;
-            case 0xff4b:
+            case 0xff4b: //TODO: influences mode3 timing
                 cpu_win_scroll_x = *((uint8_t *)val);
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 if(debug) {
@@ -474,6 +479,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
     return;
 }
 
+//TODO: Doesn't account for variations in mode2 and mode3 times
 uint8_t lcd::get_mode(uint64_t cycle, bool ppu_view/*=false*/) {
     control_reg cnt = cpu_control;
     uint64_t active = cpu_active_cycle;
@@ -534,14 +540,14 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff41: 
                 if(!cpu_control.display_enable) {
-                    *((uint8_t *)val) = cpu_status|1; //return current interrupt flags and v-blank mode, if screen is disabled.
+                    *((uint8_t *)val) = BIT7|BIT0|cpu_status; //return current interrupt flags and v-blank mode, if screen is disabled.
                 }
                 else {
                     int mode = get_mode(cycle);
                     if(cpu_lyc == ((cycle - cpu_active_cycle) % 17556) / 114) {
-                        mode |= 4;
+                        mode |= BIT2;
                     }
-                    *((uint8_t *)val) = mode | cpu_status;// | 0x80;
+                    *((uint8_t *)val) = mode | cpu_status | 0x80;
                 }
                 break;
             case 0xff42:
@@ -763,7 +769,7 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
 
 
         //Draw the sprites
-        if(control.sprite_enable) {
+        if(true||control.sprite_enable) {
             for(int spr = 0; spr < 40; spr++) {
                 oam_data sprite_dat;
                 memcpy(&sprite_dat, &oam[spr*4], 4);
@@ -848,7 +854,7 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
 }
 
 void lcd::update_estimates(uint64_t cycle) {
-    if(!cpu_control.display_enable) { //realistically shouldn't ever end up here
+    if(!cpu_control.display_enable) {
         lyc_next_cycle = -1;
         m0_next_cycle  = -1;
         m1_next_cycle  = -1;
@@ -863,10 +869,11 @@ void lcd::update_estimates(uint64_t cycle) {
 
     //uint64_t mode = get_mode(cycle);
 
+    //TODO: The code telling it to skip to the next frame makes me uneasy. I should probably track whether it was just triggered, and needs to be updated.
     if((cpu_status & LYC) > 0) {
-        lyc_next_cycle = frame_base_cycle + cpu_lyc * 114;
+        lyc_next_cycle = frame_base_cycle + cpu_lyc * 114 + 1;
         if(lyc_next_cycle <= cycle) { //We've passed it this frame; go to the next.
-            lyc_next_cycle += 17556;
+            lyc_next_cycle = frame_base_cycle + 17556 + cpu_lyc * 144 + 1;
         }
     }
     else {
@@ -907,10 +914,22 @@ bool lcd::interrupt_triggered(uint64_t cycle) {
 
     bool retval = false;
 
-    if(lyc_next_cycle <= cycle) retval = true;
-    if(m0_next_cycle <= cycle) retval = true;
-    if(m1_next_cycle <= cycle) retval = true;
-    if(m2_next_cycle <= cycle) retval = true;
+    if(lyc_next_cycle <= cycle) {
+        //printf("stat interrupt: ly match: %d (%ld cycles since triggered)\n", cpu_lyc, cycle - lyc_next_cycle);
+        retval = true;
+    }
+    if(m0_next_cycle <= cycle) {
+        //printf("stat interrupt: hblank (%ld cycles since triggered)\n", cycle - m0_next_cycle);
+        retval = true;
+    }
+    if(m1_next_cycle <= cycle) {
+        //printf("stat interrupt: vblank (%ld cycles since triggered)\n", cycle - m1_next_cycle);
+        retval = true;
+    }
+    if(m2_next_cycle <= cycle) {
+        //printf("stat interrupt: oam search (%ld cycles since triggered)\n", cycle - m2_next_cycle);
+        retval = true;
+    }
 
     if(retval) {
         update_estimates(cycle);
