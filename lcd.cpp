@@ -969,3 +969,7 @@ void lcd::set_debug(bool db) {
 void lcd::toggle_debug() {
     debug = !debug;
 }
+
+uint64_t lcd::get_frame() {
+    return frame;
+}

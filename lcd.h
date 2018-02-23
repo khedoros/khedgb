@@ -42,6 +42,7 @@ public:
     void sgb_trigger_dump(std::string filename);
     void set_debug(bool db);
     void toggle_debug();
+    uint64_t get_frame();
 
 private:
     void update_estimates(uint64_t cycle);

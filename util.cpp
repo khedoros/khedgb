@@ -11,6 +11,7 @@
 #include<fstream>
 
 namespace util {
+#ifndef PPU_ONLY
 bool process_events(cpu * proc, memmap * bus) {
     SDL_Event event;
     int newx,newy;
@@ -93,6 +94,7 @@ bool process_events(cpu * proc, memmap * bus) {
     }
     return true;
 }
+#endif
 
 #ifndef __CYGWIN__
 int unzip(const std::string& zip_filename, std::vector<uint8_t>& output, size_t min_size, size_t max_size) {
