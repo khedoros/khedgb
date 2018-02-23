@@ -3,7 +3,10 @@
 #include "rom.h"
 #include "util.h"
 #include<SDL2/SDL.h>
+
+#ifndef __CYGWIN__
 #include<minizip/unzip.h>
+#endif
 #include<iostream>
 #include<fstream>
 
@@ -91,6 +94,7 @@ bool process_events(cpu * proc, memmap * bus) {
     return true;
 }
 
+#ifndef __CYGWIN__
 int unzip(const std::string& zip_filename, std::vector<uint8_t>& output, size_t min_size, size_t max_size) {
     unzFile f = unzOpen(zip_filename.c_str());
     if(!f) {
@@ -143,6 +147,7 @@ int unzip(const std::string& zip_filename, std::vector<uint8_t>& output, size_t 
 
     return 0;
 }
+#endif
 
 int read(const std::string& filename, std::vector<uint8_t>& output, size_t min_size, size_t max_size) {
     std::ifstream in(filename.c_str());

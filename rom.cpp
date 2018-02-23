@@ -9,8 +9,12 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
     //Take input of the actual ROM data
 
     if(rom_filename.substr(rom_filename.size() - 3, 3) == "zip") {
+#ifndef __CYGWIN__
         int retval = util::unzip(rom_filename, rom_data, 32*1024, 8*1024*1024); //All ROMs are expected to be between size 32KB and 8MB
-        if(retval) {
+#else
+	int retval = 1;
+#endif
+	if(retval) {
             printf("Got error code %d while trying to extract the zip.\n", retval);
             rom_data.resize(0x8000,0xd3); //invalid opcode, to crash the interpreter
         }
