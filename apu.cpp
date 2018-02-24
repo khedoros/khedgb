@@ -6,7 +6,17 @@ apu::apu() {}
 void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
     //printf("addr: %04x val: %02x ", addr, val);
 
-    switch(addr) {
+}
+
+uint8_t apu::read(uint16_t addr, uint64_t cycle) {
+    return 0xff;
+}
+
+void apu::run(uint64_t run_to) {
+}
+
+void apu::apply(util::cmd& c) {
+    switch(c.addr) {
         //sound 1: rectangle with sweep + envelope
         case 0xff10: //sound 1 sweep
             //printf("apu: S1 sweep time: %d increase: %d shift: %d\n", (val&0x70)>>4, (val&8)>>3, (val&7));
@@ -82,7 +92,7 @@ void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
             break;
 
         default:
-            if(addr >= 0xff30 && addr < 0xff40) {
+            if(c.addr >= 0xff30 && c.addr < 0xff40) {
                 //printf("apu: wave[%d] = %d, wave[%d] = %d\n", (addr-0xff30)*2, (val&0xf0)>>4, (addr-0xff30)*2+1, val&0x0f);
                 //waveform RAM
             }
@@ -90,14 +100,4 @@ void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
                 //printf("apu: unknown, addr=0x%04x, val=0x%02x\n", addr, val);
             }
     }
-}
-
-uint8_t apu::read(uint16_t addr, uint64_t cycle) {
-    return 0xff;
-}
-
-void apu::run(uint64_t run_to) {
-}
-
-void apu::apply() {
 }
