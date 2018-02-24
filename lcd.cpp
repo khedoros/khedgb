@@ -769,7 +769,7 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
 
 
         //Draw the sprites
-        if(true||control.sprite_enable) {
+        if(control.sprite_enable) {
             for(int spr = 0; spr < 40; spr++) {
                 oam_data sprite_dat;
                 memcpy(&sprite_dat, &oam[spr*4], 4);
