@@ -241,7 +241,8 @@ void rom::read(uint32_t addr, void * val, int size, int cycle) {
         if(addr < 0xffffff) { //Messy solution for specifying that an invalid address was requested
             memcpy(val, &(cram[addr]), size);
         }
-        else if((addr & 0xffffff00) == 0xffffff00) { //Messy solution for returning a value stored in the mapper itself (like RTC data in MBC3)
+        else if(addr >= 0xffffff00) { //Messy solution for returning a value stored in the mapper itself (like RTC data in MBC3)
+            printf("Read %02x from camera?\n", addr&0xff);
             uint8_t mapped_val = addr&0xff;
             memcpy(val, &mapped_val, 1);
         }
@@ -263,6 +264,9 @@ void rom::write(uint32_t addr, void * val, int size, int cycle) {
                     (*((uint8_t *)val)) |= 0xf0;
                 }
             }
+        }
+        else if(addr >= 0xffffff00) {
+            printf("Wrote %02x to camera?\n", addr&0xff);
         }
     }
     else {
@@ -436,36 +440,40 @@ uint32_t camera_rom::map_ram(uint32_t addr, int cycle) {
     if(ram_enabled && rambank < 16) {
         return addr+(uint32_t(rambank) * 0x2000);
     }
-    else if(rambank == 16) {
-        printf("Reading camera? addr: %d en: %d bank: %d\n", addr+0xa000, ram_enabled, rambank);
-        return 0xffffff00;
+    else if(rambank >= 16) {
+        printf("RAM read from out-of-range bank. Reading camera? addr: %d en: %d bank: %d\n", addr+0xa000, ram_enabled, rambank);
+        return 0xffffffaa;
     }
 
     if(!ram_enabled) {
-        printf("Reading camera? addr: %d en: %d bank: %d\n", addr+0xa000, ram_enabled, rambank);
-        return 0xffffff;
+        printf("RAM read while off. Reading camera? addr: %d en: %d bank: %d\n", addr+0xa000, ram_enabled, rambank);
+        return 0xffffff7e;
     }
 
     return 0xffffff;
 }
 void camera_rom::write(uint32_t addr, void * val, int size, int cycle) {
-    printf("ROM: camera addr: %04x val: %02x\n", addr, *((uint8_t *)val));
+    printf("camera_rom::write addr: %04x val: %02x ", addr, *((uint8_t *)val));
     if(addr < 0x2000) {
         if(*((uint8_t *)val) == 0x0a) {
+            printf("(ram on)\n");
             ram_enabled = true;
         }
         else {
+            printf("(ram off)\n");
             ram_enabled = false;
         }
     }
     else if(addr < 0x4000) {
         rombank = (*(((uint8_t *)val))&0x3f);
-        if(! *((uint8_t *)val)) rombank++;
+        //if(! *((uint8_t *)val)) rombank++;
+        printf("(rombank to %02x)\n", rombank);
     }
     else if(addr < 0x6000) {
         if(*(uint8_t *)val < 0x11) {
             rambank = *(uint8_t *)val;
         }
+        printf("(rambank to %02x)\n", rambank);
     }
 }
 
