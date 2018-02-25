@@ -153,7 +153,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             *((uint8_t *)val) = 0;
             break;
         default:
-            if(addr > 0xff0f && addr < 0xff3f) {
+            if(addr > 0xff0f && addr <= 0xff3f) {
                 //std::cout<<"Read from audio hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
                 *((uint8_t *)val) = sound.read(addr, cycle);
             }

@@ -1,5 +1,6 @@
 #pragma once
 #include<cstdint>
+#include<list>
 #include "util.h"
 
 /* 512 Hz frame sequencer, with 8 phases.
@@ -70,19 +71,6 @@
  * - Doesn't affect wave memory, or the 512Hz timer count.
  * - On boot, wave ram is random-ish, but tends to be the same on a per-unit basis. GBC consistently starts with alternating "00" "FF" values, though.
  *
- * Register reads:
- * - NR52 and Wave RAM yield what you'd expect
- * - Others are ORed with the data in the following table:
- *          NRx0 NRx1 NRx2 NRx3 NRx4
- *        ---------------------------
- *    NR1x  $80  $3F $00  $FF  $BF 
- *    NR2x  $FF  $3F $00  $FF  $BF 
- *    NR3x  $7F  $FF $9F  $FF  $BF 
- *    NR4x  $FF  $FF $00  $00  $BF 
- *    NR5x  $00  $00 $70
- *
- *    $FF27-$FF2F always read back as $FF
- *
  *  Extra info here, for after I have the basics coded: http://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware
  */
 
@@ -94,6 +82,7 @@ public:
     void run(uint64_t run_to);
 private:
     void apply(util::cmd& c);
+    std::list<util::cmd> cmd_queue;
 
     union sweep_reg { //NR10
         struct {
@@ -250,7 +239,10 @@ private:
     channel_map   output_map;  //0xFF25 NR51
     channel_status status;     //0xFF26 NR52
 
-    uint8_t written_values[0x40]; //For reading from CPU. NR52 should be the only more-complicated one.
-    static const uint8_t or_values[0x40];      //Values to OR onto the written values
+    uint8_t written_values[0x30]; //For reading from CPU. NR52 should be the only more-complicated one.
+
+    //Values to OR onto the written values when read
+    static const uint8_t or_values[0x30];
+
 };
 
