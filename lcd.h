@@ -47,7 +47,7 @@ public:
 private:
     void update_estimates(uint64_t cycle);
     void apply(int addr, uint8_t val, uint64_t index, uint64_t cycle);
-    bool render(int frame, int start_line=0, int end_line=143);
+    uint64_t render(int frame, uint64_t start_cycle, uint64_t end_cycle);
     void get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>& pixels);
     uint32_t map_bg_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_win_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);

@@ -59,6 +59,7 @@ int main(int argc, char *argv[]) {
     uint64_t last_output_cycle = 0; //Last cycle that the ppu output a frame
     //uint64_t last_output_tick = 0;  //Last millisecond that the ppu output a frame
     while(continue_running) {
+        uint64_t start = SDL_GetTicks();
         continue_running = util::process_events(&proc, &bus);
         uint64_t count = proc.run(cycle + tick_size);
         if(!count) {
@@ -71,6 +72,7 @@ int main(int argc, char *argv[]) {
         uint64_t cur_output_cycle = 0;
         if(!headless && continue_running) {
             cur_output_cycle = ppu->run(cycle + tick_size);
+            //printf("Main got report of output at: %lld\n", cur_output_cycle);
         }
         if(audio && continue_running) {
             sound->run(cycle + tick_size); //TODO: Add audio support
@@ -81,11 +83,14 @@ int main(int argc, char *argv[]) {
             uint64_t now = SDL_GetTicks();
             //uint64_t ms_diff = now - last_output_tick;
             uint64_t cycle_diff = cur_output_cycle - last_output_cycle; //cycles since last frame was output
+            //printf("cycle diff: %ld\n", cycle_diff);
 
             if(cycle_diff != 0) {
                 uint64_t delay = (double(cycle_diff*1000) / double(1024*1024));
+                delay = delay - (now - start);
                 if(delay < 1000) {
-                    SDL_Delay(delay/3);
+                    //printf("Delaying for %ld ms\n", delay/2);
+                    SDL_Delay(delay/2);
                 }
                 uint64_t actual_delay = SDL_GetTicks() - now;
                 if(actual_delay > delay) {

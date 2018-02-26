@@ -153,78 +153,39 @@ lcd::~lcd() {
 
 uint64_t lcd::run(uint64_t run_to) {
     assert(cycle < run_to);
-    uint64_t start_offset = cycle - active_cycle;              //Cycles since the screen was activated
-    uint64_t start_frame_cycle = start_offset % 17556;         //Cycles into current frame
-    //uint64_t start_frame_base = cycle - start_frame_cycle;     //Cycle when current frame started
-    uint64_t start_frame_line = start_frame_cycle / 114;       //Current line in current frame
-    //uint64_t start_line_cycle = start_frame_cycle % 114;       //Current cycle in current line
-    uint64_t start_line = start_frame_line;
-
     //printf("PPU: Start: %ld run_to: %ld\n", cycle, run_to);
 
     uint64_t render_cycle = 0;
     while(cmd_queue.size() > 0) {
         util::cmd current = cmd_queue.front();
-        uint64_t offset = current.cycle - active_cycle;   //Cycles between activation of the screen and that command
-        uint64_t frame_cycle = (offset % 17556);          //Last cycle in this frame before command
-        uint64_t frames_since_active = offset / 17556;    //Full frames since becoming active
-        uint64_t frame_line = frame_cycle / 114;          //Line in the frame where the command occurs
-        //uint64_t line_cycle = frame_cycle % 114;          //Cycle in the line where the command occurs
-
-        uint64_t render_end_line = frame_line;
-        if(get_mode(current.cycle, true) > 1) { //Haven't completed enough cycles to request frame_line to be rendered, as first calculated
-            render_end_line-=1;                  //Shouldn't render the line that this command occurs on, yet
-        }
-        //printf("PPU: Command at: %ld\n", current.cycle);
-        //printf("Active: %ld offset: %ld frame_cycle: %ld frames_since_active: %ld frame_line: %ld line_cycle: %ld\n", active_cycle, offset, frame_cycle, frames_since_active, frame_line, line_cycle);
-
-        bool frame_output = false;
-        if(current.cycle >= cycle && render_end_line >= start_line) {
-            //printf("PPU: render Startline: %ld endline: %ld\n",start_line,render_end_line);
-            frame_output = render(frame, start_line, render_end_line);
-
-        }
-        start_line = ((render_end_line + 1) % 154); //Next line to render will be after current line, and next frame to render will be after current frame. If we crossed over, the next start_line needs to reflect the reset.
-
-        if(frame_output) {
-            if(frame%100==0)
-                printf("PPU: Frame %ld\n", frame);
-            render_cycle = active_cycle + ((frames_since_active - 1) * 17556) + (114 * 143) + (20 + 43);
-            frame++;
+        if(current.cycle >= cycle) {
+            if(!render_cycle) {
+                render_cycle = render(frame, cycle, current.cycle);
+            }
+            else {
+                render(frame, cycle, current.cycle);
+            }
         }
 
         apply(current.addr, current.val, current.data_index, current.cycle);
 
         cmd_queue.pop_front();
         cycle = current.cycle;
-        current = cmd_queue.front();
-    }
-
-    uint64_t end_offset = run_to - active_cycle;
-    uint64_t end_frame_cycle = end_offset % 17556;
-    //uint64_t end_frame_base = run_to - end_frame_cycle;
-    uint64_t end_frame_line = end_frame_cycle / 114;
-    //uint64_t end_line_cycle = end_frame_cycle % 114;
-    uint64_t end_line = end_frame_line;
-    if(get_mode(run_to, true) > 1) { //the line will be rendered at the next ::run call
-        end_line-=1;
     }
 
     //printf("PPU: renderend Startline: %ld endline: %ld\n",start_line,end_line);
-    bool frame_output = false;
-    if(run_to >= cycle && (end_line >= start_line || start_line - end_line > 30)) {
-        frame_output = render(frame, start_line, end_line);
-        start_line = ((end_line + 1) % 154);
-    }
-    if(frame_output) {
-        if(frame % 100==0)
-            printf("PPU: Frame %ld\n", frame);
-        render_cycle = active_cycle + (((end_offset / 17556) - 1) * 17556) + (114 * 143) + (20 + 43);
-        frame++;
+    if(cycle < run_to) {
+        if(!render_cycle) {
+            render_cycle = render(frame, cycle, run_to);
+        }
+        else {
+            render(frame, cycle, run_to);
+        }
     }
 
     cmd_data_size = 0;
     cycle = run_to;
+    //printf("Reporting render at cycle: %lld\n", render_cycle);
     return render_cycle; //0 means a frame hasn't been rendered during this timeslice
 }
 
@@ -613,7 +574,14 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>&
     return;
 }
 
-bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
+uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
+    if(!control.display_enable) {
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderClear(renderer);
+        return 0;
+    }
+
+    //printf("Raw: start cycle: %lld end: %lld\n", start_cycle, end_cycle);
     if(sgb_dump_filename != "") {
         std::ofstream chr_out(sgb_dump_filename.c_str());
         chr_out.write(reinterpret_cast<char *>(&vram[0x800]), 0x1000);
@@ -621,16 +589,25 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
         sgb_dump_filename = "";
     }
 
-    assert(start_line >= 0);
-    if(end_line < 0) return false;
-    if(start_line > end_line) {
-        end_line += 154;
-        //printf("Changing %d to %d\n", end_line-154, end_line);
+    uint64_t start_frame_cycle = (start_cycle - active_cycle) % 17556;
+    uint64_t start_frame_line = start_frame_cycle / 114;
+    if(get_mode(start_cycle, true) == 0) { //output from that line has gone to the screen already
+        start_frame_line++;
     }
-    assert(end_line - start_line < 154); //Expect not to ever receive over a frame of data
-    //fflush(stdin);
+
+    uint64_t end_frame_cycle = (end_cycle - active_cycle) % 17556;
+    uint64_t end_frame_line = end_frame_cycle / 114;
+    if(get_mode(end_cycle, true) >= 2) { //output from that line *hasn't* gone to the screen yet
+        end_frame_line--;
+    }
+
+    if(end_frame_line > 153) return 0;
+    if(end_frame_line < start_frame_line && end_frame_cycle - start_frame_cycle >= 114) {
+        end_frame_line+=154;
+    }
+
     bool output_sdl = true;
-    bool output_image = false;
+    uint64_t output_cycle = 0;
 
     std::vector<uint8_t> tile_line(8,0);
 
@@ -644,7 +621,9 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
         pixels = ((uint32_t *)buffer->pixels);
     }
 
-    for(int line=start_line;line <= end_line; line++) {
+    //printf("Render starting conditions: startline: %d endline: %d\n", start_frame_line, end_frame_line);
+    for(int line=start_frame_line;line <= end_frame_line; line++) {
+        //printf("Running line: %d\n", line);
         int render_line = line % 154;
         if(debug && render_line == 153 && output_sdl) {
 
@@ -702,7 +681,7 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
 
         //Draw the background
         if(control.priority) { //cpu_controls whether the background displays, in regular DMG mode
-            if(output_sdl && start_line == 0) { //Draw the background color
+            if(output_sdl && start_frame_line == 0) { //Draw the background color
                 SDL_SetRenderDrawColor(renderer, 85*(3 - bgpal.pal[0]), 85*(3 - bgpal.pal[0]), 85*(3 - bgpal.pal[0]), 255);
                 SDL_RenderClear(renderer);
             }
@@ -846,11 +825,15 @@ bool lcd::render(int frame, int start_line/*=0*/, int end_line/*=143*/) {
             if(!debug) {
                 SDL_RenderPresent(renderer);
             }
-            output_image = true;
         }
+        if(render_line == 143) {
+            output_cycle = start_cycle - start_frame_cycle + (143*114) + 20 + 43;
+            //printf("Outputting at cycle: %lld\n", output_cycle);
+        }
+
     }
 
-    return output_image;
+    return output_cycle;
 }
 
 void lcd::update_estimates(uint64_t cycle) {
