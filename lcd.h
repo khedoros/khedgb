@@ -43,6 +43,7 @@ public:
     void set_debug(bool db);
     void toggle_debug();
     uint64_t get_frame();
+    void dma(bool dma_active, uint64_t cycle, uint8_t dma_addr);
 
 private:
     void update_estimates(uint64_t cycle);
@@ -54,7 +55,11 @@ private:
     uint32_t map_oam1_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_oam2_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
 
+    void draw_debug_overlay();
+
     bool debug;
+    bool during_dma;
+    bool cpu_during_dma;
 
     struct dmgpal {
         uint8_t pal[4];
@@ -89,8 +94,6 @@ private:
     //Needed for rendering, so must be mirrored to "catch up" with the CPU's view of the PPU state
     std::list<util::cmd> cmd_queue; //List of commands to catch up PPU with CPU
     std::list<util::cmd> timing_queue; //Abusing the util::cmd type to store line, cycle, and whether the access was a write to oam, vram, or some other control register
-    std::vector<std::vector<uint8_t>> cmd_data; //necessary to store a snapshot of DMA data, for example
-    uint32_t cmd_data_size = 0;
     Vect<uint8_t> vram;
     Vect<uint8_t> oam;
     uint64_t cycle;      //Last cycle executed during previous invocation of "lcd::run()"

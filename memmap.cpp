@@ -317,14 +317,18 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 int_requested.reg = *((uint8_t *)val);
                 //printf("Interrupts requested: %02X\n",int_requested.reg);
                 break;
-            case 0xff46: //OAM DMA
+            case 0xff46: //OAM DMA, decomposed into a set of 
                 {
-                    int dat = uint16_t(*((uint8_t *)val)) * 0x100;
-                    if(dat < 0xf100) {
+                    uint16_t src_addr = uint16_t(*((uint8_t *)val)) * 0x100;
+                    if(src_addr < 0xf100) {
                         //dat is between 0x00 and 0xf1, so that covers: ROM (00 to 7f), vram (80 to 9f), cram (a0-bf), wram (c0-df), wram_echo (e0-f1)
-                        uint8_t temp[0xa0];
-                        read(dat, (void *)(&temp[0]), 0xa0, cycle);
-                        screen.write(0xff46, (void *)(&temp[0]), 0xa0, cycle);
+                        screen.dma(true, cycle, *((uint8_t *)val));
+                        for(uint16_t dest_index = 0; dest_index < 0xa0; dest_index++) {
+                            uint8_t data = 0;
+                            read(src_addr+dest_index, &data, 1, cycle + dest_index);
+                            screen.write(0xfe00 + dest_index, &data, 1, cycle + dest_index);
+                        }
+                        screen.dma(false, cycle + 0xa0, *((uint8_t *)val));
                     }
                 }
                 break;

@@ -5,7 +5,7 @@
 #include<fstream>
 #include<string>
 
-lcd::lcd() : debug(false), cycle(0), next_line(0), control{.val=0x00}, bg_scroll_y(0), bg_scroll_x(0), 
+lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.val=0x00}, bg_scroll_y(0), bg_scroll_x(0), 
              bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, 
              win_scroll_y(0), win_scroll_x(0), active_cycle(0), frame(0), 
              lyc_next_cycle(0), m0_next_cycle(0), m1_next_cycle(0), m2_next_cycle(0), 
@@ -85,12 +85,6 @@ lcd::lcd() : debug(false), cycle(0), next_line(0), control{.val=0x00}, bg_scroll
     SDL_RenderPresent(renderer);
     //printf("lcd::constructor reached end\n");
     
-    cmd_data_size = 0;
-    cmd_data.resize(10);
-    for(int i=0;i<10;i++) {
-        cmd_data[i].resize(0xa0);
-    }
-
     //Set default palettes
     sys_bgpal.resize(4);
     sys_winpal.resize(4);
@@ -145,10 +139,6 @@ lcd::~lcd() {
         SDL_FreeSurface(bg2);
         bg2 = NULL;
     }
-    for(int i=0;i<10;i++) {
-        cmd_data[i].resize(0);
-    }
-    cmd_data.resize(0);
 }
 
 uint64_t lcd::run(uint64_t run_to) {
@@ -183,7 +173,6 @@ uint64_t lcd::run(uint64_t run_to) {
         }
     }
 
-    cmd_data_size = 0;
     cycle = run_to;
     //printf("Reporting render at cycle: %lld\n", render_cycle);
     return render_cycle; //0 means a frame hasn't been rendered during this timeslice
@@ -191,10 +180,13 @@ uint64_t lcd::run(uint64_t run_to) {
 
 //Apply the data extracted from the command queue, and apply it to the PPU view of the state
 void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
+    uint8_t prev = 0xb5; //stands for "BS"
     if(addr >= 0x8000 && addr < 0xa000) {
+        prev = vram[addr&0x1fff];
         vram[addr & 0x1fff] = val;
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
+        prev = oam[addr-0xfe00];
         oam[addr-0xfe00] = val;
     }
     else {
@@ -206,20 +198,21 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                     if(control.display_enable && !old_val.display_enable) {
                         active_cycle = cycle;
                     }
+                    prev = old_val.val;
                 }
                 break;
             case 0xff42:
                 //printf("cycle: %ld (mode: %d line: %d cycle: %d) bg_scroll_y = %d\n", cycle, get_mode(cycle, true), ((cycle-active_cycle)%17556)/114, (cycle - active_cycle)%114, val);
+                prev = bg_scroll_y;
                 bg_scroll_y = val;
                 break;
             case 0xff43:
                 //printf("cycle: %ld (mode: %d line: %d cycle: %d) bg_scroll_x = %d\n", cycle, get_mode(cycle, true), ((cycle-active_cycle)%17556)/114, (cycle - active_cycle)%114 ,val);
+                prev = bg_scroll_x;
                 bg_scroll_x = val;
                 break;
-            case 0xff46://OAM DMA
-                assert(cmd_data_size > index);
-                assert(cmd_data_size < cmd_data.size());
-                memcpy(&oam[0],&cmd_data[index][0],0xa0);
+            case 0xff46://OAM DMA (deprecated; I'm just going to do this with regular register writes, to maintain the timing)
+                during_dma = (val==1);
                 break;
             case 0xff47:
                 bgpal.pal[0] = (val & 0x03);
@@ -246,15 +239,17 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                 win_scroll_x = val;
                 break;
             default:
+                printf("Ignoring 0x%04x = %02x @ %lld\n", addr, val, cycle);
                 //Various data aren't necessary to render the screen, so we ignore anything like interrupts and status
                 break;
         }
     }
+    //printf("Processing %04x = %02x (prev: %02x) @ %lld\n", addr, val, prev, cycle);
     return;
 }
 
 void lcd::write(int addr, void * val, int size, uint64_t cycle) {
-    assert(size==1||(addr==0xff46&&size==0xa0));
+    assert(size==1);
     //printf("PPU: 0x%04X = 0x%02x @ %ld (mode %d)\n", addr, *((uint8_t *)val), cycle, get_mode(cycle));
     if(addr >= 0x8000 && addr < 0xa000) {
         if(get_mode(cycle) != 3 || !cpu_control.display_enable) {
@@ -271,14 +266,14 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
         //}
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
-        if(get_mode(cycle) < 2 || !cpu_control.display_enable) {
+        if(get_mode(cycle) < 2 || !cpu_control.display_enable || cpu_during_dma) {
             memcpy(&(cpu_oam[addr - 0xfe00]), val, size);
             cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
         }
         if(debug) {
             uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
             int line_cycle = (cycle - cpu_active_cycle) % 114;
-            timing_queue.emplace_back(util::cmd{line,line_cycle,1,0});
+            timing_queue.emplace_back(util::cmd{line,line_cycle,1,cpu_during_dma});
         }
         //else {
         //    printf("PPU: Cycle %010ld Denied write during mode 2/3: 0x%04x = 0x%02x\n", cycle, addr, *((uint8_t *)val));
@@ -361,23 +356,10 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                     }
                 }
                 break;
-            //TODO: Make the steps of this obey the OAM search and LCD write periods (modes 2+3)
             case 0xff46://OAM DMA
-                {
-                    memcpy(&cpu_oam[0],val,0xa0);
-                    uint64_t index = cmd_data_size;
-                    cmd_data_size++;
-                    for(int i=0;i<0xa0;i++) {
-                        cmd_data[index][i] = cpu_oam[i];
-                    }
-                    cpu_dma_addr = *((uint8_t *)val);
-                    cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), index});
-                }
-                for(int offset=0;debug && offset<160;offset++) { //OAM DMA is 1 cycle per byte transferred, with 40*4 bytes
-                    uint64_t line = ((cycle + offset - cpu_active_cycle) % 17556) / 114;
-                    int line_cycle = (cycle + offset - cpu_active_cycle) % 114;
-                    timing_queue.emplace_back(util::cmd{line,line_cycle,5,0});
-                }
+                //Send whether DMA is active or inactive (this is now just a bool, *not* the actual DMA; the DMA is transmitted as a series of writes directly to OAM)
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                //Value of DMA addr is set when DMA is first requested, so we don't handle it here
                 break;
             case 0xff47:
                 cpu_bgpal.pal[0] = *((uint8_t *)val) & 0x03;
@@ -534,7 +516,7 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
             case 0xff45:
                 *((uint8_t *)val) = cpu_lyc;
                 break;
-            case 0xff46:
+            case 0xff46: //This value is now set in lcd::dma
                 *((uint8_t *)val) = cpu_dma_addr;
                 break;
             case 0xff47:
@@ -621,61 +603,13 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
         pixels = ((uint32_t *)buffer->pixels);
     }
 
-    //printf("Render starting conditions: startline: %d endline: %d\n", start_frame_line, end_frame_line);
+    //printf("Render starting conditions: startline: %lld endline: %lld\n", start_frame_line, end_frame_line);
     for(int line=start_frame_line;line <= end_frame_line; line++) {
         //printf("Running line: %d\n", line);
         int render_line = line % 154;
         if(debug && render_line == 153 && output_sdl) {
+            draw_debug_overlay();
 
-            //Draw the guides
-            SDL_Rect white_rect  = { 0,0,114,154};
-            SDL_Rect yellow_rect = { 0,0, 20,144};
-            SDL_Rect pink_rect   = {20,0, 43,144};
-            SDL_SetRenderDrawColor(renderer, 255,255,255,150);
-            SDL_RenderFillRect(renderer, &white_rect);
-            if(control.display_enable) {
-                SDL_SetRenderDrawColor(renderer, 255,255,200,150);
-                SDL_RenderFillRect(renderer, &yellow_rect);
-                SDL_SetRenderDrawColor(renderer, 255,200,200,150);
-                SDL_RenderFillRect(renderer, &pink_rect);
-                SDL_SetRenderDrawColor(renderer, 20,20,20,150);
-                SDL_RenderDrawRect(renderer, &white_rect);
-            }
-
-            uint64_t last_seen = 0;
-            while(timing_queue.size() > 0 && timing_queue.front().cycle >= last_seen) {
-                util::cmd c = timing_queue.front();
-                uint64_t line = c.cycle;
-                last_seen = line;
-                int line_cycle = c.addr;
-                uint8_t type = c.val;
-                if(type == 1 || type == 5) { //OAM writes
-                    if(line_cycle < 63 && line < 144 && control.display_enable) { //Forbidden
-                        SDL_SetRenderDrawColor(renderer, 255,0,0,255);
-                        SDL_RenderDrawPoint(renderer, line_cycle, line);
-                    }
-                    else {
-                        SDL_SetRenderDrawColor(renderer, 0,255,0,255);
-                        SDL_RenderDrawPoint(renderer, line_cycle, line);
-                    }
-                }
-                else if(type == 0) { //VRAM writes
-                    if(line_cycle >= 20 && line_cycle < 63 && line < 144 && control.display_enable) { //VRAM writes
-                        SDL_SetRenderDrawColor(renderer, 255,0,0,255);
-                        SDL_RenderDrawPoint(renderer, line_cycle, line);
-                    }
-                    else {
-                        SDL_SetRenderDrawColor(renderer, 0,255,0,255);
-                        SDL_RenderDrawPoint(renderer, line_cycle, line);
-                    }
-                }
-                else {
-                    SDL_SetRenderDrawColor(renderer, 0,0,255,255);
-                    SDL_RenderDrawPoint(renderer, line_cycle, line);
-                }
-                timing_queue.pop_front();
-            }
-            SDL_RenderPresent(renderer);
         }
         else if(render_line > 143) continue;
 
@@ -748,7 +682,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
 
         //Draw the sprites
-        if(control.sprite_enable) {
+        if(control.sprite_enable && !during_dma) {
             for(int spr = 0; spr < 40; spr++) {
                 oam_data sprite_dat;
                 memcpy(&sprite_dat, &oam[spr*4], 4);
@@ -955,4 +889,64 @@ void lcd::toggle_debug() {
 
 uint64_t lcd::get_frame() {
     return frame;
+}
+
+void lcd::dma(bool during_dma, uint64_t cycle, uint8_t dma_addr) {
+    uint8_t temp = during_dma;
+    cpu_during_dma = during_dma;
+    cpu_dma_addr = dma_addr;
+    write(0xff46, &temp, 1, cycle);
+}
+
+void lcd::draw_debug_overlay() {
+    //Draw the guides
+    SDL_Rect white_rect  = { 0,0,114,154};
+    SDL_Rect yellow_rect = { 0,0, 20,144};
+    SDL_Rect pink_rect   = {20,0, 43,144};
+    SDL_SetRenderDrawColor(renderer, 255,255,255,150);
+    SDL_RenderFillRect(renderer, &white_rect);
+    if(control.display_enable) {
+        SDL_SetRenderDrawColor(renderer, 255,255,200,150);
+        SDL_RenderFillRect(renderer, &yellow_rect);
+        SDL_SetRenderDrawColor(renderer, 255,200,200,150);
+        SDL_RenderFillRect(renderer, &pink_rect);
+        SDL_SetRenderDrawColor(renderer, 20,20,20,150);
+        SDL_RenderDrawRect(renderer, &white_rect);
+    }
+
+    uint64_t last_seen = 0;
+    while(timing_queue.size() > 0 && timing_queue.front().cycle >= last_seen) {
+        util::cmd c = timing_queue.front();
+        uint64_t line = c.cycle;
+        last_seen = line;
+        int line_cycle = c.addr;
+        uint8_t type = c.val;
+        uint64_t during_dma = c.data_index;
+        if(type == 1 || type == 5) { //OAM writes
+            if(line_cycle < 63 && line < 144 && control.display_enable && ! during_dma) { //Forbidden
+                SDL_SetRenderDrawColor(renderer, 255,0,0,255);
+                SDL_RenderDrawPoint(renderer, line_cycle, line);
+            }
+            else {
+                SDL_SetRenderDrawColor(renderer, 0,255,0,255);
+                SDL_RenderDrawPoint(renderer, line_cycle, line);
+            }
+        }
+        else if(type == 0) { //VRAM writes
+            if(line_cycle >= 20 && line_cycle < 63 && line < 144 && control.display_enable) { //VRAM writes
+                SDL_SetRenderDrawColor(renderer, 255,0,0,255);
+                SDL_RenderDrawPoint(renderer, line_cycle, line);
+            }
+            else {
+                SDL_SetRenderDrawColor(renderer, 0,255,0,255);
+                SDL_RenderDrawPoint(renderer, line_cycle, line);
+            }
+        }
+        else {
+            SDL_SetRenderDrawColor(renderer, 0,0,255,255);
+            SDL_RenderDrawPoint(renderer, line_cycle, line);
+        }
+        timing_queue.pop_front();
+    }
+    SDL_RenderPresent(renderer);
 }
