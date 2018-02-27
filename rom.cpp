@@ -153,7 +153,7 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
         cram.resize(512); //512 4-bit values supported in MBC2
     }
 
-    std::vector<uint8_t> rtc_data;
+    Vect<uint8_t> rtc_data;
 
     if(h.has_bat && cram.size() > 0) {
         uint32_t min_size = cram.size();
@@ -370,7 +370,7 @@ void mbc2_rom::write(uint32_t addr, void * val, int size, int cycle) {
 
 
 //MBC3 mapper
-mbc3_rom::mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc, std::vector<uint8_t>& rtc_data) : mapper(rom_size, ram_size+5, has_bat), rombank(1), rambank(0), ram_enabled(false), rtc_latch(false), rtc{0,0,0,0,0}, latched_rtc{0,0,0,0,0}, load_timestamp(0) {
+mbc3_rom::mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc, Vect<uint8_t>& rtc_data) : mapper(rom_size, ram_size+5, has_bat), rombank(1), rambank(0), ram_enabled(false), rtc_latch(false), rtc{0,0,0,0,0}, latched_rtc{0,0,0,0,0}, load_timestamp(0) {
     //TODO: Add RTC load code
 }
 uint32_t mbc3_rom::map_rom(uint32_t addr, int cycle) {

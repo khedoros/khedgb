@@ -1,12 +1,13 @@
 #include<iostream>
 #include<cstdint>
 #include<string>
-#include<vector>
 #include<fstream>
 #include "memmap.h"
 #include "cpu.h"
 #include "lcd.h"
 #include "util.h"
+
+void usage(char ** argv);
 
 int main(int argc, char *argv[]) {
     if(argc < 2) {
@@ -20,7 +21,7 @@ int main(int argc, char *argv[]) {
     bool audio = true;
     std::string romfile = "";
     std::string fwfile  = "";
-    std::vector<std::string> args;
+    Vect<std::string> args;
     args.resize(argc - 1, "");
     for(int arg = 1; arg < argc; ++arg) {
         args[arg-1] = std::string(argv[arg]);
@@ -58,8 +59,19 @@ int main(int argc, char *argv[]) {
             }
         }
         else {
-            romfile = args[arg];
+            if(romfile == "" && args[arg][0] != '-') {
+                romfile = args[arg];
+            }
+            else {
+                usage(argv);
+                return 1;
+            }
         }
+    }
+
+    if(romfile == "" || argc < 2) {
+        usage(argv);
+        return 1;
     }
 
     std::cout<<"Passing in rom file name of "<<romfile<<" and fw file name of "<<fwfile<<std::endl;
@@ -153,4 +165,15 @@ int main(int argc, char *argv[]) {
         cycle += tick_size;
     }
     return 0;
+}
+
+void usage(char ** argv) {
+    printf("Usage: %s [options] romfile\n\n", argv[0]);
+    printf("Options:\n");
+    printf("\t--sgb: Set Super Gameboy mode, if possible.\n");
+    printf("\t--cgb: Set Color Gameboy mode, if possible.\n");
+    printf("\t--trace: Activate CPU instruction trace\n");
+    printf("\t--headless: Headless mode (graphics disabled)\n");
+    printf("\t--nosound: NoSound mode (audio disabled)\n");
+    printf("\t--fw fw_filename: Boot using specified bootstrap firmware (expect 256 byte files for SGB and DMG, and 2,304 byte file for CGB)\n");
 }

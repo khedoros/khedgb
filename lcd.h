@@ -1,7 +1,6 @@
 #pragma once
 
 #include<cstdint>
-//#include<vector>
 #include<SDL2/SDL.h>
 #include "util.h"
 #include<list>
@@ -39,17 +38,22 @@ public:
     uint64_t get_active_cycle();
     uint64_t run(uint64_t cycle_count);
     uint8_t get_mode(uint64_t cycle, bool ppu_view = false);
-    void sgb_trigger_dump(std::string filename);
     void set_debug(bool db);
     void toggle_debug();
     uint64_t get_frame();
     void dma(bool dma_active, uint64_t cycle, uint8_t dma_addr);
 
+    void sgb_trigger_dump(std::string filename);
+    void sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors);
+    void sgb_vram_transfer(uint8_t type);
+    void sgb_set_mask_mode(uint8_t mode);
+    uint8_t sgb_vram_transfer_type;
+
 private:
     void update_estimates(uint64_t cycle);
     void apply(int addr, uint8_t val, uint64_t index, uint64_t cycle);
     uint64_t render(int frame, uint64_t start_cycle, uint64_t end_cycle);
-    void get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>& pixels);
+    void get_tile_row(int tilenum, int row, bool reverse, Vect<uint8_t>& pixels);
     uint32_t map_bg_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_win_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_oam1_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
@@ -175,6 +179,52 @@ private:
     SDL_Surface * bg1; //Background map 1 compositing buffer
     SDL_Surface * bg2; //Background map 2 compositing buffer
 
+
+    //Super GameBoy-related structs and values
     std::string sgb_dump_filename;
+
+    union sgb_color {
+        struct {
+            unsigned red: 5;
+            unsigned green: 5;
+            unsigned blue: 5;
+            unsigned unused:1;
+        };
+        struct {
+            uint8_t low;
+            uint8_t high;
+        };
+        uint16_t val;
+    };
+
+    union sgb_pal {
+        sgb_color col[4];
+    };
+
+    union sgb_attr {
+        struct {
+            unsigned tile:10;
+            unsigned pal:3;
+            unsigned priority:1;
+            unsigned xflip:1;
+            unsigned yflip:1;
+        };
+        struct {
+            uint8_t low;
+            uint8_t high;
+        };
+        uint16_t val;
+    };
+
+    bool sgb_mode; //Should I activate SGB mode?
+    //Vect<sgb_pal>  sgb_pals[8]; //8 visible palettes, actually, I'll reuse the palette entries I'm already using for translation to SDL colors anyhow
+    Vect<sgb_pal>  sgb_sys_pals[512]; //set of 512 palettes that can be copied into the visible ones. These will need translated to SDL colors when used.
+    Vect<uint8_t>  sgb_attrs[20*18]; //palette selections for the main GB display window. These will act as indices into the SDL palette table.
+    Vect<sgb_attr> sgb_frame_attrs[32*32]; //tilemap, palette selections, priorities, etc for window border
+    uint8_t sgb_mask_mode; //0=cancel, 1=freeze, 2=black, 3=color 0
+    Vect<uint8_t> sgb_tiles[256*8*8]; //
+    bool sgb_set_low_tiles;
+    bool sgb_set_high_tiles;
+    bool sgb_set_bg_attr;
 
 };

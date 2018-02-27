@@ -1,6 +1,5 @@
 #pragma once
 
-//#include<vector>
 #include<string>
 #include<cstring>
 #include<cstdint>
@@ -114,7 +113,7 @@ class mbc2_rom: public mapper {
 
 class mbc3_rom: public mapper {
     public:
-        mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc, std::vector<uint8_t>& rtc_data);
+        mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc, Vect<uint8_t>& rtc_data);
         virtual uint32_t map_rom(uint32_t addr, int cycle);
         virtual uint32_t map_ram(uint32_t addr, int cycle);
         virtual void write(uint32_t addr, void * val, int size, int cycle);

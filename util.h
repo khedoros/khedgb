@@ -10,6 +10,7 @@ namespace util {
 template<typename T>
 class RangeCheckVector : public std::vector<T> {
     public:
+        using std::vector<T>::vector;
         T& operator[](int i) {
             return std::vector<T>::at(i);
         }
@@ -18,6 +19,9 @@ class RangeCheckVector : public std::vector<T> {
             return std::vector<T>::at(i);
         }
 };
+
+#define Vect util::RangeCheckVector
+//#define Vect std::vector
 
 struct cmd {
     uint64_t cycle;
@@ -28,13 +32,11 @@ struct cmd {
 
 bool process_events(cpu * c, memmap * bus);
 #ifndef __CYGWIN__
-int unzip(const std::string& zip_filename, std::vector<uint8_t>& output, size_t min, size_t max);
+int unzip(const std::string& zip_filename, Vect<uint8_t>& output, size_t min, size_t max);
 #endif
-int read(const std::string& filename, std::vector<uint8_t>& output, size_t min_size, size_t max_size);
+int read(const std::string& filename, Vect<uint8_t>& output, size_t min_size, size_t max_size);
 }
 
-#define Vect util::RangeCheckVector
-//#define Vect std::vector
 
 //Sign-extend value from 8-bit to 32-bit
 #define extend(x) ( (x>0x7f) ? 0xffffff00|x : x)

@@ -13,7 +13,7 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
              cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}},
              cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
              screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL),
-             sgb_dump_filename("") {
+             sgb_dump_filename(""), sgb_mask_mode(0), sgb_vram_transfer_type(0) {
 
     vram.resize(0x2000);
     oam.resize(0xa0);
@@ -90,12 +90,28 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
     sys_winpal.resize(4);
     sys_obj1pal.resize(4);
     sys_obj2pal.resize(4);
+
+    uint8_t default_palette[] =
+//         0              1              2              3
+/*bg*/  {255, 255, 255, 170, 170, 170,  85,  85,  85,   0,   0,   0, //B+W, going from white to black
+/*win*/  255, 210, 210, 175, 140, 140,  95,  70,  70,  15,   0,   0, //Light pink to deep, dark red
+/*ob1*/  210, 255, 210, 140, 175, 140,  70,  95,  70,   0,  15,   0, //Seafoam green to Schwarzwald at midnight
+/*ob2*/  210, 210, 255, 140, 140, 175,  70,  70,  95,   0,   0,  15}; //Powder blue to Mariana trench
+
+    for(int i=0; buffer && i<4; i++) {
+        sys_bgpal[i] = SDL_MapRGB(buffer->format, default_palette[i*3], default_palette[i*3+1], default_palette[i*3+2]);
+        sys_winpal[i] = SDL_MapRGB(buffer->format, default_palette[i*3+12], default_palette[i*3+13], default_palette[i*3+14]);
+        sys_obj1pal[i] = SDL_MapRGB(buffer->format, default_palette[i*3+24], default_palette[i*3+25], default_palette[i*3+26]);
+        sys_obj2pal[i] = SDL_MapRGB(buffer->format, default_palette[i*3+36], default_palette[i*3+37], default_palette[i*3+38]);
+    }
+    /*
     for(int i=0;buffer && i<4;i++) {
         sys_bgpal[i] = SDL_MapRGB(buffer->format, 85*(3-i), 85*(3-i), 85*(3-i));
         sys_winpal[i] = SDL_MapRGB(buffer->format, 80*(3-i)+15, 70*(3-i), 70*(3-i));
         sys_obj1pal[i] = SDL_MapRGB(buffer->format, 70*(3-i), 80*(3-i)+15, 70*(3-i));
         sys_obj2pal[i] = SDL_MapRGB(buffer->format, 70*(3-i), 70*(3-i), 80*(3-i)+15);
     }
+    */
 }
 
 lcd::~lcd() {
@@ -549,7 +565,7 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
     return;
 }
 
-void lcd::get_tile_row(int tilenum, int row, bool reverse, std::vector<uint8_t>& pixels) {
+void lcd::get_tile_row(int tilenum, int row, bool reverse, Vect<uint8_t>& pixels) {
     assert(tilenum < 384); assert(row < 16); assert(pixels.size() == 8);
     int addr = tilenum * 16 + row * 2;
     int b1 = vram[addr];
@@ -598,11 +614,13 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
     bool output_sdl = true;
     uint64_t output_cycle = 0;
 
-    std::vector<uint8_t> tile_line(8,0);
+    Vect<uint8_t> tile_line(8);
+    memset(&tile_line[0], 0, 8);
 
     uint32_t * pixels = NULL;
 
-    std::vector<uint8_t> bgmap(160,0);
+    Vect<uint8_t> bgmap(160);
+    memset(&bgmap[0], 0, 160);
 
     if(!screen||!texture||!renderer) {
         printf("PPU: problem!\n");
@@ -764,8 +782,19 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
             texture = SDL_CreateTextureFromSurface(renderer, buffer);
 
-            SDL_RenderClear(renderer);
-            SDL_RenderCopy(renderer,texture,NULL,NULL);
+            if(sgb_mask_mode == 2) {
+                SDL_SetRenderDrawColor(renderer, 0,0,0,255);
+            }
+            else if(sgb_mask_mode == 3) {
+                SDL_SetRenderDrawColor(renderer, sys_bgpal[bgpal.pal[0]], sys_bgpal[bgpal.pal[0]], sys_bgpal[bgpal.pal[0]], 255);
+            }
+
+            if(sgb_mask_mode != 1) {
+                SDL_RenderClear(renderer);
+            }
+            if(sgb_mask_mode == 0) {
+                SDL_RenderCopy(renderer,texture,NULL,NULL);
+            }
 
             if(!debug) {
                 SDL_RenderPresent(renderer);
@@ -961,3 +990,32 @@ void lcd::draw_debug_overlay() {
     }
     SDL_RenderPresent(renderer);
 }
+
+void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors) { //SGB commands 00, 01, 02, 03
+    assert(colors.size() == 21);
+}
+
+void lcd::sgb_vram_transfer(uint8_t type) { //SGB commands 0B, 13, 14, 15
+    sgb_vram_transfer_type = type;
+    /* For reference:
+    switch(type) {
+        case 0: //none
+        case 1: //pal, transfers 512 palettes of 8 bytes each
+            break;
+        case 2: //chr0, transfers 128 32-byte tiles in 4-bit color, using the 4 bit plane arrangement from SNES (tiles 0-127)
+            break;
+        case 3: //chr1, transfers 128 32-byte tiles in 4-bit color, using the 4 bit plane arrangement from SNES (tiles 128-255)
+            break;
+        case 4: //pct, transfers 1024 16-bit background attributes, then 16 2-byte colors (as palettes 4-7)
+            break;
+        case 5: //attr, transfers 90 attribute transfer files
+            break;
+    }
+    */
+}
+
+void lcd::sgb_set_mask_mode(uint8_t mode) { //SGB command 17
+    mode &= 0x3;
+    sgb_mask_mode = mode;
+}
+
