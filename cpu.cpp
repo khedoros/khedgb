@@ -97,6 +97,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         if(halted && (int_flag & int_enable & 0x1f) > 0) {
             halted = false;
             was_halted = true;
+            //printf("YO: exiting halt, int_flag: %02x int_enable: %02x\n", int_flag, int_enable);
         }
         bool called = call_interrupts();
         if(called) {
@@ -104,6 +105,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
             if(was_halted) {
                 was_halted = false;
                 cycles++;
+                //printf("YO: Exited halt due to interrupt call, expect to execute: %04x\n", pc);
             }
             return cycles;
         }
@@ -111,6 +113,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     //Interrupts disabled, interrupts are *pending*, but HALT was activated
     else if(halted && halt_bug) { //HALT bug: PC is stuck for one instruction after exiting halt mode
         //printf("HALT: opcode: %08x\n", opcode);
+        //printf("YO: Halt bug condition.\n");
         halted = false;
         halt_bug = false;
         uint32_t op2 = ((opcode & 0xffff00)>>8);
@@ -122,6 +125,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     } 
     //IME=0, and exiting halt mode due to a new interrupt triggering
     else if(halted && ((int_flag & int_enable) & 0x1f) > 0) {
+        //printf("YO: exited halt due to interrupt (if=%02x, ie=%02x, IME=%d), but IME=0\n", int_flag, int_enable, interrupts);
         halted = false;
         cycles++;
     }
@@ -180,15 +184,19 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         registers();
         printf("\t");
         decode(prefix,x,y,z,data);
-        printf("\n");
+        if(halted || stopped) {
+                printf(" (not executed)\n");
+        }
+        else {
+                printf("\n");
+        }
     }
 
     if(!halted && !stopped) {//If the CPU hits a HALT or STOP, it needs to stay there.
         pc += bytes;
+        //Branches and such need extra time, so execute returns any extra time that was necessary
+        cycles += execute(prefix,x,y,z,data);
     }
-
-    //Branches and such need extra time, so execute returns any extra time that was necessary
-    cycles += execute(prefix,x,y,z,data);
 
     return cycles;
 }
@@ -509,6 +517,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                 if(!interrupts && ((int_flag & int_enable) & 0x1f) > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
                     halt_bug = true;
                 }
+                //printf("YO: HALT called, if: %02x ie: %02x ime: %d\n", int_flag, int_enable, interrupts);
                 //printf("HALT\n");
             }
             else { //Fairly regular LD ops, 0x40 - 0x7f, except for 0x76
@@ -1302,7 +1311,11 @@ void cpu::registers() {
 }
 
 bool cpu::call_interrupts() {
+    const char * names[6] = {"none", "vblank", "lcdstat", "timer", "serial", "joypad"};
     INT_TYPE interrupt = bus->get_interrupt();
+    if(interrupt != NONE) {
+        //printf("Bus says interrupt: %s\n", names[interrupt]);
+    }
     bool call = true;
     uint16_t to_run = pc;
     switch(interrupt) {
