@@ -215,7 +215,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 case 0x1: //0x08
                     //Different than Z80
-                    bus->write(data, &sp, 2, cycle);
+                    bus->write(data, &sp, 2, cycle+2);
                     //printf("LD ($%04x), SP (diff)\n",data);
                     break;
                 case 0x2: //0x10
@@ -289,21 +289,21 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                 switch(p) { //Memory reads+writes, 0x02, 0x0a, 0x12, 0x1a, 0x22, 0x2a, 0x32, 0x3a
                 case 0x0: 
                     if(!q) { //0x02
-                        bus->write(bc.pair, &af.hi, 1, cycle);
+                        bus->write(bc.pair, &af.hi, 1, cycle+1);
                         //printf("LD (BC), A\n");
                     }
                     else { //0x0a
-                        bus->read(bc.pair, &af.hi, 1, cycle);
+                        bus->read(bc.pair, &af.hi, 1, cycle+1);
                         //printf("LD A, (BC)\n");
                     }
                     break;
                 case 0x1:
                     if(!q) { //0x12
-                        bus->write(de.pair, &af.hi, 1, cycle);
+                        bus->write(de.pair, &af.hi, 1, cycle+1);
                         //printf("LD (DE), A\n");
                     }
                     else { //0x1a
-                        bus->read(de.pair, &af.hi, 1, cycle);
+                        bus->read(de.pair, &af.hi, 1, cycle+1);
                         //printf("LD A, (DE)\n");
                     }
                     break;
@@ -311,14 +311,14 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                     if(!q) { //0x22
                         //Different than z80
                         //printf("LD (nn), HL\n");
-                        bus->write(hl.pair, &af.hi, 1, cycle);
+                        bus->write(hl.pair, &af.hi, 1, cycle+1);
                         hl.pair++;
                         //printf("LDI (HL), A (diff)\n");
                     }
                     else { //0x2a
                         //Different than z80
                         //printf("LD HL, (nn)\n");
-                        bus->read(hl.pair, &af.hi, 1, cycle);
+                        bus->read(hl.pair, &af.hi, 1, cycle+1);
                         hl.pair++;
                         //printf("LDI A, (HL) (diff)\n");
                     }
@@ -327,14 +327,14 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                     if(!q) { //0x32
                         //Different than z80
                         //printf("LD (nn), A\n");
-                        bus->write(hl.pair, &af.hi, 1, cycle);
+                        bus->write(hl.pair, &af.hi, 1, cycle+1);
                         hl.pair--;
                         //printf("LDD (HL), A (diff)\n");
                     }
                     else { //0x3a
                         //Different than z80
                         //printf("LD A, (nn)\n");
-                        bus->read(hl.pair, &af.hi, 1, cycle);
+                        bus->read(hl.pair, &af.hi, 1, cycle+1);
                         hl.pair--;
                         //printf("LDD A, (HL) (diff)\n");
                     }
@@ -352,31 +352,31 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                 }
                 break;
             case 0x4: //8-bit increments, 0x04, 0x0c, 0x14, 0x1c, 0x24, 0x2c, 0x34, 0x3c
-                if(y==6) bus->read(hl.pair, &dummy, 1, cycle); //0x34 (x=0,y=6,z=4) is a memory increment
+                if(y==6) bus->read(hl.pair, &dummy, 1, cycle+1); //0x34 (x=0,y=6,z=4) is a memory increment
                 (*r[y])++;
                 if((*r[y]) == 0) set(ZERO_FLAG);
                 else             clear(ZERO_FLAG);
                 if(((*r[y]) & 0xf) == 0) set(HALF_CARRY_FLAG); //0xf+1=0x10, so the bottom nibble produced a carry during the increment
                 else                     clear(HALF_CARRY_FLAG);
                 clear(SUB_FLAG);
-                if(y==6) bus->write(hl.pair, &dummy, 1, cycle); //0x34 (x=0,y=6,z=4) is a memory increment
+                if(y==6) bus->write(hl.pair, &dummy, 1, cycle+2); //0x34 (x=0,y=6,z=4) is a memory increment
                 //printf("INC %s\n", r[y]);
                 break;
             case 0x5: //8-bit memory decrements, 0x05, 0x0d, 0x15, 0x1d, 0x25, 0x2d, 0x35, 0x3d
-                if(y==6) bus->read(hl.pair, &dummy, 1, cycle); //0x35 (x=0,y=6,z=5) is a memory decrement
+                if(y==6) bus->read(hl.pair, &dummy, 1, cycle+1); //0x35 (x=0,y=6,z=5) is a memory decrement
                 (*r[y])--;
                 if((*r[y]) == 0) set(ZERO_FLAG);
                 else             clear(ZERO_FLAG);
                 if(((*r[y]) & 0xf) == 0xf) set(HALF_CARRY_FLAG); //0x10-1=0x0f, so the bottom nibble needed to borrow during the decrement
                 else                       clear(HALF_CARRY_FLAG);
                 set(SUB_FLAG);
-                if(y==6) bus->write(hl.pair, &dummy, 1, cycle); //0x35 (x=0,y=6,z=5) is a memory decrement
+                if(y==6) bus->write(hl.pair, &dummy, 1, cycle+2); //0x35 (x=0,y=6,z=5) is a memory decrement
                 //printf("DEC %s\n", r[y]);
                 break;
             case 0x6: //8-bit immediate value loads, 0x06,0x0e,0x16,0x1e,0x26,0x2e,0x36,0x3e
                 *r[y] = data;
                 if(y==6) {
-                    bus->write(hl.pair, &dummy, 1, cycle);
+                    bus->write(hl.pair, &dummy, 1, cycle+2);
                 }
                 //printf("LD %s, $%02x\n", r[y],data);
                 break;
@@ -513,10 +513,10 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
             }
             else { //Fairly regular LD ops, 0x40 - 0x7f, except for 0x76
                 if(z == 6) { //read from memory to register
-                    bus->read(hl.pair, &dummy, 1, cycle);
+                    bus->read(hl.pair, &dummy, 1, cycle+1);
                 }
                 else if(y==6) { //write from register into memory
-                    bus->write(hl.pair, r[z], 1, cycle);
+                    bus->write(hl.pair, r[z], 1, cycle+1);
                 }
 
                 *r[y] = *r[z];
@@ -525,7 +525,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
         }
         else if(x==2) { //ALU operations 0x80-0xbf
             if(z==6) { //These all have A as their destination, so there's no matching "write" call for memory operands here
-                bus->read(hl.pair,&dummy,1, cycle);
+                bus->read(hl.pair,&dummy,1, cycle+1);
             }
             switch(y) {
             case 0: //ADD, no carry, 0x80 - 0x87
@@ -664,7 +664,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
             case 0x0: //3 weird LD commands, 1 weird ADD, 4 conditional returns
                 switch(y) {
                 case 4: //Write A to high memory address, 0xe0
-                    bus->write(0xff00 + uint16_t(data), &af.hi, 1, cycle);
+                    bus->write(0xff00 + uint16_t(data), &af.hi, 1, cycle+2);
                     //printf("LD (FF00+$%02x), A (diff)\n",data);
                     break;
                 case 5://add 8-bit signed to SP, 0xe8
@@ -691,7 +691,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                     //printf("ADD SP, $%02x (diff)\n",data);
                     break;
                 case 6: //Read from high memory address to A, 0xf0
-                    bus->read(0xff00 + uint16_t(data), &af.hi, 1, cycle);
+                    bus->read(0xff00 + uint16_t(data), &af.hi, 1, cycle+2);
                     //printf("LD A, (FF00+$%02x) (diff)\n",data);
                     break;
                 case 7: //Transfer SP+8-bit signed to HL, 0xf8
@@ -741,7 +741,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                         break;
                     }
                     if(condition) {
-                        bus->read(sp, &pc, 2, cycle);
+                        bus->read(sp, &pc, 2, cycle+4);
                         sp += 2;
                         extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
                     }
@@ -751,7 +751,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                 break;
             case 0x1: //Weird POPs, RETs, and JPs 0xc1, 0xc9, 0xd1, 0xd9, 0xe1, 0xe9
                 if(!q) { //16-bit POP, 0xc1, 0xd1, 0xe1, 0xf1
-                    bus->read(sp, rp2[p], 2, cycle);
+                    bus->read(sp, rp2[p], 2, cycle+2);
                     sp += 2;
                     if(p==3) {
                         af.low &= 0xf0;
@@ -761,13 +761,13 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                 else { //Jumps and stack ops, 0xc9, 0xd9, 0xe9, 0xf9
                     switch(p) {
                     case 0x0: //standard RET, 0xc9
-                        bus->read(sp, &pc, 2, cycle);
+                        bus->read(sp, &pc, 2, cycle+3);
                         sp += 2;
                         //printf("RET\n");
                         break;
                     case 0x1: //RET from interrupt, Different from z80, 0xd9
                         //printf("EXX\n");
-                        bus->read(sp, &pc, 2, cycle);
+                        bus->read(sp, &pc, 2, cycle+3);
                         sp+=2;
                         interrupts = true;
                         //printf("RETI (diff)\n");
@@ -806,19 +806,19 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                     }
                     break;
                 case 0x4: //Write from A to IO port C, 0xe2
-                    bus->write(0xff00 + uint16_t(bc.low), &af.hi,1, cycle);
+                    bus->write(0xff00 + uint16_t(bc.low), &af.hi,1, cycle+1);
                     //printf("LD (FF00+C), A (diff)\n");
                     break;
                 case 0x5: //Write A to memory location, 0xea
-                    bus->write(data,&af.hi,1, cycle);
+                    bus->write(data,&af.hi,1, cycle+3);
                     //printf("LD ($%04x), A (diff)\n",data);
                     break;
                 case 0x6: //Read from IO port C to A, 0xf2
-                    bus->read(0xff00 + uint16_t(bc.low), &af.hi,1, cycle);
+                    bus->read(0xff00 + uint16_t(bc.low), &af.hi,1, cycle+1);
                     //printf("LD A, (FF00+C) (diff)\n");
                     break;
                 case 0x7: //Read from memory location to A, 0xfa
-                    bus->read(data,&af.hi,1, cycle);
+                    bus->read(data,&af.hi,1, cycle+3);
                     //printf("LD A, ($%04x) (diff)\n",data);
                     break;
                 }
@@ -891,7 +891,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                         break;
                     }
                     if(condition) {
-                        bus->write(sp-2, &pc, 2, cycle);
+                        bus->write(sp-2, &pc, 2, cycle+5);
                         sp -= 2;
                         pc = data;
                         extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
@@ -904,14 +904,14 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                 break;
             case 0x5: //16-bit PUSHes, unconditional call to immediate address, 3 dead ops
                 if(!q) { //16-bit PUSH, 0xc5, 0xd5, 0xe5, 0xf5
-                    bus->write(sp-2, rp2[p], 2, cycle);
+                    bus->write(sp-2, rp2[p], 2, cycle+3);
                     sp -= 2;
                     //printf("PUSH %s\n", rp2[p]);
                 }
                 else {
                     switch(p) {
-                    case 0x0: //Unconditional call to immediate address
-                        bus->write(sp-2, &pc, 2, cycle);
+                    case 0x0: //Unconditional call to immediate address 
+                        bus->write(sp-2, &pc, 2, cycle+5);
                         sp -= 2;
                         pc = data;
                         //printf("CALL $%04x\n",data);
@@ -1070,7 +1070,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                 //printf("%s $%02x\n", alu[y],data);
                 break;
             case 0x7: //RST Y*8, where y = [0..7], 0xc7, 0xcf, 0xd7, 0xdf, 0xe7, 0xef, 0xf7, 0xff
-                bus->write(sp-2, &pc, 2, cycle);
+                bus->write(sp-2, &pc, 2, cycle+3);
                 sp -= 2;
                 pc = y * 8;
                 //printf("RST %02X\n", y*8);
@@ -1081,7 +1081,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
     }
     else if(pre==0xCB) {
         if(z==6) { //Read value from memory to temp location
-            bus->read(hl.pair, &dummy, 1, cycle);
+            bus->read(hl.pair, &dummy, 1, cycle+2);
         }
         if(x==0) {
             switch(y) {
@@ -1224,7 +1224,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
         }
 
         if(x!=1 && z==6) { //3/4 of the instructions affect their operand; write back to memory if the operand is a memory address
-            bus->write(hl.pair, &dummy, 1, cycle);
+            bus->write(hl.pair, &dummy, 1, cycle+3);
         }
     }
     else {
