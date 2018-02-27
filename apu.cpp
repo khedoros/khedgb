@@ -11,6 +11,11 @@ const uint8_t apu::or_values[] = {0x80, 0x3f, 0x00, 0xff, 0xbf, //0x10,0x11,0x12
                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  //0x30-0x37
                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; //0x38-0x3f
 
+const uint8_t apu::square_wave[4][8] = {{0,0,0,0,0,0,0,1},
+                                        {1,0,0,0,0,0,0,1},
+                                        {1,0,0,0,0,1,1,1},
+                                        {0,1,1,1,1,1,1,0}};
+
 apu::apu() {}
 
 void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {

@@ -249,6 +249,13 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
 }
 
 void lcd::write(int addr, void * val, int size, uint64_t cycle) {
+    if(size > 1) {
+        printf("addr: %04x = ", addr);
+        for(int i=0;i<size;i++) {
+            printf(" %02x", ((uint8_t *)val)[i]);
+        }
+        printf(" @ %ld\n", cycle);
+    }
     assert(size==1);
     //printf("PPU: 0x%04X = 0x%02x @ %ld (mode %d)\n", addr, *((uint8_t *)val), cycle, get_mode(cycle));
     if(addr >= 0x8000 && addr < 0xa000) {

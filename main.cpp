@@ -1,6 +1,7 @@
 #include<iostream>
 #include<cstdint>
 #include<string>
+#include<vector>
 #include<fstream>
 #include "memmap.h"
 #include "cpu.h"
@@ -11,24 +12,63 @@ int main(int argc, char *argv[]) {
     if(argc < 2) {
         return 1;
     }
-    const std::string romfile((argc>1)?argv[1]:"no_rom_file");
-    const std::string fwfile((argc>2)?argv[2]:"");
-    std::cout<<"Passing in rom file name of "<<romfile<<" and fw file name of "<<fwfile<<std::endl;
 
+    bool sgb = false;
+    bool cgb = false;
+    bool cpu_trace = false;
     bool headless = false;
     bool audio = true;
-
-    if( SDL_Init(SDL_INIT_EVERYTHING|SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER|SDL_INIT_NOPARACHUTE) < 0 ) {
-        std::cout<<"Couldn't init \"everything\", so we'll try skipping audio."<<std::endl;
-        if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_NOPARACHUTE) < 0) {
-            std::cout<<"Video init failed, trying to start with audio."<<std::endl;
-            if( SDL_Init(SDL_INIT_NOPARACHUTE|SDL_INIT_AUDIO) < 0) {
-                fprintf(stderr,"Couldn't initialize SDL audio: %s\n", SDL_GetError());
-                audio = false;
-            }
-            headless = true;
-            std::cout<<"Running in headless mode"<<std::endl;
+    std::string romfile = "";
+    std::string fwfile  = "";
+    std::vector<std::string> args;
+    args.resize(argc - 1, "");
+    for(int arg = 1; arg < argc; ++arg) {
+        args[arg-1] = std::string(argv[arg]);
+    }
+    for(size_t arg=0; arg < args.size(); ++arg) {
+        if(args[arg] == "--sgb") {
+            sgb = true;
+            printf("Option: Set Super Gameboy mode, if possible.\n");
         }
+        else if(args[arg] == "--cgb") {
+            cgb = true;
+            printf("Option: Set Color Gameboy mode, if possible.\n");
+        }
+        else if(args[arg] == "--trace") {
+            cpu_trace = true;
+            printf("Option: Activate CPU instruction trace\n");
+        }
+        else if(args[arg] == "--headless") {
+            headless = true;
+            printf("Option: Headless mode (graphics disabled)\n");
+        }
+        else if(args[arg] == "--nosound") {
+            audio = false;
+            printf("Option: NoSound mode (audio disabled)\n");
+        }
+        else if(args[arg] == "--fw") {
+            if(arg + 1 < args.size()) {
+                fwfile = args[arg+1];
+                arg++;
+                printf("Option: Firmware set to %s\n", fwfile.c_str());
+            }
+            else {
+                printf("Option --fw requires an argument.\n");
+                return 1;
+            }
+        }
+        else {
+            romfile = args[arg];
+        }
+    }
+
+    std::cout<<"Passing in rom file name of "<<romfile<<" and fw file name of "<<fwfile<<std::endl;
+
+    Uint32 sdl_init_flags = SDL_INIT_EVERYTHING|SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER;
+    if(headless) sdl_init_flags &= (~SDL_INIT_VIDEO);
+    if(!audio)   sdl_init_flags &= (~SDL_INIT_AUDIO);
+    if(SDL_Init(sdl_init_flags) < 0 ) {
+        fprintf(stderr,"Couldn't initialize SDL: %s\n--nosound would disable audio, --headless would disable video. Those might be worth a try, depending on the above error message.\n", SDL_GetError());
     }
 
     memmap bus(romfile, fwfile);
@@ -36,22 +76,31 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if(std::string("--sgb") == argv[argc - 1]) {
+    if(sgb) {
         bool active = bus.set_sgb(true);
         if(active) {
             printf("Activating Super GameBoy mode\n");
         }
         else {
-            printf("Cartridge reports that it's not supported. Disabling.\n");
+            printf("Cartridge reports that SGB mode is not supported. Disabling.\n");
         }
     }
     else {
         bus.set_sgb(false);
         printf("Disabling Super GameBoy mode (--sgb to activate it)\n");
     }
+
+    if(cgb) {
+        fprintf(stderr, "Sorry to get your hopes up, color is completely unsupported at this time.\n");
+    }
+
     cpu    proc(&bus,bus.has_firmware());
     lcd *  ppu = bus.get_lcd();
     apu *  sound = bus.get_apu();
+
+    if(cpu_trace) {
+        proc.toggle_trace();
+    }
 
     uint64_t cycle = 144*114; //Cycles since the machine started running (the system starts in vblank)
     uint64_t tick_size = 70224/16; //Cycles to run in a batch

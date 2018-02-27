@@ -210,16 +210,32 @@ private:
         uint8_t val;
     };
 
+    //Definitions of the waveforms for the square waves
+    static const uint8_t square_wave[4][8];      //The 4 actual square waves
+    static const uint8_t square_wave_length = 8; //Number of steps in the wave output
+
     //Channel 1, rectangle with sweep
     sweep_reg chan1_sweep;    //0xFF10 NR10
     pat_len_reg chan1_patlen; //0xFF11 NR11
     envelope_reg chan1_env;   //0xFF12 NR12
     freq_reg chan1_freq;      //0xFF13+FF14 NR13+NR14
+    bool chan1_active;
+    uint16_t chan1_length_counter; //Counts how many steps until channel is silenced
+    uint16_t chan1_freq_counter;   //Counts how many steps until waveform is clocked
+    uint16_t chan1_env_counter;    //Counts how many steps until envelope is clocked
+    uint16_t chan1_sweep_counter;  //Counts how many steps until sweep is clocked
+    uint16_t chan1_freq_shadow;    //Frequency shadow register used by sweep
+    uint8_t chan1_level;           //Current output level
 
     //Channel 2, rectangle
     pat_len_reg chan2_patlen; //0xFF16 NR21
     envelope_reg chan2_env;   //0xFF17 NR22
     freq_reg chan2_freq;      //0xFF18+FF19 NR23+NR24
+    bool chan2_active;
+    uint16_t chan2_length_counter; //Counts how many steps until channel is silenced
+    uint16_t chan2_freq_counter;   //Counts how many steps until waveform is clocked
+    uint16_t chan2_env_counter;    //Counts how many steps until envelope is clocked
+    uint8_t chan2_level;           //Current output level
 
     //Channel 3, wave
     wave_on_reg chan3_on;     //0xFF1A NR30
@@ -227,12 +243,18 @@ private:
     wave_level  chan3_level;  //0xFF1C NR32
     freq_reg    chan3_freq;   //0xFF1D+FF1E NR33+NR34
     uint8_t     wave_pattern[32]; //0xFF30-0xFF3F
+    static const uint8_t wave_length = 32; //Number of elements in the wave registers
+    bool chan3_active;
+    uint16_t chan3_length_counter;
+    uint16_t chan3_freq_counter;
+    uint8_t     wave_index;   //Which sample is the current one
 
     //Channel 4 noise
     noise_length chan4_length; //0xFF20 NR41
     envelope_reg  chan4_env;    //0xFF21 NR42
     noise_freq   chan4_freq;   //0xFF22 NR43
     noise_counter chan4_counter; //0xFF23 NR44
+    uint16_t chan4_lfsr;         //Linear Feedback Shift Register for noise output
 
     //Sound control registers
     output_levels levels;      //0xFF24 NR50
@@ -243,6 +265,7 @@ private:
 
     //Values to OR onto the written values when read
     static const uint8_t or_values[0x30];
+
 
 };
 
