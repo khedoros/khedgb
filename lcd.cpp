@@ -602,6 +602,8 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
     uint32_t * pixels = NULL;
 
+    std::vector<uint8_t> bgmap(160,0);
+
     if(!screen||!texture||!renderer) {
         printf("PPU: problem!\n");
         output_sdl = false;
@@ -653,6 +655,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
                 if(output_sdl /*&& c != 0*/) {
                     pixels[render_line * 160 + x_out_pix] = sys_bgpal[bgpal.pal[tile_line[x_tile_pix]]];
+                    bgmap[x_out_pix] = tile_line[x_tile_pix];
                 }
             }
         }
@@ -680,6 +683,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
                         if(output_sdl) {
                             pixels[ycoord * 160 + xcoord] = sys_winpal[bgpal.pal[tile_line[x_tile_pix]]];
+                            bgmap[xcoord] = tile_line[x_tile_pix];
                         }
                     }
                 }
@@ -740,7 +744,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     assert(ycoord < 144);
                     */
 
-                    if(xcoord >= 0 && xcoord < 160 && (pixels[ycoord * 160 + xcoord] == sys_bgpal[0] || !sprite_dat.priority)) {
+                    if(xcoord >= 0 && xcoord < 160 && (bgmap[xcoord] == 0 || !sprite_dat.priority)) {
                         pixels[ycoord * 160 + xcoord] = color;
                     }
                 }
