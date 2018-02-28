@@ -583,7 +583,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                         printf(" COL %d: (%d, %d, %d)\t", col+pal, red, green, blue);
                     }
                     printf("\n");
-                    sgb_set_pal(0,1,pals);
+                    screen.sgb_set_pals(0,1,pals);
                 }
                 }
                 break;
@@ -605,7 +605,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                         printf(" COL %d: (%d, %d, %d)\t", col+pal, red, green, blue);
                     }
                     printf("\n");
-                    sgb_set_pal(2,3,pals);
+                    screen.sgb_set_pals(2,3,pals);
                }
                }
                break;
@@ -627,7 +627,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                         printf(" COL %d: (%d, %d, %d)\t", col+pal, red, green, blue);
                     }
                     printf("\n");
-                    sgb_set_pal(0,3,pals);
+                    screen.sgb_set_pals(0,3,pals);
                }
                }
                break;
@@ -649,7 +649,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                         printf(" COL %d: (%d, %d, %d)\t", col+pal, red, green, blue);
                     }
                     printf("\n");
-                    sgb_set_pal(1,2,pals);
+                    screen.sgb_set_pals(1,2,pals);
                }
                }
                break;

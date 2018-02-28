@@ -636,7 +636,6 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
         int render_line = line % 154;
         if(debug && render_line == 153 && output_sdl) {
             draw_debug_overlay();
-
         }
         else if(render_line > 143) continue;
 
@@ -793,7 +792,13 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 SDL_RenderClear(renderer);
             }
             if(sgb_mask_mode == 0) {
-                SDL_RenderCopy(renderer,texture,NULL,NULL);
+                if(!debug) {
+                    SDL_RenderCopy(renderer,texture,NULL,NULL);
+                }
+                else {
+                    SDL_Rect debug_space{114,0,160,144};
+                    SDL_RenderCopy(renderer, texture, NULL, &debug_space);
+                }
             }
 
             if(!debug) {
