@@ -16,12 +16,23 @@ const uint8_t apu::square_wave[4][8] = {{0,0,0,0,0,0,0,1},
                                         {1,0,0,0,0,1,1,1},
                                         {0,1,1,1,1,1,1,0}};
 
-apu::apu() {}
+void apu::clear() {
+    for(int i=0; i<0x30;i++) {
+        written_values[i] = 0;
+    }
+}
+
+apu::apu() : writes_enabled(false)
+{
+    clear();
+}
 
 void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
     //printf("addr: %04x val: %02x ", addr, val);
-    written_values[addr - 0xff10] = val;
-    cmd_queue.emplace_back(util::cmd{cycle, addr, val, 0});
+    if(writes_enabled || addr >= 0xff30) {
+        written_values[addr - 0xff10] = val;
+        cmd_queue.emplace_back(util::cmd{cycle, addr, val, 0});
+    }
     //TODO: Clear all registers when sound power is turned off
 }
 
@@ -113,6 +124,13 @@ void apu::apply(util::cmd& c) {
                                                                                                                              //(c.val&0x0f)>>3, (c.val&0x04)>>2, (c.val&0x02)>>1, (c.val&0x01));
             break;
         case 0xff26: //Sound activation
+            if(!c.val>>7) {
+                clear();
+                writes_enabled = false;
+            }
+            else {
+                writes_enabled = true;
+            }
             //printf("apu: master: %d S4-on: %d S3-on: %d S2-on: %d S1-on: %d\n", c.val>>7, (c.val&0x08)>>3, (c.val&0x04)>>2, (c.val&0x02)>>1, (c.val&0x01));
             break;
 

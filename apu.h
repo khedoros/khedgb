@@ -82,6 +82,7 @@ public:
     void run(uint64_t run_to);
 private:
     void apply(util::cmd& c);
+    void clear();
     std::list<util::cmd> cmd_queue;
 
     union sweep_reg { //NR10
@@ -209,6 +210,8 @@ private:
         };
         uint8_t val;
     };
+
+    bool writes_enabled;
 
     //Definitions of the waveforms for the square waves
     static const uint8_t square_wave[4][8];      //The 4 actual square waves
