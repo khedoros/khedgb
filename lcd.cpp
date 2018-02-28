@@ -614,13 +614,11 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
     bool output_sdl = true;
     uint64_t output_cycle = 0;
 
-    Vect<uint8_t> tile_line(8);
-    memset(&tile_line[0], 0, 8);
+    Vect<uint8_t> tile_line(8, 0);
 
     uint32_t * pixels = NULL;
 
-    Vect<uint8_t> bgmap(160);
-    memset(&bgmap[0], 0, 160);
+    Vect<uint8_t> bgmap(160, 0);
 
     if(!screen||!texture||!renderer) {
         printf("PPU: problem!\n");
@@ -698,7 +696,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                         int ycoord = tile_y * 8 + y_tile_pix + win_scroll_y;
                         int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
 
-                        if(output_sdl) {
+                        if(output_sdl && xcoord >= 0) {
                             pixels[ycoord * 160 + xcoord] = sys_winpal[bgpal.pal[tile_line[x_tile_pix]]];
                             bgmap[xcoord] = tile_line[x_tile_pix];
                         }
