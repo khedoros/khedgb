@@ -125,23 +125,23 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             break;
         case 0xff04: //DIV register. 16KHz increment, (1024*1024)/16384=64, and the register overflows every 256 increments
             *(uint8_t *)val = div;
-            //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<((cycle - div_reset) / 64) % 256<<std::endl;
+            //std::cout<<"Read from div timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<uint64_t(div)<<std::endl;
             break;
         case 0xff05:
             *(uint8_t *)val = timer;
-            //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<(uint64_t(timer) + ((cycle - timer_reset) / clock_divisor)) % (256 - timer_modulus) + timer_modulus<<std::endl;
+            //std::cout<<"Read from timer hardware (time): 0x"<<std::hex<<addr<<" = 0x"<<uint64_t(timer)<<std::endl;
             break;
         case 0xff06:
             *(uint8_t *)val = timer_modulus;
-            //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(timer_modulus)<<std::endl;
+            //std::cout<<"Read from timer hardware (modulus): 0x"<<std::hex<<addr<<" = 0x"<<uint64_t(timer_modulus)<<std::endl;
             break;
         case 0xff07:
             *(uint8_t *)val = timer_control.val;
-            //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<"= 0x"<<timer_control<<std::endl;
+            //std::cout<<"Read from timer hardware (control): 0x"<<std::hex<<addr<<"= 0x"<<timer_control.val<<std::endl;
             break;
         case 0xff0f:
             *((uint8_t *)val) = 0xe0 | int_requested.reg;
-            //std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+            //std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(int_requested.reg)<<" at cycle "<<std::dec<<cycle<<std::endl;
             break;
         case 0xff70: //CGB WRAM size switch
             //TODO: Implement with CGB stuff
@@ -261,24 +261,24 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff04:
                 div = 0;
-                //printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld (DIV set to 0)\n", addr, *(uint8_t *)val, cycle);
+                printf("Write to div hardware: 0x%04x = 0x%02x, at cycle %lld (DIV set to 0)\n", addr, *(uint8_t *)val, cycle);
                 break;
             case 0xff05:
                 timer = *(uint8_t *)val;
-                //printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld, new deadline %lld\n", addr,timer,cycle, timer_deadline);
+                //printf("Write to timer hardware (timer): 0x%04x = 0x%02x, at cycle %lld\n", addr,timer,cycle);
                 break;
             case 0xff06:
                 timer_modulus = *(uint8_t *)val;
-                //printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld, calc'd timer value: %02x, new deadline %lld\n", addr, timer_modulus, cycle, timer, timer_deadline);
+                //printf("Write to timer hardware (modulus): 0x%04x = 0x%02x, at cycle %lld\n", addr, timer_modulus, cycle);
                 break;
             case 0xff07: 
                 {
                     timer_control.low = ((*(uint8_t *)val) & 0x07);
-                    uint16_t clock_divisor_reset = timer_clock_select[timer_control.clock];
+                    clock_divisor_reset = timer_clock_select[timer_control.clock];
                     clock_divisor = 0;
                 }
-                //printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld, calc'd timer value: %02x, new deadline: %lld, running: %d, divisor: %d\n",
-                //        addr, int(*(uint8_t *)val), cycle, timer, timer_deadline, timer_running, clock_divisor);
+                //printf("Write to timer hardware (control): 0x%04x = 0x%02x, at cycle %lld, running: %d, divisor: %d\n",
+                //        addr, int(*(uint8_t *)val), cycle, timer_control.running, timer_clock_select[timer_control.clock]);
                 break;
             case 0xff0f:
                 assert(size == 1);
@@ -444,27 +444,29 @@ void memmap::update_interrupts(uint64_t cycle) {
         //printf("INT: lcdstat set active @ cycle %ld\n", cycle);
     }
 
-    //TODO: Finish implementing timer behavior
     //TIMER
-    if(!int_requested.timer && timer_control.running) {
+    if(timer_control.running) {
+        //printf("Timer: %d Clock divisor: %d Clock divisor reset: %d Timer modulus: %d\n", timer, clock_divisor, clock_divisor_reset, timer_modulus);
         clock_divisor += time_diff;
         if(clock_divisor >= clock_divisor_reset) {
-            timer++;
-            clock_divisor -= clock_divisor_reset;
-        }
+           uint16_t num_of_steps = clock_divisor / clock_divisor_reset;
+           uint8_t old_timer = timer;
+           timer+=num_of_steps;
+           clock_divisor -= (clock_divisor_reset * num_of_steps);
+           if(timer == 0 || timer < old_timer || clock_divisor_reset <= num_of_steps) {
+               int_requested.timer = 1;
+               timer = timer_modulus;
+               //printf("Triggered timer interrupt at cycle %lld, reloading with modulus: %d\n", cycle, timer_modulus);
+           }
+       }
 
-        if(timer == 0) {
-            int_requested.timer = 1;
-            timer = timer_modulus;
-        }
-        //printf("Triggered timer interrupt at cycle %lld, current time: %02x, next deadline: %lld\n", cycle, cur_time, timer_deadline);
     }
     //if(int_enabled.timer) { printf("Warning: timer interrupt enabled, but not implemented yet.\n");}
 
     //SERIAL
     if(!int_requested.serial && serial_transfer && internal_clock && cycle >= transfer_start) {
         unsigned int bit = (cycle - transfer_start) / 128;
-        std::cout<<"Transfer start: "<<transfer_start<<" "<<cycle<<std::endl;
+        //std::cout<<"Transfer start: "<<transfer_start<<" "<<cycle<<std::endl;
         //assert(bit < 256);
         if(bit >= 7) {
             transfer_start = -1;
