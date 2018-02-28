@@ -17,8 +17,8 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
 /*interrupt hardware              */              int_enabled{0,0,0,0,0}, int_requested{0,0,0,0,0}, last_int_cycle(0), 
 /*Super GameBoy values            */              sgb_active(false), sgb_bit_ptr(0), sgb_buffered(false), sgb_cur_joypad(0), sgb_joypad_count(1), sgb_cmd_count(0), sgb_cmd_index(0),
 /*serial/link cable               */              link_data(0), serial_transfer(false), internal_clock(false), transfer_start(-1), bits_transferred(0),
-/*div register + timer            */              div_reset(0), timer(0), timer_modulus(0), timer_control(0),
-/*                                */              timer_running(false), clock_divisor(timer_clock_select[0]), timer_reset(0), timer_deadline(-1) 
+/*div register + timer            */              div(0), div_period(0), timer(0), timer_modulus(0), timer_control{.val=0}, last_int_check(0),
+/*                                */              clock_divisor(0), clock_divisor_reset(timer_clock_select[0])
 {
 
     valid = cart.valid;
@@ -124,16 +124,11 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             //printf("Read from serial: 0x%04x (got 0x%02x)\n", addr, (serial_transfer * 0x80) | internal_clock);
             break;
         case 0xff04: //DIV register. 16KHz increment, (1024*1024)/16384=64, and the register overflows every 256 increments
-            *(uint8_t *)val = ((cycle - div_reset) / 64) % 256;
+            *(uint8_t *)val = div;
             //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<((cycle - div_reset) / 64) % 256<<std::endl;
             break;
         case 0xff05:
-            if(!timer_running) {
-                *(uint8_t *)val = timer;
-            }
-            else {
-                *(uint8_t *)val = (uint64_t(timer) + ((cycle - timer_reset) / clock_divisor)) % (256 - timer_modulus) + timer_modulus;
-            }
+            *(uint8_t *)val = timer;
             //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<(uint64_t(timer) + ((cycle - timer_reset) / clock_divisor)) % (256 - timer_modulus) + timer_modulus<<std::endl;
             break;
         case 0xff06:
@@ -141,7 +136,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(timer_modulus)<<std::endl;
             break;
         case 0xff07:
-            *(uint8_t *)val = 0xf8 | timer_control;
+            *(uint8_t *)val = timer_control.val;
             //std::cout<<"Read from timer hardware: 0x"<<std::hex<<addr<<"= 0x"<<timer_control<<std::endl;
             break;
         case 0xff0f:
@@ -265,50 +260,23 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 //printf("Write to serial: 0x%04x = 0x%02x\n", addr, *(uint8_t *)val);
                 break;
             case 0xff04:
-                div_reset = cycle;
+                div = 0;
                 //printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld (DIV set to 0)\n", addr, *(uint8_t *)val, cycle);
                 break;
             case 0xff05:
                 timer = *(uint8_t *)val;
-                if(timer_running) {
-                    //timer++;
-                    timer_reset = cycle;
-                    timer_deadline = cycle + (256 - timer) * clock_divisor + 1; //delay of 1 cycle between overflow and IF flag being set
-                }
                 //printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld, new deadline %lld\n", addr,timer,cycle, timer_deadline);
                 break;
             case 0xff06:
-                if(timer_running) { //Calculate new timer baseline (timer+timer_reset values) @ time of change
-                    timer = (uint64_t(timer) + ((cycle - timer_reset) / clock_divisor)) % (256 - timer_modulus) + timer_modulus;
-                    timer_reset = cycle;
-                    timer_deadline = cycle + (256 - timer) * clock_divisor + 1;
-                }
                 timer_modulus = *(uint8_t *)val;
                 //printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld, calc'd timer value: %02x, new deadline %lld\n", addr, timer_modulus, cycle, timer, timer_deadline);
                 break;
-            case 0xff07:
-            {
-                bool new_running = ((*(uint8_t *)val & 0x04) == 4);
-                unsigned int new_divisor = timer_clock_select[(*(uint8_t *)val & 0x03)];
-                if(new_running && timer_running && new_divisor != clock_divisor) { //Divisor changed in still-running timer
-                    timer = (uint64_t(timer) + ((cycle - timer_reset) / clock_divisor)) % (256 - timer_modulus) + timer_modulus;
-                    timer_reset = cycle;
-                    timer_deadline = cycle + (256 - timer) * new_divisor + 1;
+            case 0xff07: 
+                {
+                    timer_control.low = ((*(uint8_t *)val) & 0x07);
+                    uint16_t clock_divisor_reset = timer_clock_select[timer_control.clock];
+                    clock_divisor = 0;
                 }
-                if(new_running && !timer_running) { //Starting a stopped timer
-                    //timer hasn't been changing, so we don't need to calculate its current state
-                    timer_reset = cycle;
-                    timer_deadline = cycle + (256 - timer) * new_divisor + 1;
-                }
-                if(!new_running && timer_running) { //Stopping a running timer
-                    timer = (uint64_t(timer) + ((cycle - timer_reset) / clock_divisor)) % (256 - timer_modulus) + timer_modulus;
-                    //timer_reset is only valid for calculating the value when the timer is running
-                    timer_deadline = -1; //set interrupt deadline to a time that will "never" occur
-                }
-                //Don't need to do anything special if previous and current value of ff07 both say that the timer is stopped
-                timer_running = new_running;
-                clock_divisor = new_divisor;
-            }
                 //printf("Write to timer hardware: 0x%04x = 0x%02x, at cycle %lld, calc'd timer value: %02x, new deadline: %lld, running: %d, divisor: %d\n",
                 //        addr, int(*(uint8_t *)val), cycle, timer, timer_deadline, timer_running, clock_divisor);
                 break;
@@ -460,37 +428,44 @@ INT_TYPE memmap::get_interrupt() {
 
 //Update any interrupt states that are dependent on time
 void memmap::update_interrupts(uint64_t cycle) {
+    uint64_t time_diff = cycle - last_int_check;
     uint8_t enabled = 0;
     screen.read(0xff40, &enabled, 1, cycle);
     //We aren't still in previously-seen vblank, we *are* in vblank, and the screen is enabled
-    if(cycle > last_int_cycle + 1140 && screen.get_mode(cycle) == 1 && ((enabled&0x80) > 0)) {
+    if(!int_requested.vblank && cycle > last_int_cycle + 1140 && screen.get_mode(cycle) == 1 && ((enabled&0x80) > 0)) {
         int_requested.vblank = 1;
         last_int_cycle = cycle; 
         //printf("INT: vbl set active @ cycle %ld\n", cycle);
     }
 
     //LCDSTAT
-    if(screen.interrupt_triggered(cycle)) {
+    if(!int_requested.lcdstat && screen.interrupt_triggered(cycle)) {
         int_requested.lcdstat = 1;
         //printf("INT: lcdstat set active @ cycle %ld\n", cycle);
     }
 
     //TODO: Finish implementing timer behavior
     //TIMER
-    if(timer_running) {
-        if(cycle >= timer_deadline) {
-            int_requested.timer = 1;
-            uint8_t cur_time = (uint64_t(timer) + ((cycle - timer_reset) / clock_divisor)) % (256 - timer_modulus) + timer_modulus;
-            timer_deadline = cycle + (256 - cur_time) * clock_divisor + 1;
-            //printf("Triggered timer interrupt at cycle %lld, current time: %02x, next deadline: %lld\n", cycle, cur_time, timer_deadline);
+    if(!int_requested.timer && timer_control.running) {
+        clock_divisor += time_diff;
+        if(clock_divisor >= clock_divisor_reset) {
+            timer++;
+            clock_divisor -= clock_divisor_reset;
         }
+
+        if(timer == 0) {
+            int_requested.timer = 1;
+            timer = timer_modulus;
+        }
+        //printf("Triggered timer interrupt at cycle %lld, current time: %02x, next deadline: %lld\n", cycle, cur_time, timer_deadline);
     }
     //if(int_enabled.timer) { printf("Warning: timer interrupt enabled, but not implemented yet.\n");}
 
     //SERIAL
-    if(serial_transfer && internal_clock && cycle >= transfer_start) {
+    if(!int_requested.serial && serial_transfer && internal_clock && cycle >= transfer_start) {
         unsigned int bit = (cycle - transfer_start) / 128;
-        assert(bit < 256);
+        std::cout<<"Transfer start: "<<transfer_start<<" "<<cycle<<std::endl;
+        //assert(bit < 256);
         if(bit >= 7) {
             transfer_start = -1;
             serial_transfer = false;
@@ -514,6 +489,13 @@ void memmap::update_interrupts(uint64_t cycle) {
 
     //JOYPAD: Not dependent on time; its state is automatically updated when input events are processed.
     //if(int_enabled.joypad) { printf("Warning: joypad interrupt enabled, but not implemented yet.\n");}
+    //
+    div_period += time_diff;
+    if(div_period >= 64) {
+        div++;
+        div_period -= 64;
+    }
+    last_int_check = cycle;
 }
 
 bool memmap::has_firmware() {

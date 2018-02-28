@@ -77,6 +77,20 @@ private:
             unsigned keys:8;
         };
     };
+
+    union tac {
+        struct {
+            unsigned clock:2;
+            unsigned running:1;
+            unsigned unused:5;
+        };
+        struct {
+            unsigned low:3;
+            unsigned high:5;
+        };
+        uint8_t val;
+    };
+
     uint8_t joypad; //0xff00, just stores the flags for which lines are active
     buttons directions[4]; // pads 2-4 are SGB-only (and just dummies, for now)
     buttons btns[4];
@@ -102,14 +116,14 @@ private:
     uint8_t bits_transferred; //how many bits have been transmitted
 
     //Timer registers
-    //uint8_t div; //0xff04 top 8 bits of clock-divider register, which increments at 16384Hz. Calculated based on current cycle, and last time it was reset.
-    uint64_t div_reset; //0xff04 counter cycle reset. Used to calculate value of div. Stores last clock that div was reset at. DIV updates at 16384Hz (every 64CPU cycles)
+    uint8_t div; //0xff04 top 8 bits of clock-divider register, which increments at 16384Hz (64 cpu clocks).
+    uint8_t div_period;
+    uint64_t last_int_check;
     uint8_t timer; //0xff05 timer value
     uint8_t timer_modulus; //0xff06 Modulus value for timer.
-    uint8_t timer_control; //0xff07 Controls speed and start/stop of timer. 
-    bool timer_running; //based on 0xff07 writes (bit 2)
-    unsigned int clock_divisor; //based on 0xff07 writes
-    uint64_t timer_reset; //Clock when the timer was started, speed was changed, or timer was written while running
+    tac timer_control; //0xff07 Controls speed and start/stop of timer. 
+    uint16_t clock_divisor_reset; //based on 0xff07 writes
+    uint16_t clock_divisor;
     static const unsigned int timer_clock_select[4]; //0xff07 bit 0+1, table of number of CPU clocks to tick the timer
     uint64_t timer_deadline; //Time the clock will expire
 };
