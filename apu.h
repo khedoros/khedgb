@@ -72,6 +72,11 @@
  * - On boot, wave ram is random-ish, but tends to be the same on a per-unit basis. GBC consistently starts with alternating "00" "FF" values, though.
  *
  *  Extra info here, for after I have the basics coded: http://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware
+ *
+ *  Square 1: Sweep -> Timer -> Duty -> Length Counter -> Envelope -> Mixer
+ *  Square 2:          Timer -> Duty -> Length Counter -> Envelope -> Mixer
+ *  Wave:              Timer -> Wave -> Length Counter -> Volume   -> Mixer
+ *  Noise:             Timer -> LFSR -> Length Counter -> Envelope -> Mixer
  */
 
 class apu {
