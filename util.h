@@ -20,8 +20,11 @@ class RangeCheckVector : public std::vector<T> {
         }
 };
 
-#define Vect util::RangeCheckVector
-//#define Vect std::vector
+#ifdef DEBUG
+    #define Vect util::RangeCheckVector
+#else
+    #define Vect std::vector
+#endif
 
 struct cmd {
     uint64_t cycle;
