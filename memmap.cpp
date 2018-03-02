@@ -13,7 +13,7 @@ const unsigned int memmap::timer_clock_select[4] = {
                             
 
 memmap::memmap(const std::string& rom_filename, const std::string& fw_file) : 
-/*hardware connected to the memmap*/              screen(), sound(), cart(rom_filename, fw_file),
+/*hardware connected to the memmap*/              screen(), sound(), cart(rom_filename, fw_file), joypad(0xc0),
 /*interrupt hardware              */              int_enabled{0,0,0,0,0}, int_requested{0,0,0,0,0}, last_int_cycle(0), 
 /*Super GameBoy values            */              sgb_active(false), sgb_bit_ptr(0), sgb_buffered(false), sgb_cur_joypad(0), sgb_joypad_count(1), sgb_cmd_count(0), sgb_cmd_index(0),
 /*serial/link cable               */              link_data(0), serial_transfer(false), internal_clock(false), transfer_start(-1), bits_transferred(0),
@@ -120,7 +120,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             *(uint8_t *)val = link_data;
             break;
         case 0xff02:
-            *(uint8_t *)val = (serial_transfer * 0x80) | internal_clock;
+            *(uint8_t *)val = (serial_transfer * 0x80) | 0x7e | internal_clock;
             //printf("Read from serial: 0x%04x (got 0x%02x)\n", addr, (serial_transfer * 0x80) | internal_clock);
             break;
         case 0xff04: //DIV register. 16KHz increment, (1024*1024)/16384=64, and the register overflows every 256 increments

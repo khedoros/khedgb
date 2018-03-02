@@ -22,6 +22,13 @@ void apu::clear() {
     }
 }
 
+void apu::init() {
+    sequencer_phase = 7; //so that next step is 0
+    chan1_duty_phase = 0;
+    chan2_duty_phase = 0;
+    chan3_duty_phase = 0;
+}
+
 apu::apu() : writes_enabled(false), cycle(0)
 {
     clear();
@@ -33,7 +40,18 @@ void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
         written_values[addr - 0xff10] = val;
         cmd_queue.emplace_back(util::cmd{cycle, addr, val, 0});
     }
-    //TODO: Clear all registers when sound power is turned off
+    else if(addr == 0xff26) {
+        written_values[addr - 0xff10] = (val & 0x80);
+        if(!(val&0x80)) {
+            clear();
+            writes_enabled = false;
+        }
+        else {
+            init();
+            writes_enabled = true;
+        }
+        cmd_queue.emplace_back(util::cmd{cycle, addr, val, 0});
+    }
 }
 
 uint8_t apu::read(uint16_t addr, uint64_t cycle) {
@@ -44,7 +62,7 @@ uint8_t apu::read(uint16_t addr, uint64_t cycle) {
 }
 
 void apu::run(uint64_t run_to) {
-    printf("apu:: %ld->%ld\n", cycle, run_to);
+    //printf("apu:: %ld->%ld\n", cycle, run_to);
 
     uint64_t next_fs_time = cycle; //just to declare it outside of the loop
     //Generate audio between cycle and cmd.cycle
@@ -78,7 +96,11 @@ void apu::run(uint64_t run_to) {
 }
 
 void apu::render(uint64_t render_to) {
-    printf("APU Render cycle %ld to %ld\n", cycle, render_to);
+    //printf("APU Render cycle %ld to %ld\n", cycle, render_to);
+}
+
+bool apu::sweep_check() {
+    return false;
 }
 
 //Advance the frame sequencer. Clocks at 512Hz, with 7 phases.
@@ -96,8 +118,9 @@ void apu::clock_sequencer() {
     if(sequencer_phase == 0 || sequencer_phase == 2 || sequencer_phase == 4 || sequencer_phase == 6) {
         //clock length for all the channels
     }
-    if(sequencer_phase == 2 || sequencer_phase == 6) {
+    if((sequencer_phase == 2 || sequencer_phase == 6) && chan1_sweep_active) {
         //clock sweep for channel 1 (only one that supports it)
+
     }
     if(sequencer_phase == 7) {
         //clock volume for 1, 2, and 4? I think chan3 has level, but not envelope.
@@ -108,18 +131,44 @@ void apu::apply(util::cmd& c) {
     switch(c.addr) {
         //sound 1: rectangle with sweep + envelope
         case 0xff10: //sound 1 sweep
+            chan1_sweep.val = c.val;
             //printf("apu: S1 sweep time: %d increase: %d shift: %d\n", (c.val&0x70)>>4, (c.val&8)>>3, (c.val&7));
             break;
         case 0xff11: //sound 1 length + duty cycle
+            chan1_patlen.val = c.val;
             //printf("apu: S1 duty cycle: %d length: %d\n", c.val>>6, (c.val&0x3f));
             break;
         case 0xff12: //sound 1 envelope
+            chan1_env.val = c.val;
             //printf("apu: S1 default envelope: %d up/down: %d step length: %d\n", c.val>>4, (c.val&8)>>3, (c.val&7));
             break;
         case 0xff13: //sound 1 low-order frequency
+            chan1_freq.freq_low = c.val;
             //printf("apu: S1 freq-low: %d\n", c.val);
             break;
         case 0xff14: //sound 1 high-order frequency + start
+            chan1_freq.freq_high = c.val;
+            if(chan1_freq.initial) {
+                chan1_freq_shadow = chan1_freq.freq;
+                chan1_sweep_counter = 0;
+                chan1_active = true;
+                if(chan1_sweep.shift != 0 && !sweep_check()) {
+                    chan1_active = false;
+                }
+                /*
+                - freq copied to sweep shadow register
+                - sweep timer is reloaded (timer count restarts from 0)
+                - sweep's internal enabled flag is set if sweep period or shift are non-zero, cleared otherwise
+                - if sweep shift is non-zero, freq calc and overflow check happen immediately
+                  - freq calc performed as previously noted, using the value in the shadow register
+                  - if resulting value > 2047, channel is disabled.
+                - when sweep is clocked, enabled flag is on, sweep period is non-zero:
+                *     - if overflow check passes, the new freq is written to the shadow reg, and NR13+NR14
+                *     - overflow check is run AGAIN with the new value (and can disable the channel), but value isn't written back
+                *   - if NR13+NR14 are changed during operation, the channel will switch back to the old freq when data is copied from shadow, on next sweep
+                */
+            }
+
             //printf("apu: S1 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
             break;
 

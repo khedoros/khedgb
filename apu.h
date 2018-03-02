@@ -38,10 +38,10 @@
  *   - if sweep shift is non-zero, freq calc and overflow check happen immediately
  *     - freq calc performed as previously noted, using the value in the shadow register
  *     - if resulting value > 2047, channel is disabled.
- *   - when sweep is clocked, enabled flag is on, sweep period is non-zero:
- *     - if overflow check passes, the new freq is written to the shadow reg, and NR13+NR14
- *     - overflow check is run AGAIN with the new value (and can disable the channel), but value isn't written back
- *   - if NR13+NR14 are changed during operation, the channel will switch back to the old freq when data is copied from shadow, on next sweep
+ * - when sweep is clocked, enabled flag is on, sweep period is non-zero:
+ *   - if overflow check passes, the new freq is written to the shadow reg, and NR13+NR14
+ *   - overflow check is run AGAIN with the new value (and can disable the channel), but value isn't written back
+ * - if NR13+NR14 are changed during operation, the channel will switch back to the old freq when data is copied from shadow, on next sweep
  *
  * Noise channel:
  * - timer period is 0->7, maps to these actual timer counts: {8, 16, 32, 48, 64, 80, 96, 112}
@@ -88,17 +88,19 @@ public:
     void run(uint64_t run_to);
 private:
     void apply(util::cmd& c);
-    void clear();
-    void render(uint64_t run_to);
-    void clock_sequencer();
+    void clear(); //When class is constructed or audio power is turned off
+    void init(); //When audio power is turned on
+    void render(uint64_t run_to); //Generate audio up to "run_to"
+    void clock_sequencer(); //Clock the sequencer by one step
+    bool sweep_check(); //Check if next sweep iteration should disable the channel due to overflow
     std::list<util::cmd> cmd_queue;
 
     union sweep_reg { //NR10
         struct {
-            unsigned sweep_shift:3;
-            unsigned sweep_direction:1; //0=up, 1=down
-            unsigned sweep_time:3;
-            unsigned sweep_unused:1;
+            unsigned shift:3;
+            unsigned direction:1; //0=up, 1=down
+            unsigned time:3;
+            unsigned unused:1;
         };
         uint8_t val;
     };
@@ -113,9 +115,9 @@ private:
 
     union envelope_reg { //NR12, NR22, NR42
         struct {
-            unsigned sweep_shift:3;
-            unsigned sweep_direction:1; //0=down, 1=up
-            unsigned sweep_volume:4; //initial volume
+            unsigned shift:3;
+            unsigned direction:1; //0=down, 1=up
+            unsigned volume:4; //initial volume
         };
         uint8_t val;
     };
@@ -233,12 +235,14 @@ private:
     envelope_reg chan1_env;   //0xFF12 NR12
     freq_reg chan1_freq;      //0xFF13+FF14 NR13+NR14
     bool chan1_active;
+    bool chan1_sweep_active;
     uint16_t chan1_length_counter; //Counts how many steps until channel is silenced
     uint16_t chan1_freq_counter;   //Counts how many steps until waveform is clocked
     uint16_t chan1_env_counter;    //Counts how many steps until envelope is clocked
     uint16_t chan1_sweep_counter;  //Counts how many steps until sweep is clocked
     uint16_t chan1_freq_shadow;    //Frequency shadow register used by sweep
     uint8_t chan1_level;           //Current output level
+    uint8_t chan1_duty_phase;      //Which waveform sample is it on
 
     //Channel 2, rectangle
     pat_len_reg chan2_patlen; //0xFF16 NR21
@@ -249,6 +253,7 @@ private:
     uint16_t chan2_freq_counter;   //Counts how many steps until waveform is clocked
     uint16_t chan2_env_counter;    //Counts how many steps until envelope is clocked
     uint8_t chan2_level;           //Current output level
+    uint8_t chan2_duty_phase;      //Which waveform sample is it on
 
     //Channel 3, wave
     wave_on_reg chan3_on;     //0xFF1A NR30
@@ -260,7 +265,7 @@ private:
     bool chan3_active;
     uint16_t chan3_length_counter;
     uint16_t chan3_freq_counter;
-    uint8_t     wave_index;   //Which sample is the current one
+    uint8_t     chan3_duty_phase;   //Which sample is the current one
 
     //Channel 4 noise
     noise_length chan4_length; //0xFF20 NR41
