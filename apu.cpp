@@ -22,7 +22,7 @@ void apu::clear() {
     }
 }
 
-apu::apu() : writes_enabled(false)
+apu::apu() : writes_enabled(false), cycle(0)
 {
     clear();
 }
@@ -44,10 +44,63 @@ uint8_t apu::read(uint16_t addr, uint64_t cycle) {
 }
 
 void apu::run(uint64_t run_to) {
-    while(cmd_queue.size() > 0) {
-        util::cmd cur = cmd_queue.front();
-        apply(cur);
-        cmd_queue.pop_front();
+    printf("apu:: %ld->%ld\n", cycle, run_to);
+
+    uint64_t next_fs_time = cycle; //just to declare it outside of the loop
+    //Generate audio between cycle and cmd.cycle
+    util::cmd cur_cmd;
+    while((cmd_queue.size() > 0 || next_fs_time <= run_to) && cycle < run_to) {
+        //Find the next cycle that is either a command or the end of the current batch of work
+        uint64_t next_cmd_cycle = run_to;
+        if(cmd_queue.size() > 0) {
+            cur_cmd = cmd_queue.front();
+            next_cmd_cycle = cur_cmd.cycle;
+        }
+
+        //Find next time the frame sequencer is clocked
+        next_fs_time = cycle + (2048 - cycle % 2048);
+
+        //Take the next action (render, then clock the frame sequencer, apply a register change, or both)
+        if(next_fs_time <= next_cmd_cycle) {
+            render(next_fs_time); //(Generate audio between cycle and next_fs_time)
+            cycle = next_fs_time;
+            clock_sequencer();
+        } 
+        if(next_cmd_cycle <= next_fs_time) {
+            render(next_cmd_cycle); //(Generate audio between cycle and cmd_queue.cycle)
+            cycle = next_cmd_cycle;
+            if(cmd_queue.size() > 0) {
+                apply(cur_cmd);
+                cmd_queue.pop_front();
+            }
+        }
+    }
+}
+
+void apu::render(uint64_t render_to) {
+    printf("APU Render cycle %ld to %ld\n", cycle, render_to);
+}
+
+//Advance the frame sequencer. Clocks at 512Hz, with 7 phases.
+// Phase 0: Clock Length
+// Phase 1:
+// Phase 2: Clock Length and Sweep
+// Phase 3:
+// Phase 4: Clock Length
+// Phase 5:
+// Phase 6: Clock Length and Sweep
+// Phase 7: Clock Volume
+void apu::clock_sequencer() {
+    sequencer_phase++;
+    sequencer_phase %= 8;
+    if(sequencer_phase == 0 || sequencer_phase == 2 || sequencer_phase == 4 || sequencer_phase == 6) {
+        //clock length for all the channels
+    }
+    if(sequencer_phase == 2 || sequencer_phase == 6) {
+        //clock sweep for channel 1 (only one that supports it)
+    }
+    if(sequencer_phase == 7) {
+        //clock volume for 1, 2, and 4? I think chan3 has level, but not envelope.
     }
 }
 

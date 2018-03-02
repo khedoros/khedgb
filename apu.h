@@ -3,10 +3,15 @@
 #include<list>
 #include "util.h"
 
-/* 512 Hz frame sequencer, with 8 phases.
+/* 512 Hz frame sequencer, with 8 phases (2048 cycles between phases)
  * - length is clocked on phases 0, 2, 4, and 6 (256Hz)
  * - volume envelope is clocked on phase 7 (64Hz)
  * - sweep is clocked on phases 2 and 6 (128Hz)
+ *
+ *  Square 1: Sweep -> Timer -> Duty -> Length Counter -> Envelope -> Mixer
+ *  Square 2:          Timer -> Duty -> Length Counter -> Envelope -> Mixer
+ *  Wave:              Timer -> Wave -> Length Counter -> Volume   -> Mixer
+ *  Noise:             Timer -> LFSR -> Length Counter -> Envelope -> Mixer
  *
  * Length counter:
  * - Channel disables when length hits 0
@@ -73,10 +78,6 @@
  *
  *  Extra info here, for after I have the basics coded: http://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware
  *
- *  Square 1: Sweep -> Timer -> Duty -> Length Counter -> Envelope -> Mixer
- *  Square 2:          Timer -> Duty -> Length Counter -> Envelope -> Mixer
- *  Wave:              Timer -> Wave -> Length Counter -> Volume   -> Mixer
- *  Noise:             Timer -> LFSR -> Length Counter -> Envelope -> Mixer
  */
 
 class apu {
@@ -88,6 +89,8 @@ public:
 private:
     void apply(util::cmd& c);
     void clear();
+    void render(uint64_t run_to);
+    void clock_sequencer();
     std::list<util::cmd> cmd_queue;
 
     union sweep_reg { //NR10
@@ -217,6 +220,8 @@ private:
     };
 
     bool writes_enabled;
+    uint64_t cycle;
+    unsigned int sequencer_phase; //Which of 8 phases are we in, for clocking length, volume, sweep?
 
     //Definitions of the waveforms for the square waves
     static const uint8_t square_wave[4][8];      //The 4 actual square waves
