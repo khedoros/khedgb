@@ -69,7 +69,7 @@ private:
         uint8_t pal[4];
     };
 
-    union control_reg {
+    union control_reg { //0xFF40
         struct {
             unsigned priority:1;
             unsigned sprite_enable:1;
@@ -79,6 +79,19 @@ private:
             unsigned window_enable:1;
             unsigned window_map:1;
             unsigned display_enable:1;
+        };
+        uint8_t val;
+    };
+
+    union status_reg { //0xFF41
+        struct {
+            unsigned mode:2; //0=hblank, 1=vblank, 2=searching oam, 3=transferring to lcd
+            unsigned lyc_flag:1;
+            unsigned hblank_int:1; //activate mode0 interrupt
+            unsigned vblank_int:1; //activate mode1 interrupt
+            unsigned oam_int:1;    //activate mode2 interrupt
+            unsigned lyc_int:1;    //activate lyc=ly interrupt
+            unsigned unused:1;
         };
         uint8_t val;
     };
