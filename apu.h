@@ -83,6 +83,7 @@
 class apu {
 public:
     apu();
+    ~apu();
     void write(uint16_t addr, uint8_t val, uint64_t cycle);
     uint8_t read(uint16_t addr, uint64_t cycle);
     void run(uint64_t run_to);
@@ -175,7 +176,7 @@ private:
         uint8_t val;
     };
 
-    union noise_counter { //NR44
+    union noise_count_init { //NR44
         struct {
             unsigned unused:6;
             unsigned freq_counter:1;
@@ -271,8 +272,10 @@ private:
     noise_length chan4_length; //0xFF20 NR41
     envelope_reg  chan4_env;    //0xFF21 NR42
     noise_freq   chan4_freq;   //0xFF22 NR43
-    noise_counter chan4_counter; //0xFF23 NR44
+    noise_count_init chan4_counter; //0xFF23 NR44 Enables use of length counter, and inits playback
+    bool chan4_active;
     uint16_t chan4_lfsr;         //Linear Feedback Shift Register for noise output
+    uint8_t lfsr_value;          //Current output value of LFSR
 
     //Sound control registers
     output_levels levels;      //0xFF24 NR50
