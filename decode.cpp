@@ -61,11 +61,11 @@ void decode(int prefix,int x,int y,int z,int data) {
 					break;
 				case 0x1:
 					//Different than Z80
-					printf("LD ($%04x), SP (diff)",data);
+					printf("LD ($%04x), SP",data);
 					break;
 				case 0x2:
 					//Different than Z80
-					printf("STOP 0 (diff)");
+					printf("STOP 0");
 					break;
 				case 0x3:
 					printf("JR $%02x",data);
@@ -105,24 +105,24 @@ void decode(int prefix,int x,int y,int z,int data) {
 					if(!q) {
 						//Different than z80
 						//printf("LD (nn), HL");
-						printf("LDI (HL), A (diff)");
+						printf("LDI (HL), A");
 					}
 					else {
 						//Different than z80
 						//printf("LD HL, (nn)");
-						printf("LDI A, (HL) (diff)");
+						printf("LDI A, (HL)");
 					}
 					break;
 				case 0x3:
 					if(!q) {
 						//Different than z80
 						//printf("LD (nn), A");
-						printf("LDD (HL), A (diff)");
+						printf("LDD (HL), A");
 					}
 					else {
 						//Different than z80
 						//printf("LD A, (nn)");
-						printf("LDD A, (HL) (diff)");
+						printf("LDD A, (HL)");
 					}
 					break;
 				}
@@ -190,16 +190,16 @@ void decode(int prefix,int x,int y,int z,int data) {
 			case 0x0:
 				switch(y) {
 				case 4:
-					printf("LD (FF00+$%02x), A (diff)",data);
+					printf("LD (FF00+$%02x), A",data);
 					break;
 				case 5:
-					printf("ADD SP, $%02x (diff)",data);
+					printf("ADD SP, $%02x",data);
 					break;
 				case 6:
-					printf("LD A, (FF00+$%02x) (diff)",data);
+					printf("LD A, (FF00+$%02x)",data);
 					break;
 				case 7:
-					printf("LD HL, SP+$%02x (diff)",data);
+					printf("LD HL, SP+$%02x",data);
 					break;
 				default:
 					printf("RET %s", cc[y]);
@@ -217,7 +217,7 @@ void decode(int prefix,int x,int y,int z,int data) {
 						break;
 					case 0x1: //Different from z80
 						//printf("EXX");
-						printf("RETI (diff)");
+						printf("RETI");
 						break;
 					case 0x2:
 						printf("JP HL");
@@ -231,16 +231,16 @@ void decode(int prefix,int x,int y,int z,int data) {
 			case 0x2:
 				switch(y) {
 				case 0x4:
-					printf("LD (FF00+C), A (diff)");
+					printf("LD (FF00+C), A");
 					break;
 				case 0x5:
-					printf("LD ($%04x), A (diff)",data);
+					printf("LD ($%04x), A",data);
 					break;
 				case 0x6:
-					printf("LD A, (FF00+C) (diff)");
+					printf("LD A, (FF00+C)");
 					break;
 				case 0x7:
-					printf("LD A, ($%04x) (diff)",data);
+					printf("LD A, ($%04x)",data);
 					break;
 				default:
 					printf("JP %s, $%04x", cc[y],data);

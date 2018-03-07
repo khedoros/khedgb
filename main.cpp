@@ -10,10 +10,6 @@
 void usage(char ** argv);
 
 int main(int argc, char *argv[]) {
-    if(argc < 2) {
-        return 1;
-    }
-
     bool sgb = false;
     bool cgb = false;
     bool cpu_trace = false;
@@ -58,18 +54,12 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
         }
-        else {
-            if(romfile == "" && args[arg][0] != '-') {
+        else if(romfile == "" && args[arg][0] != '-') {
                 romfile = args[arg];
-            }
-            else {
-                usage(argv);
-                return 1;
-            }
         }
     }
 
-    if(romfile == "" || argc < 2) {
+    if(romfile == "") {
         usage(argv);
         return 1;
     }
