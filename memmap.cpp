@@ -512,9 +512,14 @@ apu * memmap::get_apu() {
     return &sound;
 }
 
+void memmap::win_resize(unsigned int newx, unsigned int newy) {
+    screen.win_resize(newx, newy);
+}
+
 bool memmap::set_sgb(bool active) {
     if(cart.supports_sgb()) {
         sgb_active = active;
+        screen.sgb_enable(active);
     }
     return sgb_active;
 }

@@ -30,6 +30,7 @@ public:
     bool has_firmware();
     lcd * get_lcd();
     apu * get_apu();
+    void win_resize(unsigned int newx, unsigned int newy);
     bool set_sgb(bool active);
     struct int_flags {
         union {

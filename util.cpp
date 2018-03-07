@@ -14,7 +14,7 @@ namespace util {
 #ifndef PPU_ONLY
 bool process_events(cpu * proc, memmap * bus) {
     SDL_Event event;
-    int newx,newy;
+    unsigned int newx,newy;
     while(SDL_PollEvent(&event)) {
         switch(event.type) {
             case SDL_KEYDOWN:  /* Handle a KEYDOWN event */
@@ -53,6 +53,7 @@ bool process_events(cpu * proc, memmap * bus) {
                             //changed=true;
                         }
                         //ppui.resize(newx,newy);
+                        bus->win_resize(newx, newy);
                         break;
                     case SDL_WINDOWEVENT_EXPOSED:
                         //printf("exposed\n");
@@ -174,4 +175,58 @@ int read(const std::string& filename, Vect<uint8_t>& output, size_t min_size, si
     return 0;
 }
 
+bool reinit_sdl_screen(SDL_Window ** screen, SDL_Renderer ** renderer, SDL_Texture ** texture, unsigned int xres, unsigned int yres) {
+    if(*screen) {
+        SDL_DestroyWindow(*screen);
+        *screen = NULL;
+    }
+    if(*renderer) {
+        SDL_DestroyRenderer(*renderer);
+        *renderer = NULL;
+    }
+    if(*texture) {
+        SDL_DestroyTexture(*texture);
+        *texture = NULL;
+    }
+
+    /* Initialize the SDL library */
+    *screen = SDL_CreateWindow("KhedGB",
+                               SDL_WINDOWPOS_CENTERED,
+                               SDL_WINDOWPOS_CENTERED,
+                               xres*2, yres*2,
+                               SDL_WINDOW_RESIZABLE);
+    if ( *screen == NULL ) {
+        fprintf(stderr, "lcd::Couldn't set %dx%dx32 video mode: %s\nStarting without video output.\n", xres*2, yres*2, SDL_GetError());
+        return false;
+    }
+
+    SDL_SetWindowMinimumSize(*screen, xres, yres);
+
+    //*renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED/*|SDL_RENDERER_PRESENTVSYNC*/);
+    //*renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
+    //*renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE|SDL_RENDERER_PRESENTVSYNC);
+    *renderer = SDL_CreateRenderer(*screen, -1, SDL_RENDERER_SOFTWARE/*|SDL_RENDERER_PRESENTVSYNC*/);
+    SDL_SetRenderDrawBlendMode(*renderer,SDL_BLENDMODE_BLEND);
+    if(!(*renderer)) {
+        fprintf(stderr, "lcd::Couldn't create a renderer: %s\nStarting without video output.\n", SDL_GetError());
+        SDL_DestroyWindow(*screen);
+        *screen = NULL;
+        return false;
+    }
+
+    *texture = SDL_CreateTexture(*renderer, SDL_PIXELFORMAT_ARGB8888,SDL_TEXTUREACCESS_STREAMING,xres,yres);
+    if(!(*texture)) {
+        fprintf(stderr, "lcd::Couldn't create a texture: %s\nStarting without video output.\n", SDL_GetError());
+        SDL_DestroyRenderer(*renderer);
+        *renderer = NULL;
+        SDL_DestroyWindow(*screen);
+        *screen = NULL;
+        return false;
+    }
+    return true;
+}
+
+void destroy_sdl_screen() {
+
+}
 }

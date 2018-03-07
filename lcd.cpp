@@ -13,7 +13,7 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
              cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}},
              cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
              screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL),
-             sgb_dump_filename(""), sgb_mask_mode(0), sgb_vram_transfer_type(0) {
+             sgb_mode(false), sgb_dump_filename(""), sgb_mask_mode(0), sgb_vram_transfer_type(0) {
 
     vram.resize(0x2000);
     oam.resize(0xa0);
@@ -21,45 +21,14 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
     cpu_oam.resize(0xa0);
 
     /* Initialize the SDL library */
-    screen = SDL_CreateWindow("KhedGB",
-            SDL_WINDOWPOS_CENTERED,
-            SDL_WINDOWPOS_CENTERED,
-            320, 288,
-            SDL_WINDOW_RESIZABLE);
-    if ( screen == NULL ) {
-        fprintf(stderr, "lcd::Couldn't set 320x288x32 video mode: %s\nStarting without video output.\n",
-                SDL_GetError());
-        //exit(1);
-        return;
-    }
-
-    SDL_SetWindowMinimumSize(screen, 320, 288);
     cur_x_res=160;
     cur_y_res=144;
 
-    //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED/*|SDL_RENDERER_PRESENTVSYNC*/);
-    //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
-    //renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE|SDL_RENDERER_PRESENTVSYNC);
-    renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE/*|SDL_RENDERER_PRESENTVSYNC*/);
-    if(!renderer) {
-        fprintf(stderr, "lcd::Couldn't create a renderer: %s\nStarting without video output.\n",
-                SDL_GetError());
-        SDL_DestroyWindow(screen);
-        screen = NULL;
-        //exit(1);
-        return;
-    }
-
-    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,SDL_TEXTUREACCESS_STREAMING,160,144);
     prev_texture = NULL;
-    if(!texture) {
-        fprintf(stderr, "lcd::Couldn't create a texture: %s\nStarting without video output.\n",
-                SDL_GetError());
-        SDL_DestroyRenderer(renderer);
-        renderer = NULL;
-        SDL_DestroyWindow(screen);
-        screen = NULL;
-        //exit(1);
+
+    bool success = util::reinit_sdl_screen(&screen, &renderer, &texture, cur_x_res, cur_y_res);
+    if(!success) {
+        fprintf(stderr, "Something failed while init'ing video.\n");
         return;
     }
 
@@ -587,12 +556,14 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
     }
 
     //printf("Raw: start cycle: %lld end: %lld\n", start_cycle, end_cycle);
+    /*
     if(sgb_dump_filename != "") {
         std::ofstream chr_out(sgb_dump_filename.c_str());
         chr_out.write(reinterpret_cast<char *>(&vram[0x800]), 0x1000);
         chr_out.close();
         sgb_dump_filename = "";
     }
+    */
 
     uint64_t start_frame_cycle = (start_cycle - active_cycle) % 17556;
     uint64_t start_frame_line = start_frame_cycle / 114;
@@ -632,7 +603,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
     for(int line=start_frame_line;line <= end_frame_line; line++) {
         //printf("Running line: %d\n", line);
         int render_line = line % 154;
-        if(debug && render_line == 153 && output_sdl) {
+        if(debug && !sgb_mode && render_line == 153 && output_sdl) {
             draw_debug_overlay();
         }
         else if(render_line > 143) continue;
@@ -752,12 +723,6 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     int xcoord = sprite_x + x;
                     int ycoord = render_line;
                     if(xcoord > 159 || xcoord < 0) continue;
-                    /*
-                    assert(xcoord >= 0);
-                    assert(xcoord < 160);
-                    assert(ycoord >= 0);
-                    assert(ycoord < 144);
-                    */
 
                     if(xcoord >= 0 && xcoord < 160 && (bgmap[xcoord] == 0 || !sprite_dat.priority)) {
                         pixels[ycoord * 160 + xcoord] = color;
@@ -779,28 +744,33 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
             texture = SDL_CreateTextureFromSurface(renderer, buffer);
 
-            if(sgb_mask_mode == 2) {
-                SDL_SetRenderDrawColor(renderer, 0,0,0,255);
-            }
-            else if(sgb_mask_mode == 3) {
-                SDL_SetRenderDrawColor(renderer, sys_bgpal[bgpal.pal[0]], sys_bgpal[bgpal.pal[0]], sys_bgpal[bgpal.pal[0]], 255);
-            }
-
-            if(sgb_mask_mode != 1) {
-                SDL_RenderClear(renderer);
-            }
-            if(sgb_mask_mode == 0) {
-                if(!debug) {
-                    SDL_RenderCopy(renderer,texture,NULL,NULL);
+            if(sgb_mode) { //Super GameBoy has a few modes that mask video output
+                if(sgb_mask_mode == 0) {
+                    float xscale = float(win_x_res) / float(cur_x_res);
+                    float yscale = float(win_y_res) / float(cur_y_res);
+                    SDL_Rect screen_middle{int(48.0*xscale),int(40.0*yscale),int(160.0*xscale),int(144.0*yscale)};
+                    SDL_RenderCopy(renderer,texture,NULL,&screen_middle);
                 }
-                else {
-                    SDL_Rect debug_space{114,0,160,144};
-                    SDL_RenderCopy(renderer, texture, NULL, &debug_space);
+                else if(sgb_mask_mode != 1) { //Screen frozen
+                    //SDL_RenderClear(renderer);
                 }
-            }
-
-            if(!debug) {
+                else if(sgb_mask_mode == 2) { //Screen to black
+                    SDL_SetRenderDrawColor(renderer, 0,0,0,255);
+                }
+                else if(sgb_mask_mode == 3) { //Screen to bg color 0
+                    SDL_SetRenderDrawColor(renderer, sys_bgpal[bgpal.pal[0]], sys_bgpal[bgpal.pal[0]], sys_bgpal[bgpal.pal[0]], 255);
+                }
+                //Copy the SGB border texture, then render the screen
+                SDL_RenderCopy(renderer, sgb_texture, NULL, NULL);
                 SDL_RenderPresent(renderer);
+            }
+            else if(!debug) {
+                SDL_RenderCopy(renderer,texture,NULL,NULL);
+                SDL_RenderPresent(renderer);
+            }
+            else { //Debug, but not SGB
+                SDL_Rect debug_space{114,0,160,144};
+                SDL_RenderCopy(renderer, texture, NULL, &debug_space);
             }
         }
         if(render_line == 143) {
@@ -1022,3 +992,72 @@ void lcd::sgb_set_mask_mode(uint8_t mode) { //SGB command 17
     sgb_mask_mode = mode;
 }
 
+void lcd::sgb_enable(bool enable) {
+    bool switched = (sgb_mode != enable);
+    sgb_mode = enable;
+
+    if(sgb_mode && switched) {
+        cur_x_res = 256;
+        cur_y_res = 224;
+        win_x_res = 512;
+        win_y_res = 448;
+        bool success = util::reinit_sdl_screen(&screen, &renderer, &texture, cur_x_res, cur_y_res);
+
+        if(overlay) {
+            SDL_FreeSurface(overlay);
+            overlay = NULL;
+        }
+        overlay = SDL_CreateRGBSurface(0,256,224,32,0,0,0,0);
+
+        if(sgb_border) {
+            SDL_FreeSurface(sgb_border);
+            sgb_border = NULL;
+        }
+        sgb_border = SDL_CreateRGBSurface(0,256,224,32,0,0,0,0);
+        int supported = SDL_SetSurfaceBlendMode(sgb_border, SDL_BLENDMODE_BLEND);
+        if(supported < 0) {
+            fprintf(stderr, "Blended mode surface doesn't seem to be supported.\n");
+        }
+
+        SDL_Rect center{48,40,160,144};
+        SDL_FillRect(sgb_border, NULL, SDL_MapRGBA(sgb_border->format, 0,0,0,0));
+        SDL_FillRect(sgb_border, &center, SDL_MapRGBA(sgb_border->format, 0,0,0,0));
+
+        if(sgb_texture) {
+            SDL_DestroyTexture(sgb_texture);
+            sgb_texture = NULL;
+        }
+        sgb_texture = SDL_CreateTextureFromSurface(renderer, sgb_border);
+        supported = SDL_SetTextureBlendMode(sgb_texture, SDL_BLENDMODE_BLEND);
+        if(supported < 0) {
+            fprintf(stderr, "Blended mode texture doesn't seem to be supported.\n");
+        }
+    }
+    else if(switched) {
+        cur_x_res = 160;
+        cur_y_res = 144;
+        win_x_res = 320;
+        win_y_res = 288;
+        bool success = util::reinit_sdl_screen(&screen, &renderer, &texture, cur_x_res, cur_y_res);
+
+        if(overlay) {
+            SDL_FreeSurface(overlay);
+            overlay = NULL;
+        }
+        overlay = SDL_CreateRGBSurface(0,160,144,32,0,0,0,0);
+
+        if(sgb_border) {
+            SDL_FreeSurface(sgb_border);
+            sgb_border = NULL;
+        }
+        if(sgb_texture) {
+            SDL_DestroyTexture(sgb_texture);
+            sgb_texture = NULL;
+        }
+    }
+}
+
+void lcd::win_resize(unsigned int new_x, unsigned int new_y) {
+    win_x_res = new_x;
+    win_y_res = new_y;
+}

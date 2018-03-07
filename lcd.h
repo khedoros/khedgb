@@ -42,11 +42,13 @@ public:
     void toggle_debug();
     uint64_t get_frame();
     void dma(bool dma_active, uint64_t cycle, uint8_t dma_addr);
+    void win_resize(unsigned int new_x, unsigned int new_y);
 
     void sgb_trigger_dump(std::string filename);
     void sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors);
     void sgb_vram_transfer(uint8_t type);
     void sgb_set_mask_mode(uint8_t mode);
+    void sgb_enable(bool enable);
     uint8_t sgb_vram_transfer_type;
 
 private:
@@ -162,8 +164,10 @@ private:
 
 
     //All of these have to do with the SDL2 output implementation
-    int cur_x_res;
+    int cur_x_res; //Rendering resolution
     int cur_y_res;
+    int win_x_res; //Window resolution
+    int win_y_res;
 
     SDL_Window * screen;
     SDL_Renderer * renderer;
@@ -178,6 +182,9 @@ private:
 
     SDL_Surface * bg1; //Background map 1 compositing buffer
     SDL_Surface * bg2; //Background map 2 compositing buffer
+
+    SDL_Surface * sgb_border; //Super GameBoy border
+    SDL_Texture * sgb_texture; //Texture to store the border in
 
 
     //Super GameBoy-related structs and values

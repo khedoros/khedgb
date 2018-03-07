@@ -5,6 +5,9 @@
 
 class memmap;
 class cpu;
+class SDL_Window;
+class SDL_Renderer;
+class SDL_Texture;
 
 namespace util {
 template<typename T>
@@ -38,9 +41,8 @@ bool process_events(cpu * c, memmap * bus);
 int unzip(const std::string& zip_filename, Vect<uint8_t>& output, size_t min, size_t max);
 #endif
 int read(const std::string& filename, Vect<uint8_t>& output, size_t min_size, size_t max_size);
+bool reinit_sdl_screen(SDL_Window ** screen, SDL_Renderer ** renderer, SDL_Texture ** texture, unsigned int xres, unsigned int yres);
 }
-
-
 //Sign-extend value from 8-bit to 32-bit
 #define extend(x) ( (x>0x7f) ? 0xffffff00|x : x)
 
