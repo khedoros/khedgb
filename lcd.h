@@ -45,10 +45,11 @@ public:
     void win_resize(unsigned int new_x, unsigned int new_y);
 
     void sgb_trigger_dump(std::string filename);
-    void sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors);
+    void sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint8_t>& colors);
     void sgb_vram_transfer(uint8_t type);
     void sgb_set_mask_mode(uint8_t mode);
     void sgb_enable(bool enable);
+    void sgb_set_attrs(Vect<uint8_t>& attrs);
     uint8_t sgb_vram_transfer_type;
 
 private:
@@ -60,6 +61,7 @@ private:
     uint32_t map_win_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_oam1_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_oam2_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
+    Vect<uint8_t> translate_vram();
 
     void draw_debug_overlay();
 
@@ -226,11 +228,12 @@ private:
     };
 
     bool sgb_mode; //Should I activate SGB mode?
-    Vect<sgb_pal>  sgb_sys_pals[512]; //set of 512 palettes that can be copied into the visible ones. These will need translated to SDL colors when used.
-    Vect<uint8_t>  sgb_attrs[20*18]; //palette selections for the main GB display window. These will act as indices into the SDL palette table.
-    Vect<sgb_attr> sgb_frame_attrs[32*32]; //tilemap, palette selections, priorities, etc for window border
+    Vect<sgb_pal>  sgb_sys_pals; //set of 512 palettes that can be copied into the visible ones. These will need translated to SDL colors when used.
+    Vect<uint8_t>  sgb_attrs; //palette selections for the main GB display window. These will act as indices into the SDL palette table.
+    Vect<sgb_attr> sgb_frame_attrs; //tilemap, palette selections, priorities, etc for window border
+    Vect<Vect<sgb_color>> sgb_frame_pals;
     uint8_t sgb_mask_mode; //0=cancel, 1=freeze, 2=black, 3=color 0
-    Vect<uint8_t> sgb_tiles[256*8*8]; //
+    Vect<uint8_t> sgb_tiles; //256 8x8 4-bit tiles
     bool sgb_set_low_tiles;
     bool sgb_set_high_tiles;
     bool sgb_set_bg_attr;

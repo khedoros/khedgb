@@ -13,7 +13,8 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
              cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}}, pal_index(0),
              cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
              screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL),
-             sgb_mode(false), sgb_dump_filename(""), sgb_mask_mode(0), sgb_vram_transfer_type(0) {
+             sgb_mode(false), sgb_dump_filename(""), sgb_mask_mode(0), sgb_vram_transfer_type(0), sgb_sys_pals(512), sgb_attrs(20*18, 0), 
+             sgb_frame_attrs(32*32), sgb_tiles(256*8*8), sgb_set_low_tiles(false), sgb_set_high_tiles(false), sgb_set_bg_attr(false) {
 
     vram.resize(0x2000);
     oam.resize(0xa0);
@@ -54,12 +55,12 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
     SDL_RenderPresent(renderer);
     //printf("lcd::constructor reached end\n");
     
-    //Set default palettes
-    sys_bgpal.resize(8);
-    sys_winpal.resize(8);
-    sys_obj1pal.resize(8);
-    sys_obj2pal.resize(8);
-    for(int i=0;i<8;i++) {
+    //Set default palettes; pal#0 is DMG default, and 0-3 are used for SGB
+    sys_bgpal.resize(4);
+    sys_winpal.resize(4);
+    sys_obj1pal.resize(4);
+    sys_obj2pal.resize(4);
+    for(int i=0;i<4;i++) {
         sys_bgpal[i].resize(4);
         sys_winpal[i].resize(4);
         sys_obj1pal[i].resize(4);
@@ -79,6 +80,8 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
         sys_obj1pal[0][i] = SDL_MapRGB(buffer->format, default_palette[i*3+24], default_palette[i*3+25], default_palette[i*3+26]);
         sys_obj2pal[0][i] = SDL_MapRGB(buffer->format, default_palette[i*3+36], default_palette[i*3+37], default_palette[i*3+38]);
     }
+
+    //Documentation of how the values in the table above were generated
     /*
     for(int i=0;buffer && i<4;i++) {
         sys_bgpal[0][i] = SDL_MapRGB(buffer->format, 85*(3-i), 85*(3-i), 85*(3-i));
@@ -88,7 +91,9 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
     }
     */
 
-    for(int i = 0;i<8;i++) {
+    //Print out all SDL palette colors as a debug step
+    /*
+    for(int i = 0;i<4;i++) {
         for(int j=0;j<4;j++) {
             printf("%08x ", sys_bgpal[i][j]);
             printf("%08x ", sys_winpal[i][j]);
@@ -97,6 +102,7 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
         }
         printf("\n");
     }
+    */
 
 }
 
@@ -566,7 +572,6 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, Vect<uint8_t>& pixels
 }
 
 uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
-    assert(pal_index == 0);
     if(!control.display_enable) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
@@ -644,6 +649,9 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
             int tile_num = 0;
 
             for(int x_out_pix = 0; x_out_pix < 160; x_out_pix++) {
+                if(x_out_pix % 8 == 0) {
+                    pal_index = sgb_attrs[(render_line/8)*20+x_out_pix/8];
+                }
                 int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
                 int x_tile = x_in_pix / 8;
                 int x_tile_pix = x_in_pix % 8;
@@ -685,6 +693,12 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                         int ycoord = tile_y * 8 + y_tile_pix + win_scroll_y;
                         int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
 
+                        pal_index = sgb_attrs[(ycoord/8)*20+xcoord/8];
+
+                        if(xcoord % 8 == 0) {
+                            pal_index = sgb_attrs[(ycoord/8)*20+xcoord/8];
+                        }
+
                         if(output_sdl && xcoord >= 0) {
                             pixels[ycoord * 160 + xcoord] = sys_winpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
                             bgmap[xcoord] = tile_line[x_tile_pix];
@@ -722,6 +736,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 }
                 get_tile_row(tile, y_i, false, tile_line);
 
+                pal_index = sgb_attrs[(render_line/8)*20+sprite_x/8];
                 for(int x=0;x!=8;x++) {
                     int x_i = x;
                     if(sprite_dat.xflip == 1) {
@@ -731,6 +746,14 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     uint8_t col = tile_line[x_i];
                     uint32_t color = 0;
                     if(!col) continue;
+
+                    int xcoord = sprite_x + x;
+                    int ycoord = render_line;
+
+                    if(xcoord % 8 == 0) {
+                        pal_index = sgb_attrs[(render_line/8)*20+sprite_x/8];
+                    }
+
                     if(sprite_dat.palnum_dmg) {
                         color = sys_obj2pal[pal_index][obj2pal.pal[col]];
                     }
@@ -738,8 +761,6 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                         color = sys_obj1pal[pal_index][obj1pal.pal[col]];
                     }
 
-                    int xcoord = sprite_x + x;
-                    int ycoord = render_line;
                     if(xcoord > 159 || xcoord < 0) continue;
 
                     if(xcoord >= 0 && xcoord < 160 && (bgmap[xcoord] == 0 || !sprite_dat.priority)) {
@@ -982,8 +1003,37 @@ void lcd::draw_debug_overlay() {
     SDL_RenderPresent(renderer);
 }
 
-void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors) { //SGB commands 00, 01, 02, 03
+void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint8_t>& colors) { //SGB commands 00, 01, 02, 03
     assert(colors.size() == 21);
+    uint32_t col0 = SDL_MapRGB(buffer->format, colors[0], colors[1], colors[2]);
+    sys_bgpal[pal1][0] = col0;
+    sys_winpal[pal1][0] = col0;
+    sys_obj1pal[pal1][0] = col0;
+    sys_obj2pal[pal1][0] = col0;
+    sys_bgpal[pal2][0] = col0;
+    sys_winpal[pal2][0] = col0;
+    sys_obj1pal[pal2][0] = col0;
+    sys_obj2pal[pal2][0] = col0;
+    for(int i=1;i<4;i++) {
+        uint32_t colx = SDL_MapRGB(buffer->format, colors[i*3+0], colors[i*3+1], colors[i*3+2]);
+        sys_bgpal[pal1][i] = colx;
+        sys_winpal[pal1][i] = colx;
+        sys_obj1pal[pal1][i] = colx;
+        sys_obj2pal[pal1][i] = colx;
+
+        colx = SDL_MapRGB(buffer->format, colors[i*3+9], colors[i*3+10], colors[i*3+11]);
+        sys_bgpal[pal2][i] = colx;
+        sys_winpal[pal2][i] = colx;
+        sys_obj1pal[pal2][i] = colx;
+        sys_obj2pal[pal2][i] = colx;
+    }
+}
+
+void lcd::sgb_set_attrs(Vect<uint8_t>& attrs) {
+    assert(attrs.size() == 360);
+    for(int i=0;i<360;i++) {
+        sgb_attrs[i] = attrs[i];
+    }
 }
 
 void lcd::sgb_vram_transfer(uint8_t type) { //SGB commands 0B, 13, 14, 15
@@ -1044,6 +1094,11 @@ void lcd::sgb_enable(bool enable) {
             sgb_texture = NULL;
         }
         sgb_texture = SDL_CreateTextureFromSurface(renderer, sgb_border);
+
+        sgb_frame_pals.resize(4);
+        for(int i=0;i<4;i++) {
+            sgb_frame_pals[i].resize(16);
+        }
     }
     else if(switched) {
         cur_x_res = 160;

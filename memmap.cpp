@@ -557,7 +557,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
             case 0x00: //PAL01
                 printf(": PAL01    Set palettes 0 and 1\n");
                 {
-                Vect<uint16_t> pals(21,0);
+                Vect<uint8_t> pals(21,0);
                 for(int pal=0;pal<2;pal++) {
                     printf("\tPAL %d: ", pal);
                     for(int col=0;col+pal<4;col++) {
@@ -579,7 +579,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
             case 0x01: //PAL23
                 printf(": PAL23    Set palettes 2 and 3\n");
                 {
-                Vect<uint16_t> pals(21,0);
+                Vect<uint8_t> pals(21,0);
                 for(int pal=0;pal<2;pal++) {
                     printf("\tPAL %d: ", pal+2);
                     for(int col=0;col+pal<4;col++) {
@@ -601,7 +601,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
             case 0x02: //PAL03
                 printf(": PAL03    Set palettes 0 and 3\n");
                 {
-                Vect<uint16_t> pals(21,0);
+                Vect<uint8_t> pals(21,0);
                 for(int pal=0;pal<2;pal++) {
                     printf("\tPAL %d: ", 3*pal);
                     for(int col=0;col+pal<4;col++) {
@@ -623,7 +623,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
             case 0x03: //PAL12
                 printf(": PAL12    Set palettes 1 and 2\n");
                 {
-                Vect<uint16_t> pals(21,0);
+                Vect<uint8_t> pals(21,0);
                 for(int pal=0;pal<2;pal++) {
                     printf("\tPAL %d: ", pal+1);
                     for(int col=0;col+pal<4;col++) {
@@ -717,18 +717,20 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
             case 0x07: //ATTRIBUTE_CHR
                 {
                     printf(": ATTR_CHR explicitly specify palette attributes:\n");
+                    Vect<uint8_t> pal_attrs(360,0);
                     int x0 = sgb_cmd_data[1];
                     int y0 = sgb_cmd_data[2];
                     int items = sgb_cmd_data[4] * 256 + sgb_cmd_data[3];
                     if(items > 360) items = 360;
                     //printf("x0: %d y0: %d items: %d\n", x0,y0,items);
                     bool hv = ((sgb_cmd_data[5] & 1) == 1);
-                    char screen[360] = {'-'};
+                    char out_screen[360] = {'-'};
                     for(int i=0; i<items; i++) {
                         int byte = i / 4;
                         int bit = i % 4;
                         int col = ((sgb_cmd_data[6+byte] & (0xc0>>(bit*2)))>>((3-bit)*2));
-                        screen[y0*20+x0] = col + '0';
+                        out_screen[y0*20+x0] = col + '0';
+                        pal_attrs[y0*20+x0] = col;
 
                         if(hv) {
                             y0++;
@@ -746,9 +748,10 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                         }
                     }
                     for(int i=0;i<360;i++) {
-                        printf("%c ", screen[i]);
+                        printf("%c ", out_screen[i]);
                         if((i+1)%20 == 0) printf("\n");
                     }
+                    screen.sgb_set_attrs(pal_attrs);
                 }
                 break;
             case 0x0a: //PAL_SET, use after PAL_TRN and/or ATTR_TRN
