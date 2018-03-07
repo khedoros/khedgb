@@ -10,7 +10,7 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
              win_scroll_y(0), win_scroll_x(0), active_cycle(0), frame(0), 
              lyc_next_cycle(0), m0_next_cycle(0), m1_next_cycle(0), m2_next_cycle(0), 
              cpu_control{.val=0x00}, cpu_status(0), cpu_bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_lyc(0), cpu_dma_addr(0), 
-             cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}},
+             cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}}, pal_index(0),
              cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
              screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL),
              sgb_mode(false), sgb_dump_filename(""), sgb_mask_mode(0), sgb_vram_transfer_type(0) {
@@ -55,10 +55,16 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
     //printf("lcd::constructor reached end\n");
     
     //Set default palettes
-    sys_bgpal.resize(4);
-    sys_winpal.resize(4);
-    sys_obj1pal.resize(4);
-    sys_obj2pal.resize(4);
+    sys_bgpal.resize(8);
+    sys_winpal.resize(8);
+    sys_obj1pal.resize(8);
+    sys_obj2pal.resize(8);
+    for(int i=0;i<8;i++) {
+        sys_bgpal[i].resize(4);
+        sys_winpal[i].resize(4);
+        sys_obj1pal[i].resize(4);
+        sys_obj2pal[i].resize(4);
+    }
 
     uint8_t default_palette[] =
 //         0              1              2              3
@@ -68,19 +74,30 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
 /*ob2*/  210, 210, 255, 140, 140, 175,  70,  70,  95,   0,   0,  15}; //Powder blue to Mariana trench
 
     for(int i=0; buffer && i<4; i++) {
-        sys_bgpal[i] = SDL_MapRGB(buffer->format, default_palette[i*3], default_palette[i*3+1], default_palette[i*3+2]);
-        sys_winpal[i] = SDL_MapRGB(buffer->format, default_palette[i*3+12], default_palette[i*3+13], default_palette[i*3+14]);
-        sys_obj1pal[i] = SDL_MapRGB(buffer->format, default_palette[i*3+24], default_palette[i*3+25], default_palette[i*3+26]);
-        sys_obj2pal[i] = SDL_MapRGB(buffer->format, default_palette[i*3+36], default_palette[i*3+37], default_palette[i*3+38]);
+        sys_bgpal[0][i] = SDL_MapRGB(buffer->format, default_palette[i*3], default_palette[i*3+1], default_palette[i*3+2]);
+        sys_winpal[0][i] = SDL_MapRGB(buffer->format, default_palette[i*3+12], default_palette[i*3+13], default_palette[i*3+14]);
+        sys_obj1pal[0][i] = SDL_MapRGB(buffer->format, default_palette[i*3+24], default_palette[i*3+25], default_palette[i*3+26]);
+        sys_obj2pal[0][i] = SDL_MapRGB(buffer->format, default_palette[i*3+36], default_palette[i*3+37], default_palette[i*3+38]);
     }
     /*
     for(int i=0;buffer && i<4;i++) {
-        sys_bgpal[i] = SDL_MapRGB(buffer->format, 85*(3-i), 85*(3-i), 85*(3-i));
-        sys_winpal[i] = SDL_MapRGB(buffer->format, 80*(3-i)+15, 70*(3-i), 70*(3-i));
-        sys_obj1pal[i] = SDL_MapRGB(buffer->format, 70*(3-i), 80*(3-i)+15, 70*(3-i));
-        sys_obj2pal[i] = SDL_MapRGB(buffer->format, 70*(3-i), 70*(3-i), 80*(3-i)+15);
+        sys_bgpal[0][i] = SDL_MapRGB(buffer->format, 85*(3-i), 85*(3-i), 85*(3-i));
+        sys_winpal[0][i] = SDL_MapRGB(buffer->format, 80*(3-i)+15, 70*(3-i), 70*(3-i));
+        sys_obj1pal[0][i] = SDL_MapRGB(buffer->format, 70*(3-i), 80*(3-i)+15, 70*(3-i));
+        sys_obj2pal[0][i] = SDL_MapRGB(buffer->format, 70*(3-i), 70*(3-i), 80*(3-i)+15);
     }
     */
+
+    for(int i = 0;i<8;i++) {
+        for(int j=0;j<4;j++) {
+            printf("%08x ", sys_bgpal[i][j]);
+            printf("%08x ", sys_winpal[i][j]);
+            printf("%08x ", sys_obj1pal[i][j]);
+            printf("%08x ", sys_obj2pal[i][j]);
+        }
+        printf("\n");
+    }
+
 }
 
 lcd::~lcd() {
@@ -549,6 +566,7 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, Vect<uint8_t>& pixels
 }
 
 uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
+    assert(pal_index == 0);
     if(!control.display_enable) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
@@ -640,7 +658,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 }
 
                 if(output_sdl /*&& c != 0*/) {
-                    pixels[render_line * 160 + x_out_pix] = sys_bgpal[bgpal.pal[tile_line[x_tile_pix]]];
+                    pixels[render_line * 160 + x_out_pix] = sys_bgpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
                     bgmap[x_out_pix] = tile_line[x_tile_pix];
                 }
             }
@@ -668,7 +686,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                         int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
 
                         if(output_sdl && xcoord >= 0) {
-                            pixels[ycoord * 160 + xcoord] = sys_winpal[bgpal.pal[tile_line[x_tile_pix]]];
+                            pixels[ycoord * 160 + xcoord] = sys_winpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
                             bgmap[xcoord] = tile_line[x_tile_pix];
                         }
                     }
@@ -714,10 +732,10 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     uint32_t color = 0;
                     if(!col) continue;
                     if(sprite_dat.palnum_dmg) {
-                        color = sys_obj2pal[obj2pal.pal[col]];
+                        color = sys_obj2pal[pal_index][obj2pal.pal[col]];
                     }
                     else {
-                        color = sys_obj1pal[obj1pal.pal[col]];
+                        color = sys_obj1pal[pal_index][obj1pal.pal[col]];
                     }
 
                     int xcoord = sprite_x + x;
@@ -758,7 +776,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     SDL_SetRenderDrawColor(renderer, 0,0,0,255);
                 }
                 else if(sgb_mask_mode == 3) { //Screen to bg color 0
-                    SDL_SetRenderDrawColor(renderer, sys_bgpal[bgpal.pal[0]], sys_bgpal[bgpal.pal[0]], sys_bgpal[bgpal.pal[0]], 255);
+                    SDL_SetRenderDrawColor(renderer, sys_bgpal[0][bgpal.pal[0]], sys_bgpal[0][bgpal.pal[0]], sys_bgpal[0][bgpal.pal[0]], 255);
                 }
                 //Copy the SGB border texture, then render the screen
                 SDL_RenderCopy(renderer, sgb_texture, NULL, NULL);
@@ -1002,6 +1020,7 @@ void lcd::sgb_enable(bool enable) {
         win_x_res = 512;
         win_y_res = 448;
         bool success = util::reinit_sdl_screen(&screen, &renderer, &texture, cur_x_res, cur_y_res);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
         if(overlay) {
             SDL_FreeSurface(overlay);
@@ -1013,25 +1032,18 @@ void lcd::sgb_enable(bool enable) {
             SDL_FreeSurface(sgb_border);
             sgb_border = NULL;
         }
-        sgb_border = SDL_CreateRGBSurface(0,256,224,32,0,0,0,0);
-        int supported = SDL_SetSurfaceBlendMode(sgb_border, SDL_BLENDMODE_BLEND);
-        if(supported < 0) {
-            fprintf(stderr, "Blended mode surface doesn't seem to be supported.\n");
-        }
+        sgb_border = SDL_CreateRGBSurfaceWithFormat(0,256,224,32,SDL_PIXELFORMAT_RGBA8888);
+        SDL_SetSurfaceBlendMode(sgb_border, SDL_BLENDMODE_BLEND);
 
         SDL_Rect center{48,40,160,144};
-        SDL_FillRect(sgb_border, NULL, SDL_MapRGBA(sgb_border->format, 0,0,0,0));
-        SDL_FillRect(sgb_border, &center, SDL_MapRGBA(sgb_border->format, 0,0,0,0));
+        SDL_FillRect(sgb_border, NULL, SDL_MapRGBA(sgb_border->format, 0,0,0,255));
+        SDL_FillRect(sgb_border, &center, SDL_MapRGBA(sgb_border->format, 255,0,0,0));
 
         if(sgb_texture) {
             SDL_DestroyTexture(sgb_texture);
             sgb_texture = NULL;
         }
         sgb_texture = SDL_CreateTextureFromSurface(renderer, sgb_border);
-        supported = SDL_SetTextureBlendMode(sgb_texture, SDL_BLENDMODE_BLEND);
-        if(supported < 0) {
-            fprintf(stderr, "Blended mode texture doesn't seem to be supported.\n");
-        }
     }
     else if(switched) {
         cur_x_res = 160;

@@ -112,10 +112,12 @@ private:
     dmgpal obj1pal;      //0xff48
     dmgpal obj2pal;      //0xff49
 
-    Vect<uint32_t> sys_bgpal;
-    Vect<uint32_t> sys_winpal;
-    Vect<uint32_t> sys_obj1pal;
-    Vect<uint32_t> sys_obj2pal;
+    //First dimension is palette number. Second dimension is color number.
+    Vect<Vect<uint32_t>> sys_bgpal;
+    Vect<Vect<uint32_t>> sys_winpal;
+    Vect<Vect<uint32_t>> sys_obj1pal;
+    Vect<Vect<uint32_t>> sys_obj2pal;
+    unsigned int pal_index;
 
     uint8_t win_scroll_y;//0xff4a
     uint8_t win_scroll_x;//0xff4b
@@ -224,7 +226,6 @@ private:
     };
 
     bool sgb_mode; //Should I activate SGB mode?
-    //Vect<sgb_pal>  sgb_pals[8]; //8 visible palettes, actually, I'll reuse the palette entries I'm already using for translation to SDL colors anyhow
     Vect<sgb_pal>  sgb_sys_pals[512]; //set of 512 palettes that can be copied into the visible ones. These will need translated to SDL colors when used.
     Vect<uint8_t>  sgb_attrs[20*18]; //palette selections for the main GB display window. These will act as indices into the SDL palette table.
     Vect<sgb_attr> sgb_frame_attrs[32*32]; //tilemap, palette selections, priorities, etc for window border
