@@ -50,6 +50,7 @@ public:
     void sgb_set_mask_mode(uint8_t mode);
     void sgb_enable(bool enable);
     void sgb_set_attrs(Vect<uint8_t>& attrs);
+    void sgb_set_attrib_from_file(uint8_t attr_file, bool cancel_mask);
     void sgb_pal_transfer(uint16_t pal0, uint16_t pal1, uint16_t pal2, uint16_t pal3, uint8_t attr_file, bool use_attr, bool cancel_mask);
 
 private:

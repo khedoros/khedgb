@@ -590,14 +590,14 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                         int y0 = sgb_cmd_data[3+offset] & 0x1f;
                         int x1 = sgb_cmd_data[4+offset] & 0x1f;
                         int y1 = sgb_cmd_data[5+offset] & 0x1f;
-                        //printf("\tFor (%02x, %02x) - (%02x, %02x), ", x0, y0, x1, y1);
+                        printf("\tFor (%02x, %02x) - (%02x, %02x), ", x0, y0, x1, y1);
                         bool change_inside = ((control & 1) == 1);
                         bool change_border = ((control & 2) == 2);
                         bool change_outside = ((control & 4) == 4);
                         if(!(change_inside||change_border||change_outside)) printf("nothing");
                         else {
                             if(change_inside) {
-                                //printf("%d to inside ", pal_in);
+                                printf("%d to inside ", pal_in);
                                 for(int i=y0+1;i<y1;i++) {
                                     for(int j=x0+1;j<x1;j++) {
                                         attrs[i*20+j] = pal_in;
@@ -605,7 +605,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                                 }
                             }
                             if(change_border) {
-                                //printf("%d to border ", pal_on);
+                                printf("%d to border ", pal_on);
                                 for(int i=y0;i<=y1;i++) {
                                     attrs[i*20+x0] = pal_on;
                                     attrs[i*20+x1] = pal_on;
@@ -617,7 +617,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                                 }
                             }
                             if(change_outside) {
-                                //printf("%d to outside ", pal_out);
+                                printf("%d to outside ", pal_out);
                                 for(int i=0;i<18;i++) {
                                     for(int j=0;j<20;j++) {
                                         if(i >= y0 && i <= y1 && j >= x0 && j <= x1) continue;
@@ -626,7 +626,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                                 }
                             }
                         }
-                        //printf("\n");
+                        printf("\n");
                     }
                     screen.sgb_set_attrs(attrs);
                 }
@@ -652,8 +652,8 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                     printf(": ATTR_DIV Divide palette attributes by line: ");
                     Vect<uint8_t> attrs(360,10);
                     int br = (sgb_cmd_data[1] & 0x03);
-                    int tl = (sgb_cmd_data[1] & 0x03);
-                    int on = (sgb_cmd_data[1] & 0x03);
+                    int tl = ((sgb_cmd_data[1]>>2) & 0x03);
+                    int on = ((sgb_cmd_data[1]>>4) & 0x03);
                     bool hv = ((sgb_cmd_data[1] & 0x40) == 0x40);
                     int line = sgb_cmd_data[2] & 0x1f;
                     if(hv) { //vertical
@@ -802,6 +802,10 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                 //ATF (attribute file) is a 20x18 array of 1-byte color attributes.
                 //This transfers ATF0-ATF44 (4050 bytes) from GB VRAM 000-FD1 to SNES ATF banks.
                 //Each ATF has the same data format as command 0x07: 90 bytes, 4 2-bit attributes per byte, arranged in 20x18
+                break;
+            case 0x16: //ATTR_SET
+                printf(": ATTR_SET file: %d cancel mask: %d\n", (sgb_cmd_data[1] & 0x3f), ((sgb_cmd_data[1] & 0x40) == 0x40));
+                screen.sgb_set_attrib_from_file((sgb_cmd_data[1] & 0x3f), ((sgb_cmd_data[1] & 0x40) == 0x40));
                 break;
             case 0x17: //MASK_EN
                 printf(": MASK_EN  ");

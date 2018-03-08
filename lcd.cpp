@@ -1043,6 +1043,17 @@ void lcd::sgb_set_attrs(Vect<uint8_t>& attrs) {
             sgb_attrs[i] = attrs[i];
     }
 }
+
+void lcd::sgb_set_attrib_from_file(uint8_t attr_file, bool cancel_mask) {
+    if(cancel_mask) sgb_mask_mode = 0;
+    for(int byte=0; byte<90;byte++) {
+        sgb_attrs[byte*4] = sgb_attr_files[attr_file].block[byte].block0;
+        sgb_attrs[byte*4+1] = sgb_attr_files[attr_file].block[byte].block1;
+        sgb_attrs[byte*4+2] = sgb_attr_files[attr_file].block[byte].block2;
+        sgb_attrs[byte*4+3] = sgb_attr_files[attr_file].block[byte].block3;
+    }
+
+}
 void lcd::sgb_pal_transfer(uint16_t pal0, uint16_t pal1, uint16_t pal2, uint16_t pal3, uint8_t attr_file, bool use_attr, bool cancel_mask) {
     uint16_t pals[] = {pal0, pal1, pal2, pal3};
     if(cancel_mask) sgb_mask_mode = 0;
