@@ -126,7 +126,6 @@ private:
     uint16_t clock_divisor_reset; //based on 0xff07 writes
     uint16_t clock_divisor;
     static const unsigned int timer_clock_select[4]; //0xff07 bit 0+1, table of number of CPU clocks to tick the timer
-    uint64_t timer_deadline; //Time the clock will expire
 };
 /*
  * 0x0000-0x3FFF: Permanently-mapped ROM bank.

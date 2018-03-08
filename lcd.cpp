@@ -6,15 +6,14 @@
 #include<string>
 
 lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.val=0x00}, bg_scroll_y(0), bg_scroll_x(0), 
-             bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, 
+             bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, pal_index(0), 
              win_scroll_y(0), win_scroll_x(0), active_cycle(0), frame(0), 
              lyc_next_cycle(0), m0_next_cycle(0), m1_next_cycle(0), m2_next_cycle(0), 
              cpu_control{.val=0x00}, cpu_status(0), cpu_bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_lyc(0), cpu_dma_addr(0), 
-             cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}}, pal_index(0),
-             cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
-             screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL),
-             sgb_mode(false), sgb_dump_filename(""), sgb_mask_mode(0), sgb_vram_transfer_type(0), sgb_sys_pals(512), sgb_attrs(20*18, 0), 
-             sgb_frame_attrs(32*32), sgb_tiles(256*8*8), sgb_border(NULL), sgb_texture(NULL), sgb_attr_files(45), sgb_frame_pals(4) {
+             cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}},             cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
+             screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL), sgb_border(NULL), sgb_texture(NULL),
+             sgb_mode(false), sgb_dump_filename(""), sgb_vram_transfer_type(0), sgb_mask_mode(0), sgb_sys_pals(512), sgb_attrs(20*18, 0),
+             sgb_frame_attrs(32*32), sgb_frame_pals(4), sgb_tiles(256*8*8), sgb_attr_files(45) {
 
     vram.resize(0x2000);
     oam.resize(0xa0);
@@ -188,13 +187,13 @@ uint64_t lcd::run(uint64_t run_to) {
 
 //Apply the data extracted from the command queue, and apply it to the PPU view of the state
 void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
-    uint8_t prev = 0xb5; //stands for "BS"
+    //uint8_t prev = 0xb5; //stands for "BS"
     if(addr >= 0x8000 && addr < 0xa000) {
-        prev = vram[addr&0x1fff];
+        //prev = vram[addr&0x1fff];
         vram[addr & 0x1fff] = val;
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
-        prev = oam[addr-0xfe00];
+        //prev = oam[addr-0xfe00];
         oam[addr-0xfe00] = val;
     }
     else {
@@ -206,17 +205,17 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                     if(control.display_enable && !old_val.display_enable) {
                         active_cycle = cycle;
                     }
-                    prev = old_val.val;
+                    //prev = old_val.val;
                 }
                 break;
             case 0xff42:
                 //printf("cycle: %ld (mode: %d line: %d cycle: %d) bg_scroll_y = %d\n", cycle, get_mode(cycle, true), ((cycle-active_cycle)%17556)/114, (cycle - active_cycle)%114, val);
-                prev = bg_scroll_y;
+                //prev = bg_scroll_y;
                 bg_scroll_y = val;
                 break;
             case 0xff43:
                 //printf("cycle: %ld (mode: %d line: %d cycle: %d) bg_scroll_x = %d\n", cycle, get_mode(cycle, true), ((cycle-active_cycle)%17556)/114, (cycle - active_cycle)%114 ,val);
-                prev = bg_scroll_x;
+                //prev = bg_scroll_x;
                 bg_scroll_x = val;
                 break;
             case 0xff46://OAM DMA (deprecated; I'm just going to do this with regular register writes, to maintain the timing)
@@ -247,7 +246,7 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                 win_scroll_x = val;
                 break;
             default:
-                printf("Ignoring 0x%04x = %02x @ %lld\n", addr, val, cycle);
+                printf("Ignoring 0x%04x = %02x @ %ld\n", addr, val, cycle);
                 //Various data aren't necessary to render the screen, so we ignore anything like interrupts and status
                 break;
         }
@@ -623,7 +622,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
     }
 
     //printf("Render starting conditions: startline: %lld endline: %lld\n", start_frame_line, end_frame_line);
-    for(int line=start_frame_line;line <= end_frame_line; line++) {
+    for(unsigned int line=start_frame_line;line <= end_frame_line; line++) {
         //printf("Running line: %d\n", line);
         int render_line = line % 154;
         if(debug && !sgb_mode && render_line == 153 && output_sdl) {
@@ -1041,6 +1040,15 @@ void lcd::sgb_set_attrs(Vect<uint8_t>& attrs) {
             sgb_attrs[i] = attrs[i];
     }
 }
+void lcd::sgb_pal_transfer(uint16_t pal0, uint16_t pal1, uint16_t pal2, uint16_t pal3, uint8_t attr_file, bool use_attr, bool cancel_mask) {
+    if(cancel_mask) sgb_mask_mode = 0;
+    if(use_attr) {
+    //TODO: Apply the attribute changes
+    }
+
+    //TODO: Apply the palette changes
+
+}
 
 //Just requests that a transfer occurs when next frame finishes rendering
 void lcd::sgb_vram_transfer(uint8_t type) { //SGB commands 0B, 13, 14, 15
@@ -1049,17 +1057,21 @@ void lcd::sgb_vram_transfer(uint8_t type) { //SGB commands 0B, 13, 14, 15
 
 //Transfers the data to the appropriate section of memory
 void lcd::do_vram_transfer() {
+    uint8_t type = sgb_vram_transfer_type;
     Vect<uint8_t> vram_data(4096, 0);
-    if(sgb_vram_transfer_type > 0) {
+    if(type > 0) {
         interpret_vram(vram_data);
+        /*
         for(int i=0;i<4096;i++) {
+            if(i%64==0) printf("%04x  ", i);
             printf("%02X ", vram_data[i]);
-            if(i && i % 64 == 0) printf("\n");
+            if((i+1) % 64 == 0) printf("\n");
         }
         printf("\n");
+        */
     }
 
-    switch(sgb_vram_transfer_type) {
+    switch(type) {
         case 0: //none
             break;
         case 1: //pal, transfers 512 palettes of 8 bytes each
@@ -1072,7 +1084,7 @@ void lcd::do_vram_transfer() {
         case 3: //chr1, transfers 128 32-byte tiles in 4-bit color, using the 4 bit plane arrangement from SNES (tiles 128-255)
             {
                 uint16_t offset = 0;
-                if(sgb_vram_transfer_type == 3) offset = 8192;
+                if(type == 3) offset = 8192;
                 for(int i=0;i<4096;i+=32) {
                     for(int y=0;y<8;y++) {
                         uint8_t byte0 = vram_data[i+2*y];
@@ -1085,7 +1097,7 @@ void lcd::do_vram_transfer() {
                             byte1<<=1;
                             byte2<<=1;
                             byte3<<=1;
-                            sgb_tiles[offset + ((i/32) + 128)*64 + y*8 + x] = col;
+                            sgb_tiles[offset + (i/32)*64 + y*8 + x] = col;
                         }
                     }
                 }
@@ -1100,16 +1112,24 @@ void lcd::do_vram_transfer() {
             assert(sgb_frame_attrs.size() == 1024);
             memcpy(&(sgb_frame_attrs[0]), &(vram_data[0]), 2048);
             memcpy(&(sgb_frame_pals[0]), &(vram_data[0x800]), 128);
+            /*
+            for(int p=0;p<4;p++) {
+                printf("pal %d: ", p);
+                for(int c=0;c<16;c++) 
+                    printf("%d: %x ", c, sgb_frame_pals[p].col[c]);
+                printf("\n");
+            }
+            */
             break;
         case 5: //attr, transfers 45 90-byte attribute transfer files
             assert(sgb_attr_files.size() == 45);
+            printf("attrib file size: %d\n", sizeof(attrib_file));
             assert(sizeof(attrib_file) == 90);
             memcpy(&(sgb_attr_files[0]), &(vram_data[0]), 4050);
             break;
         default: //undefined
             break;
     }
-    int type = sgb_vram_transfer_type;
     if(type == 2 || type == 3 || type == 4) {
         regen_background();
     }
@@ -1117,21 +1137,20 @@ void lcd::do_vram_transfer() {
 
 //regenerate the background texture
 void lcd::regen_background() {
+    printf("Regenerate! (from type %d)\n", sgb_vram_transfer_type);
     uint32_t * pixels = (uint32_t *)(sgb_border->pixels);
-    //printf("attrs\n");
+    uint32_t palette[16];
+    palette[0] = SDL_MapRGBA(sgb_border->format, 255,0,0,0);
     for(int i = 0; i < 28; i++) {
         for(int j = 0; j < 32; j++) {
             sgb_attr attr = sgb_frame_attrs[i*32+j];
-            //printf("%04x ", attr.val);
-            int tile = (attr.tile & 0xff);
-            int pal = (attr.pal & 0x3);
-            uint32_t palette[16];
-            palette[0] = SDL_MapRGBA(sgb_border->format, 255,0,0,0);
+            int tile_index = (attr.tile & 0xff);
+            int pal_index = (attr.pal & 0x3);
             assert(sgb_mode == true);
             for(int c = 1; c < 16; c++) {
-                uint8_t r = sgb_frame_pals[pal].col[c].red;
-                uint8_t g = sgb_frame_pals[pal].col[c].green;
-                uint8_t b = sgb_frame_pals[pal].col[c].blue;
+                uint8_t r = sgb_frame_pals[pal_index].col[c].red * 8;
+                uint8_t g = sgb_frame_pals[pal_index].col[c].green * 8;
+                uint8_t b = sgb_frame_pals[pal_index].col[c].blue * 8;
                 palette[c] = SDL_MapRGBA(sgb_border->format, r, g, b, 255);
             }
             bool xflip = attr.xflip;
@@ -1142,9 +1161,14 @@ void lcd::regen_background() {
                 for(int x = 0; x < 8; x++) {
                     int x_coord = x;
                     if(xflip) x_coord = 7 - x;
-                    int tiledat = tile * 64 + 8 * y_coord + x_coord;
-                    int index = i * 2048 + y_coord * 256 + j * 8 + x_coord;
-                    pixels[index] = palette[tiledat];
+                    int tiledat_index = tile_index * 64 + 8 * y_coord + x_coord;
+                    assert(tiledat_index >= 0 && tiledat_index < 256*64);
+                    int pixel_index = i * 2048 + y * 256 + j * 8 + x;
+                    assert(pixel_index >= 0 && pixel_index < 256*224);
+                    uint8_t col = sgb_tiles[tiledat_index];
+                    assert(col >= 0 && col < 16);
+                    //printf("%x ", col);
+                    pixels[pixel_index] = palette[col];
                 }
             }
         }
@@ -1161,9 +1185,10 @@ void lcd::interpret_vram(Vect<uint8_t>& vram_data) {
     //TODO: Interpret some version of graphics output for the transfer instead of just dumping the vram ;-)
     assert(bg_scroll_x == 0);
     assert(bg_scroll_y == 0);
+    assert(vram_data.size() == 4096);
     //uint16_t bgmapbase = 0x800 + 0x400 * control.bg_map;
     //for(int bgmap_tile = 0; bgmap_tile < 256
-    memcpy(&(vram_data[0]), &(vram[0x800]), 4096);
+    memcpy(&(vram_data[0]), &(vram[0x800]), 4096); //copy 0x800 - 0x17FF into the vector
 }
 
 void lcd::sgb_set_mask_mode(uint8_t mode) { //SGB command 17

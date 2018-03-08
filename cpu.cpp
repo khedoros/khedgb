@@ -1311,11 +1311,11 @@ void cpu::registers() {
 }
 
 bool cpu::call_interrupts() {
-    const char * names[6] = {"none", "vblank", "lcdstat", "timer", "serial", "joypad"};
+    //const char * names[6] = {"none", "vblank", "lcdstat", "timer", "serial", "joypad"};
     INT_TYPE interrupt = bus->get_interrupt();
-    if(interrupt != NONE) {
+    //if(interrupt != NONE) {
         //printf("Bus says interrupt: %s\n", names[interrupt]);
-    }
+    //}
     bool call = true;
     uint16_t to_run = pc;
     switch(interrupt) {

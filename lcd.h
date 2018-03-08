@@ -50,6 +50,7 @@ public:
     void sgb_set_mask_mode(uint8_t mode);
     void sgb_enable(bool enable);
     void sgb_set_attrs(Vect<uint8_t>& attrs);
+    void sgb_pal_transfer(uint16_t pal0, uint16_t pal1, uint16_t pal2, uint16_t pal3, uint8_t attr_file, bool use_attr, bool cancel_mask);
 
 private:
     void update_estimates(uint64_t cycle);
@@ -68,7 +69,6 @@ private:
 
     void draw_debug_overlay();
 
-    uint8_t sgb_vram_transfer_type;
     bool debug;
     bool during_dma;
     bool cpu_during_dma;
@@ -209,7 +209,6 @@ private:
 
 
     //Super GameBoy-related structs and values
-    std::string sgb_dump_filename;
 
     union sgb_color {
         struct {
@@ -248,22 +247,26 @@ private:
         uint16_t val;
     };
 
+    struct attrib_byte {
+        unsigned block0:2;
+        unsigned block1:2;
+        unsigned block2:2;
+        unsigned block3:2;
+    } __attribute__((packed));
+
     union attrib_file {
-        struct {
-            unsigned block0:2;
-            unsigned block1:2;
-            unsigned block2:2;
-            unsigned block3:2;
-        } block[90];
+        attrib_byte block[90];
         uint8_t bytes[90];
     };
 
     bool sgb_mode; //Is SGB mode active?
+    std::string sgb_dump_filename;
+    uint8_t sgb_vram_transfer_type;
+    uint8_t sgb_mask_mode; //0=cancel, 1=freeze, 2=black, 3=color 0
     Vect<sgb_pal4>  sgb_sys_pals; //set of 512 palettes that can be copied into the visible ones. These will need translated to SDL colors when used.
     Vect<uint8_t>  sgb_attrs; //palette selections for the main GB display window. These will act as indices into the SDL palette table.
     Vect<sgb_attr> sgb_frame_attrs; //tilemap, palette selections, priorities, etc for window border
     Vect<sgb_pal16> sgb_frame_pals;
-    uint8_t sgb_mask_mode; //0=cancel, 1=freeze, 2=black, 3=color 0
     Vect<uint8_t> sgb_tiles; //256 8x8 4-bit tiles
     Vect<attrib_file> sgb_attr_files; //45 attribute files
 };
