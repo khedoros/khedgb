@@ -50,7 +50,6 @@ public:
     void sgb_set_mask_mode(uint8_t mode);
     void sgb_enable(bool enable);
     void sgb_set_attrs(Vect<uint8_t>& attrs);
-    uint8_t sgb_vram_transfer_type;
 
 private:
     void update_estimates(uint64_t cycle);
@@ -62,9 +61,13 @@ private:
     uint32_t map_oam1_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_oam2_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     Vect<uint8_t> translate_vram();
+    void do_vram_transfer();
+    void interpret_vram(Vect<uint8_t>& vram_data);
+
 
     void draw_debug_overlay();
 
+    uint8_t sgb_vram_transfer_type;
     bool debug;
     bool during_dma;
     bool cpu_during_dma;

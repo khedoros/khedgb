@@ -15,7 +15,7 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
              screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL),
              sgb_mode(false), sgb_dump_filename(""), sgb_mask_mode(0), sgb_vram_transfer_type(0), sgb_sys_pals(512), sgb_attrs(20*18, 0), 
              sgb_frame_attrs(32*32), sgb_tiles(256*8*8), sgb_set_low_tiles(false), sgb_set_high_tiles(false), sgb_set_bg_attr(false),
-             sgb_border(NULL) {
+             sgb_border(NULL), sgb_texture(NULL) {
 
     vram.resize(0x2000);
     oam.resize(0xa0);
@@ -774,6 +774,10 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
         }
 
         if(output_sdl && render_line == 143) {
+            if(sgb_vram_transfer_type != 0) {
+                do_vram_transfer();
+                sgb_vram_transfer_type = 0;
+            }
             if(prev_texture) {
                 SDL_DestroyTexture(prev_texture);
                 prev_texture = NULL;
@@ -1034,15 +1038,24 @@ void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint8_t>& colors) { //SG
 void lcd::sgb_set_attrs(Vect<uint8_t>& attrs) {
     assert(attrs.size() == 360);
     for(int i=0;i<360;i++) {
-        sgb_attrs[i] = attrs[i];
+        if(attrs[i] != 10)
+            sgb_attrs[i] = attrs[i];
     }
 }
 
+//Just requests that a transfer occurs when next frame finishes rendering
 void lcd::sgb_vram_transfer(uint8_t type) { //SGB commands 0B, 13, 14, 15
     sgb_vram_transfer_type = type;
-    /* For reference:
-    switch(type) {
+}
+
+//Transfers the data to the appropriate section of memory
+void lcd::do_vram_transfer() {
+    Vect<uint8_t> vram_data(4096, 0);
+    interpret_vram(vram_data);
+    //TODO: Do the data interpretation
+    switch(sgb_vram_transfer_type) {
         case 0: //none
+            break;
         case 1: //pal, transfers 512 palettes of 8 bytes each
             break;
         case 2: //chr0, transfers 128 32-byte tiles in 4-bit color, using the 4 bit plane arrangement from SNES (tiles 0-127)
@@ -1053,8 +1066,14 @@ void lcd::sgb_vram_transfer(uint8_t type) { //SGB commands 0B, 13, 14, 15
             break;
         case 5: //attr, transfers 90 attribute transfer files
             break;
+        default: //undefined
+            break;
     }
-    */
+}
+
+//Interprets current rendering state and sticks it in VRAM
+void lcd::interpret_vram(Vect<uint8_t>& vram_data) {
+    //TODO: Interpret VRAM for the transfer ;-)
 }
 
 void lcd::sgb_set_mask_mode(uint8_t mode) { //SGB command 17

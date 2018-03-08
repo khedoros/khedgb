@@ -644,6 +644,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                break;
             case 0x04: //ATTR_BLK
                 {
+                    Vect<uint8_t> attrs(360,10);
                     int data_groups = sgb_cmd_data[1] & 0x1f;
                     printf(": ATTR_BLK Apply color palette attributes to %d areas\n", data_groups);
                     for(int group=0;group<data_groups;++group) {
@@ -657,50 +658,66 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                         int x1 = sgb_cmd_data[4+offset] & 0x1f;
                         int y1 = sgb_cmd_data[5+offset] & 0x1f;
                         printf("\tFor (%02x, %02x) - (%02x, %02x), ", x0, y0, x1, y1);
-                        switch(control) {
-                            case 0:
-                                printf("nothing\n");
-                                break;
-                            case 1:
-                                printf("%d to inside+border\n", pal_in);
-                                break;
-                            case 2:
-                                printf("%d to border\n", pal_on);
-                                break;
-                            case 3:
-                                printf("%d to inside, %d to border\n", pal_in, pal_on);
-                                break;
-                            case 4:
-                                printf("%d to outside\n", pal_out);
-                                break;
-                            case 5:
-                                printf("%d to inside, %d to outside\n", pal_in, pal_out);
-                                break;
-                            case 6:
-                                printf("%d to border, %d to outside\n", pal_on, pal_out);
-                                break;
-                            case 7:
-                                printf("%d to inside, %d to border, %d to outside\n", pal_in, pal_on, pal_out);
-                                break;
+                        bool change_inside = ((control & 1) == 1);
+                        bool change_border = ((control & 2) == 2);
+                        bool change_outside = ((control & 4) == 4);
+                        if(!(change_inside||change_border||change_outside)) printf("nothing");
+                        else {
+                            if(change_inside) {
+                                printf("%d to inside ", pal_in);
+                                for(int i=y0+1;i<y1;i++) {
+                                    for(int j=x0+1;j<x1;j++) {
+                                        attrs[i*20+j] = pal_in;
+                                    }
+                                }
+                            }
+                            if(change_border) {
+                                printf("%d to border ", pal_on);
+                                for(int i=y0;i<=y1;i++) {
+                                    attrs[i*20+x0] = pal_on;
+                                    attrs[i*20+x1] = pal_on;
+                                }
+
+                                for(int i=x0+1;i<x1;i++) {
+                                    attrs[y0*20+i] = pal_on;
+                                    attrs[y1*20+i] = pal_on;
+                                }
+                            }
+                            if(change_outside) {
+                                printf("%d to outside ", pal_out);
+                                for(int i=0;i<18;i++) {
+                                    for(int j=0;j<20;j++) {
+                                        if(i >= y0 && i <= y1 && j >= x0 && j <= x1) continue;
+                                        attrs[i*20+j] = pal_out;
+                                    }
+                                }
+                            }
                         }
+                        printf("\n");
                     }
+                    screen.sgb_set_attrs(attrs);
                 }
                 break;
             case 0x05: //ATTR_LIN
                 {
                     printf(": ATTR_LIN Set individual lines of palette attributes:\n");
+                    Vect<uint8_t> attrs(360,10);
                     int count = sgb_cmd_data[1];
                     for(int line = 0; line < count; line++) {
                         int line_num = (sgb_cmd_data[line+2] & 0x1f);
                         int pal_num  = ((sgb_cmd_data[line+2]>>5)&3);
                         bool hv = ((sgb_cmd_data[line+2] & 0x80) == 0x80);
                         printf("\tLine %d: num: %d set to pal: %d h/v: %d\n", line, line_num, pal_num, hv);
+                        if(hv) for(int i = 0; i < 20; i++) attrs[line_num * 20 + i] = pal_num;
+                        else   for(int i = 0; i < 18; i++) attrs[i * 20 + line_num] = pal_num;
                     }
+                    screen.sgb_set_attrs(attrs);
                 }
                 break;  
             case 0x06: //ATTR_DIV
                 {
                     printf(": ATTR_DIV Divide palette attributes by line: ");
+                    Vect<uint8_t> attrs(360,10);
                     int br = (sgb_cmd_data[1] & 0x03);
                     int tl = (sgb_cmd_data[1] & 0x03);
                     int on = (sgb_cmd_data[1] & 0x03);
@@ -708,10 +725,21 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                     int line = sgb_cmd_data[2] & 0x1f;
                     if(hv) { //vertical
                         printf("Divide at x=%d, left to %d, line to %d, right to %d\n", line, tl, on, br);
+                        for(int j = 0; j < 18; j++) {
+                            for(int i = 0; i < line; i++) attrs[j*20+i] = tl;
+                            attrs[j*20+line] = on;
+                            for(int i=line+1;i<20;i++) attrs[j*20 + i] = br;
+                        }
                     }
                     else { //Horizontal
                         printf("Divide at y=%d, top to %d, line to %d, bottom to %d\n", line, tl, on, br);
+                        for(int i = 0; i < 20; i++) {
+                            for(int j = 0; j < line; j++) attrs[j*20+i] = tl;
+                            attrs[line*20+i] = on;
+                            for(int j=line+1;j<18;j++) attrs[j*20 + i] = br;
+                        }
                     }
+                    screen.sgb_set_attrs(attrs);
                 }
                 break;
             case 0x07: //ATTRIBUTE_CHR
