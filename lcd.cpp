@@ -14,8 +14,7 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
              cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
              screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL),
              sgb_mode(false), sgb_dump_filename(""), sgb_mask_mode(0), sgb_vram_transfer_type(0), sgb_sys_pals(512), sgb_attrs(20*18, 0), 
-             sgb_frame_attrs(32*32), sgb_tiles(256*8*8), sgb_set_low_tiles(false), sgb_set_high_tiles(false), sgb_set_bg_attr(false),
-             sgb_border(NULL), sgb_texture(NULL), sgb_attr_files(45), sgb_frame_pals(4) {
+             sgb_frame_attrs(32*32), sgb_tiles(256*8*8), sgb_border(NULL), sgb_texture(NULL), sgb_attr_files(45), sgb_frame_pals(4) {
 
     vram.resize(0x2000);
     oam.resize(0xa0);
@@ -1051,14 +1050,21 @@ void lcd::sgb_vram_transfer(uint8_t type) { //SGB commands 0B, 13, 14, 15
 //Transfers the data to the appropriate section of memory
 void lcd::do_vram_transfer() {
     Vect<uint8_t> vram_data(4096, 0);
-    interpret_vram(vram_data);
-    //TODO: Do the data interpretation
+    if(sgb_vram_transfer_type > 0) {
+        interpret_vram(vram_data);
+        for(int i=0;i<4096;i++) {
+            printf("%02X ", vram_data[i]);
+            if(i && i % 64 == 0) printf("\n");
+        }
+        printf("\n");
+    }
+
     switch(sgb_vram_transfer_type) {
         case 0: //none
             break;
         case 1: //pal, transfers 512 palettes of 8 bytes each
             assert(sizeof(sgb_color) == 2);
-            assert(sizeof(sgb_pal) == 8);
+            assert(sizeof(sgb_pal4) == 8);
             assert(sgb_sys_pals.size() == 512);
             memcpy(&(sgb_sys_pals[0]), &(vram_data[0]), 4096);
             break;
@@ -1066,7 +1072,7 @@ void lcd::do_vram_transfer() {
         case 3: //chr1, transfers 128 32-byte tiles in 4-bit color, using the 4 bit plane arrangement from SNES (tiles 128-255)
             {
                 uint16_t offset = 0;
-                if(sgb_vram_transfer_type == 0) offset = 128;
+                if(sgb_vram_transfer_type == 3) offset = 8192;
                 for(int i=0;i<4096;i+=32) {
                     for(int y=0;y<8;y++) {
                         uint8_t byte0 = vram_data[i+2*y];
@@ -1079,20 +1085,21 @@ void lcd::do_vram_transfer() {
                             byte1<<=1;
                             byte2<<=1;
                             byte3<<=1;
-                            sgb_tiles[((i/32) + 128)*64 + y*8 + x] = col;
+                            sgb_tiles[offset + ((i/32) + 128)*64 + y*8 + x] = col;
                         }
                     }
                 }
             }
             break;
         case 4: //pct, transfers 1024 16-bit background attributes, then 16 2-byte colors (as palettes 4-7)
-            printf("sgb_attr size: %d\n", sizeof(sgb_attr));
+            //printf("sgb_attr size: %d\n", sizeof(sgb_attr));
             assert(sizeof(sgb_attr) == 2);
             assert(sizeof(sgb_color) == 2);
             assert(sgb_frame_pals.size() == 4);
+            assert(sizeof(sgb_pal16) == 32);
             assert(sgb_frame_attrs.size() == 1024);
             memcpy(&(sgb_frame_attrs[0]), &(vram_data[0]), 2048);
-            memcpy(&(sgb_frame_pals[0]), &(vram_data[0]), 64);
+            memcpy(&(sgb_frame_pals[0]), &(vram_data[0x800]), 128);
             break;
         case 5: //attr, transfers 45 90-byte attribute transfer files
             assert(sgb_attr_files.size() == 45);
@@ -1111,21 +1118,20 @@ void lcd::do_vram_transfer() {
 //regenerate the background texture
 void lcd::regen_background() {
     uint32_t * pixels = (uint32_t *)(sgb_border->pixels);
-    printf("attrs\n");
+    //printf("attrs\n");
     for(int i = 0; i < 28; i++) {
         for(int j = 0; j < 32; j++) {
             sgb_attr attr = sgb_frame_attrs[i*32+j];
-            printf("%04x ", attr.val);
+            //printf("%04x ", attr.val);
             int tile = (attr.tile & 0xff);
             int pal = (attr.pal & 0x3);
             uint32_t palette[16];
             palette[0] = SDL_MapRGBA(sgb_border->format, 255,0,0,0);
             assert(sgb_mode == true);
-            assert(sgb_frame_pals[pal].size() == 16);
             for(int c = 1; c < 16; c++) {
-                uint8_t r = sgb_frame_pals[pal][c].red;
-                uint8_t g = sgb_frame_pals[pal][c].green;
-                uint8_t b = sgb_frame_pals[pal][c].blue;
+                uint8_t r = sgb_frame_pals[pal].col[c].red;
+                uint8_t g = sgb_frame_pals[pal].col[c].green;
+                uint8_t b = sgb_frame_pals[pal].col[c].blue;
                 palette[c] = SDL_MapRGBA(sgb_border->format, r, g, b, 255);
             }
             bool xflip = attr.xflip;
@@ -1157,7 +1163,7 @@ void lcd::interpret_vram(Vect<uint8_t>& vram_data) {
     assert(bg_scroll_y == 0);
     //uint16_t bgmapbase = 0x800 + 0x400 * control.bg_map;
     //for(int bgmap_tile = 0; bgmap_tile < 256
-    memcpy(&(vram_data[0]), &(vram[0]), 4096);
+    memcpy(&(vram_data[0]), &(vram[0x800]), 4096);
 }
 
 void lcd::sgb_set_mask_mode(uint8_t mode) { //SGB command 17
@@ -1200,12 +1206,7 @@ void lcd::sgb_enable(bool enable) {
         }
         sgb_texture = SDL_CreateTextureFromSurface(renderer, sgb_border);
 
-        sgb_frame_pals.resize(4);
-        for(int i=0;i<4;i++) {
-            sgb_frame_pals[i].resize(16);
-            assert(sgb_frame_pals.size() == 4);
-            assert(sgb_frame_pals[i].size() == 16);
-        }
+        assert(sgb_frame_pals.size() == 4);
     }
     else if(switched) {
         cur_x_res = 160;

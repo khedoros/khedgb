@@ -225,8 +225,12 @@ private:
         uint16_t val;
     };
 
-    union sgb_pal {
+    union sgb_pal4 {
         sgb_color col[4];
+    };
+
+    union sgb_pal16 {
+        sgb_color col[16];
     };
 
     union sgb_attr {
@@ -254,16 +258,12 @@ private:
         uint8_t bytes[90];
     };
 
-    bool sgb_mode; //Should I activate SGB mode?
-    Vect<sgb_pal>  sgb_sys_pals; //set of 512 palettes that can be copied into the visible ones. These will need translated to SDL colors when used.
+    bool sgb_mode; //Is SGB mode active?
+    Vect<sgb_pal4>  sgb_sys_pals; //set of 512 palettes that can be copied into the visible ones. These will need translated to SDL colors when used.
     Vect<uint8_t>  sgb_attrs; //palette selections for the main GB display window. These will act as indices into the SDL palette table.
     Vect<sgb_attr> sgb_frame_attrs; //tilemap, palette selections, priorities, etc for window border
-    Vect<Vect<sgb_color>> sgb_frame_pals;
+    Vect<sgb_pal16> sgb_frame_pals;
     uint8_t sgb_mask_mode; //0=cancel, 1=freeze, 2=black, 3=color 0
     Vect<uint8_t> sgb_tiles; //256 8x8 4-bit tiles
     Vect<attrib_file> sgb_attr_files; //45 attribute files
-    bool sgb_set_low_tiles;
-    bool sgb_set_high_tiles;
-    bool sgb_set_bg_attr;
-
 };
