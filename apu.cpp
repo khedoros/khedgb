@@ -193,11 +193,7 @@ void apu::apply(util::cmd& c) {
             chan2_freq.freq_high = c.val;
             if(chan2_freq.initial) {
                 chan2_freq_shadow = chan1_freq.freq;
-                chan2_sweep_counter = 0;
                 chan2_active = true;
-                if(chan2_sweep.shift != 0 && !sweep_check()) {
-                    chan2_active = false;
-                }
             }
             //printf("apu: S2 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
             break;

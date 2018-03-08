@@ -736,7 +736,10 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 }
                 get_tile_row(tile, y_i, false, tile_line);
 
-                pal_index = sgb_attrs[(render_line/8)*20+sprite_x/8];
+                if(sprite_x >=0 && sprite_x < 160) {
+                    pal_index = sgb_attrs[(render_line/8)*20+sprite_x/8];
+                }
+
                 for(int x=0;x!=8;x++) {
                     int x_i = x;
                     if(sprite_dat.xflip == 1) {
@@ -750,7 +753,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     int xcoord = sprite_x + x;
                     int ycoord = render_line;
 
-                    if(xcoord % 8 == 0) {
+                    if(xcoord % 8 == 0 && xcoord >= 0 && xcoord < 160) {
                         pal_index = sgb_attrs[(render_line/8)*20+sprite_x/8];
                     }
 

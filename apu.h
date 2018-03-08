@@ -253,6 +253,7 @@ private:
     uint16_t chan2_length_counter; //Counts how many steps until channel is silenced
     uint16_t chan2_freq_counter;   //Counts how many steps until waveform is clocked
     uint16_t chan2_env_counter;    //Counts how many steps until envelope is clocked
+    uint16_t chan2_freq_shadow;    //Frequency shadow register used by sweep
     uint8_t chan2_level;           //Current output level
     uint8_t chan2_duty_phase;      //Which waveform sample is it on
 
