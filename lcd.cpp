@@ -14,7 +14,8 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
              cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
              screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL),
              sgb_mode(false), sgb_dump_filename(""), sgb_mask_mode(0), sgb_vram_transfer_type(0), sgb_sys_pals(512), sgb_attrs(20*18, 0), 
-             sgb_frame_attrs(32*32), sgb_tiles(256*8*8), sgb_set_low_tiles(false), sgb_set_high_tiles(false), sgb_set_bg_attr(false) {
+             sgb_frame_attrs(32*32), sgb_tiles(256*8*8), sgb_set_low_tiles(false), sgb_set_high_tiles(false), sgb_set_bg_attr(false),
+             sgb_border(NULL) {
 
     vram.resize(0x2000);
     oam.resize(0xa0);
@@ -693,9 +694,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                         int ycoord = tile_y * 8 + y_tile_pix + win_scroll_y;
                         int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
 
-                        pal_index = sgb_attrs[(ycoord/8)*20+xcoord/8];
-
-                        if(xcoord % 8 == 0) {
+                        if(xcoord >= 0 && xcoord < 160) {
                             pal_index = sgb_attrs[(ycoord/8)*20+xcoord/8];
                         }
 
