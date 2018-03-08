@@ -63,6 +63,7 @@ private:
     Vect<uint8_t> translate_vram();
     void do_vram_transfer();
     void interpret_vram(Vect<uint8_t>& vram_data);
+    void regen_background();
 
 
     void draw_debug_overlay();
@@ -216,7 +217,7 @@ private:
             unsigned green: 5;
             unsigned blue: 5;
             unsigned unused:1;
-        };
+        } __attribute__((packed));
         struct {
             uint8_t low;
             uint8_t high;
@@ -235,12 +236,22 @@ private:
             unsigned priority:1;
             unsigned xflip:1;
             unsigned yflip:1;
-        };
+        } __attribute__((packed));
         struct {
             uint8_t low;
             uint8_t high;
         };
         uint16_t val;
+    };
+
+    union attrib_file {
+        struct {
+            unsigned block0:2;
+            unsigned block1:2;
+            unsigned block2:2;
+            unsigned block3:2;
+        } block[90];
+        uint8_t bytes[90];
     };
 
     bool sgb_mode; //Should I activate SGB mode?
@@ -250,6 +261,7 @@ private:
     Vect<Vect<sgb_color>> sgb_frame_pals;
     uint8_t sgb_mask_mode; //0=cancel, 1=freeze, 2=black, 3=color 0
     Vect<uint8_t> sgb_tiles; //256 8x8 4-bit tiles
+    Vect<attrib_file> sgb_attr_files; //45 attribute files
     bool sgb_set_low_tiles;
     bool sgb_set_high_tiles;
     bool sgb_set_bg_attr;
