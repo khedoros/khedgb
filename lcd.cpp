@@ -505,7 +505,7 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
                     if(cpu_lyc == ((cycle - cpu_active_cycle) % 17556) / 114) {
                         mode |= BIT2;
                     }
-                    *((uint8_t *)val) = mode | cpu_status | 0x80;
+                    *((uint8_t *)val) = mode | cpu_status | BIT7;
                 }
                 break;
             case 0xff42:

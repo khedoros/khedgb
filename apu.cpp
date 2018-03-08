@@ -34,6 +34,10 @@ apu::apu() : writes_enabled(false), cycle(0)
     clear();
 }
 
+apu::~apu() {
+
+}
+
 void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
     //printf("addr: %04x val: %02x ", addr, val);
     if(writes_enabled || addr >= 0xff30) {
@@ -174,15 +178,27 @@ void apu::apply(util::cmd& c) {
 
         //sound 2: rectangle with envelope
         case 0xff16: //sound 2 length + duty cycle
+            chan2_patlen.val = c.val;
             //printf("apu: S2 duty cycle: %d length: %d\n", c.val>>6, (c.val&0x3f));
             break;
         case 0xff17: //sound 2 envelope
+            chan2_env.val = c.val;
             //printf("apu: S2 default envelope: %d up/down: %d step length: %d\n", c.val>>4, (c.val&8)>>3, (c.val&7));
             break;
         case 0xff18: //sound 2 low-order frequency
+            chan2_freq.freq_low = c.val;
             //printf("apu: S2 freq-low: %d\n", c.val);
             break;
         case 0xff19: //sound 2 high-order frequency + start
+            chan2_freq.freq_high = c.val;
+            if(chan2_freq.initial) {
+                chan2_freq_shadow = chan1_freq.freq;
+                chan2_sweep_counter = 0;
+                chan2_active = true;
+                if(chan2_sweep.shift != 0 && !sweep_check()) {
+                    chan2_active = false;
+                }
+            }
             //printf("apu: S2 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
             break;
 
