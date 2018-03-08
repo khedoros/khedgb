@@ -242,7 +242,7 @@ void rom::read(uint32_t addr, void * val, int size, int cycle) {
             memcpy(val, &(cram[addr]), size);
         }
         else if(addr >= 0xffffff00) { //Messy solution for returning a value stored in the mapper itself (like RTC data in MBC3)
-            printf("Read %02x from camera?\n", addr&0xff);
+            //printf("Read %02x from camera?\n", addr&0xff);
             uint8_t mapped_val = addr&0xff;
             memcpy(val, &mapped_val, 1);
         }
@@ -266,7 +266,7 @@ void rom::write(uint32_t addr, void * val, int size, int cycle) {
             }
         }
         else if(addr >= 0xffffff00) {
-            printf("Wrote %02x to camera?\n", addr&0xff);
+            //printf("Wrote %02x to camera?\n", addr&0xff);
         }
     }
     else {

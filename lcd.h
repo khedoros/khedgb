@@ -45,7 +45,7 @@ public:
     void win_resize(unsigned int new_x, unsigned int new_y);
 
     void sgb_trigger_dump(std::string filename);
-    void sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint8_t>& colors);
+    void sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors);
     void sgb_vram_transfer(uint8_t type);
     void sgb_set_mask_mode(uint8_t mode);
     void sgb_enable(bool enable);
@@ -248,10 +248,10 @@ private:
     };
 
     struct attrib_byte {
-        unsigned block0:2;
-        unsigned block1:2;
-        unsigned block2:2;
         unsigned block3:2;
+        unsigned block2:2;
+        unsigned block1:2;
+        unsigned block0:2;
     } __attribute__((packed));
 
     union attrib_file {

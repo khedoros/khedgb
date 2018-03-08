@@ -552,100 +552,34 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
 
     if(sgb_cmd_count == sgb_cmd_index) {
         sgb_cmd_index = 0;
+        printf("SGB_cmd");
         switch(sgb_cmd) {
             case 0x00: //PAL01
-                //printf(": PAL01    Set palettes 0 and 1\n");
+            case 0x01: //PAL23
+            case 0x02: //PAL03
+            case 0x03: //PAL12
                 {
-                Vect<uint8_t> pals(21,0);
-                for(int pal=0;pal<2;pal++) {
-                    //printf("\tPAL %d: ", pal);
-                    for(int col=0;col+pal<4;col++) {
-                        int offset = pal * 8 + col * 2 + 1;
-                        int col_dat = ((sgb_cmd_data[offset+1]<<8)&0x7fff)+sgb_cmd_data[offset];
-                        int red = (col_dat & 0x1f) * 8;
-                        int green = ((col_dat>>5)&0x1f) * 8;
-                        int blue = (col_dat>>10) * 8;
-                        pals[pal*12+col*3] = red;
-                        pals[pal*12+col*3+1] = green;
-                        pals[pal*12+col*3+2] = blue;
-                        //printf(" COL %d: (%d, %d, %d)\t", col+pal, red, green, blue);
-                    }
-                    //printf("\n");
-                    screen.sgb_set_pals(0,1,pals);
+                uint8_t pal1 = 0;
+                uint8_t pal2 = 0;
+                switch(sgb_cmd) {
+                    case 0: pal1=0; pal2=1; break;
+                    case 1: pal1=2; pal2=3; break;
+                    case 2: pal1=0; pal2=3; break;
+                    case 3: pal1=1; pal2=2; break;
                 }
+                printf(": PAL%d%d    Set palettes %d and %d\n", pal1,pal2,pal1,pal2);
+                Vect<uint16_t> pals(7,0);
+                for(int col=0;col<7;col++) {
+                    pals[col] = sgb_cmd_data[col+1];
+                }
+                screen.sgb_set_pals(pal1,pal2,pals);
                 }
                 break;
-            case 0x01: //PAL23
-                //printf(": PAL23    Set palettes 2 and 3\n");
-                {
-                Vect<uint8_t> pals(21,0);
-                for(int pal=0;pal<2;pal++) {
-                    //printf("\tPAL %d: ", pal+2);
-                    for(int col=0;col+pal<4;col++) {
-                        int offset = pal * 8 + col * 2 + 1;
-                        int col_dat = ((sgb_cmd_data[offset+1]<<8)&0x7fff)+sgb_cmd_data[offset];
-                        int red = (col_dat & 0x1f) * 8;
-                        int green = ((col_dat>>5)&0x1f) * 8;
-                        int blue = (col_dat>>10) * 8;
-                        pals[pal*12+col*3] = red;
-                        pals[pal*12+col*3+1] = green;
-                        pals[pal*12+col*3+2] = blue;
-                        //printf(" COL %d: (%d, %d, %d)\t", col+pal, red, green, blue);
-                    }
-                    //printf("\n");
-                    screen.sgb_set_pals(2,3,pals);
-               }
-               }
-               break;
-            case 0x02: //PAL03
-                //printf(": PAL03    Set palettes 0 and 3\n");
-                {
-                Vect<uint8_t> pals(21,0);
-                for(int pal=0;pal<2;pal++) {
-                    //printf("\tPAL %d: ", 3*pal);
-                    for(int col=0;col+pal<4;col++) {
-                        int offset = pal * 8 + col * 2 + 1;
-                        int col_dat = ((sgb_cmd_data[offset+1]<<8)&0x7fff)+sgb_cmd_data[offset];
-                        int red = (col_dat & 0x1f) * 8;
-                        int green = ((col_dat>>5)&0x1f) * 8;
-                        int blue = (col_dat>>10) * 8;
-                        pals[pal*12+col*3] = red;
-                        pals[pal*12+col*3+1] = green;
-                        pals[pal*12+col*3+2] = blue;
-                        //printf(" COL %d: (%d, %d, %d)\t", col+pal, red, green, blue);
-                    }
-                    //printf("\n");
-                    screen.sgb_set_pals(0,3,pals);
-               }
-               }
-               break;
-            case 0x03: //PAL12
-                //printf(": PAL12    Set palettes 1 and 2\n");
-                {
-                Vect<uint8_t> pals(21,0);
-                for(int pal=0;pal<2;pal++) {
-                    //printf("\tPAL %d: ", pal+1);
-                    for(int col=0;col+pal<4;col++) {
-                        int offset = pal * 8 + col * 2 + 1;
-                        int col_dat = ((sgb_cmd_data[offset+1]<<8)&0x7fff)+sgb_cmd_data[offset];
-                        int red = (col_dat & 0x1f) * 8;
-                        int green = ((col_dat>>5)&0x1f) * 8;
-                        int blue = (col_dat>>10) * 8;
-                        pals[pal*12+col*3] = red;
-                        pals[pal*12+col*3+1] = green;
-                        pals[pal*12+col*3+2] = blue;
-                        //printf(" COL %d: (%d, %d, %d)\t", col+pal, red, green, blue);
-                    }
-                    //printf("\n");
-                    screen.sgb_set_pals(1,2,pals);
-               }
-               }
-               break;
             case 0x04: //ATTR_BLK
                 {
                     Vect<uint8_t> attrs(360,10);
                     int data_groups = sgb_cmd_data[1] & 0x1f;
-                    //printf(": ATTR_BLK Apply color palette attributes to %d areas\n", data_groups);
+                    printf(": ATTR_BLK Apply color palette attributes to %d areas\n", data_groups);
                     for(int group=0;group<data_groups;++group) {
                         int offset = 2 + group * 6;
                         int control = sgb_cmd_data[offset];
@@ -699,7 +633,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                 break;
             case 0x05: //ATTR_LIN
                 {
-                    //printf(": ATTR_LIN Set individual lines of palette attributes:\n");
+                    printf(": ATTR_LIN Set individual lines of palette attributes:\n");
                     Vect<uint8_t> attrs(360,10);
                     int count = sgb_cmd_data[1];
                     for(int line = 0; line < count; line++) {
@@ -715,7 +649,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                 break;  
             case 0x06: //ATTR_DIV
                 {
-                    //printf(": ATTR_DIV Divide palette attributes by line: ");
+                    printf(": ATTR_DIV Divide palette attributes by line: ");
                     Vect<uint8_t> attrs(360,10);
                     int br = (sgb_cmd_data[1] & 0x03);
                     int tl = (sgb_cmd_data[1] & 0x03);
@@ -743,7 +677,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                 break;
             case 0x07: //ATTRIBUTE_CHR
                 {
-                    //printf(": ATTR_CHR explicitly specify palette attributes:\n");
+                    printf(": ATTR_CHR explicitly specify palette attributes:\n");
                     Vect<uint8_t> pal_attrs(360,0);
                     int x0 = sgb_cmd_data[1];
                     int y0 = sgb_cmd_data[2];
@@ -790,12 +724,12 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                     uint8_t attr_file = sgb_cmd_data[9] & 0x3f;
                     bool cancel = ((sgb_cmd_data[9] & 0x40) == 0x40);
                     bool use_attr = ((sgb_cmd_data[9] & 0x80) == 0x80);
-                    //printf(": PAL_SET  apply previous system palette and/or attr data : pal0: %d pal1: %d pal2: %d pal3: %d use attr: %d attr file: %d cancel: %d\n", pal0, pal1, pal2, pal3, use_attr, attr_file, cancel);
+                    printf(": PAL_SET  apply previous system palette and/or attr data : pal0: %d pal1: %d pal2: %d pal3: %d use attr: %d attr file: %d cancel: %d\n", pal0, pal1, pal2, pal3, use_attr, attr_file, cancel);
                     screen.sgb_pal_transfer(pal0, pal1, pal2, pal3, attr_file, use_attr, cancel);
                 }
                 break;
             case 0x0b: //PAL_TRN
-                //printf(": PAL_TRN  Transfer 4k of VRAM to SNES memory as palette data\n");
+                printf(": PAL_TRN  Transfer 4k of VRAM to SNES memory as palette data\n");
                 //screen.sgb_trigger_dump(std::string("pal_trn_dat-") + std::to_string(cycle) + ".dat");
                 screen.sgb_vram_transfer(1);
                 //SDL_Delay(5000);
@@ -833,11 +767,11 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                         sgb_joypad_count = 4;
                         break;
                 }
-                //printf(": MLT_REQ  Set joypad count to %d\n", sgb_joypad_count);
+                printf(": MLT_REQ  Set joypad count to %d\n", sgb_joypad_count);
                 sgb_cur_joypad = 0;
                 break;
             case 0x13: //CHR_TRN
-                //printf(": CHR_TRN  Character data transfer from VRAM, chars %02x - %02x\n", (sgb_cmd_data[1] & 1) * 0x80, (sgb_cmd_data[1] & 1) * 0x80 + 0x7f);
+                printf(": CHR_TRN  Character data transfer from VRAM, chars %02x - %02x\n", (sgb_cmd_data[1] & 1) * 0x80, (sgb_cmd_data[1] & 1) * 0x80 + 0x7f);
                 //screen.sgb_trigger_dump(std::string("chr_trn_dat-") + std::to_string(cycle) + ".dat");
                 screen.sgb_vram_transfer(2+(sgb_cmd_data[1]&1));
                 //SDL_Delay(5000);
@@ -846,7 +780,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                 //4K transfer, 128 16-byte tiles (8x8, 16 colors) (wait? not 32-byte tiles??)
                 break;
             case 0x14: //PCT_TRN
-                //printf(": PCT_TRN  Screen+Color data transfer from VRAM\n");
+                printf(": PCT_TRN  Screen+Color data transfer from VRAM\n");
                 //screen.sgb_trigger_dump(std::string("pct_trn_dat-") + std::to_string(cycle) + ".dat");
                 screen.sgb_vram_transfer(4);
                 //SDL_Delay(5000);
@@ -861,27 +795,28 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                 //        bit     15: y-flip
                 break;
             case 0x15: //ATTR_TRN
-                //printf(": ATTR_TRN Transfer attribute files to SNES\n");
+                printf(": ATTR_TRN Transfer attribute files to SNES\n");
                 //screen.sgb_trigger_dump(std::string("attr_trn_dat-") + std::to_string(cycle) + ".dat");
                 screen.sgb_vram_transfer(5);
                 //SDL_Delay(5000);
                 //ATF (attribute file) is a 20x18 array of 1-byte color attributes.
                 //This transfers ATF0-ATF44 (4050 bytes) from GB VRAM 000-FD1 to SNES ATF banks.
                 //Each ATF has the same data format as command 0x07: 90 bytes, 4 2-bit attributes per byte, arranged in 20x18
+                break;
             case 0x17: //MASK_EN
-                //printf(": MASK_EN  ");
+                printf(": MASK_EN  ");
                 switch(sgb_cmd_data[1] & 0x03) {
                     case 0:
-                        //printf("Cancel masking\n");
+                        printf("Cancel masking\n");
                         break;
                     case 1:
-                        //printf("Freeze screen\n");
+                        printf("Freeze screen\n");
                         break;
                     case 2:
-                        //printf("Screen to black\n");
+                        printf("Screen to black\n");
                         break;
                     case 3:
-                        //printf("Screen to color 00\n");
+                        printf("Screen to color 00\n");
                         break;
                 }
                 screen.sgb_set_mask_mode(sgb_cmd_data[1]);

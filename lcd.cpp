@@ -1007,9 +1007,10 @@ void lcd::draw_debug_overlay() {
     SDL_RenderPresent(renderer);
 }
 
-void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint8_t>& colors) { //SGB commands 00, 01, 02, 03
-    assert(colors.size() == 21);
-    uint32_t col0 = SDL_MapRGB(buffer->format, colors[0], colors[1], colors[2]);
+void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors) { //SGB commands 00, 01, 02, 03
+    assert(colors.size() == 7);
+    sgb_color col{.val=colors[0]};
+    uint32_t col0 = SDL_MapRGB(buffer->format, col.red*8, col.green*8, col.blue*8);
     sys_bgpal[pal1][0] = col0;
     sys_winpal[pal1][0] = col0;
     sys_obj1pal[pal1][0] = col0;
@@ -1019,13 +1020,15 @@ void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint8_t>& colors) { //SG
     sys_obj1pal[pal2][0] = col0;
     sys_obj2pal[pal2][0] = col0;
     for(int i=1;i<4;i++) {
-        uint32_t colx = SDL_MapRGB(buffer->format, colors[i*3+0], colors[i*3+1], colors[i*3+2]);
+        col.val = colors[i];
+        uint32_t colx = SDL_MapRGB(buffer->format, col.red*8, col.green*8, col.blue*8);
         sys_bgpal[pal1][i] = colx;
         sys_winpal[pal1][i] = colx;
         sys_obj1pal[pal1][i] = colx;
         sys_obj2pal[pal1][i] = colx;
 
-        colx = SDL_MapRGB(buffer->format, colors[i*3+9], colors[i*3+10], colors[i*3+11]);
+        col.val = colors[i+4];
+        colx = SDL_MapRGB(buffer->format, col.red*8, col.green*8, col.blue*8);
         sys_bgpal[pal2][i] = colx;
         sys_winpal[pal2][i] = colx;
         sys_obj1pal[pal2][i] = colx;
@@ -1041,13 +1044,29 @@ void lcd::sgb_set_attrs(Vect<uint8_t>& attrs) {
     }
 }
 void lcd::sgb_pal_transfer(uint16_t pal0, uint16_t pal1, uint16_t pal2, uint16_t pal3, uint8_t attr_file, bool use_attr, bool cancel_mask) {
+    uint16_t pals[] = {pal0, pal1, pal2, pal3};
     if(cancel_mask) sgb_mask_mode = 0;
     if(use_attr) {
-    //TODO: Apply the attribute changes
+        for(int byte=0; byte<90;byte++) {
+            sgb_attrs[byte*4] = sgb_attr_files[attr_file].block[byte].block0;
+            sgb_attrs[byte*4+1] = sgb_attr_files[attr_file].block[byte].block1;
+            sgb_attrs[byte*4+2] = sgb_attr_files[attr_file].block[byte].block2;
+            sgb_attrs[byte*4+3] = sgb_attr_files[attr_file].block[byte].block3;
+        }
     }
 
-    //TODO: Apply the palette changes
-
+    for(int pal=0;pal<4;pal++) {
+        for(int col=0;col<4;col++) {
+            uint8_t r = sgb_sys_pals[pal].col[col].red * 8;
+            uint8_t g = sgb_sys_pals[pal].col[col].green * 8;
+            uint8_t b = sgb_sys_pals[pal].col[col].blue * 8;
+            uint32_t colx = SDL_MapRGB(buffer->format, r, g, b);
+            sys_bgpal[pal][col] = colx;
+            sys_winpal[pal][col] = colx;
+            sys_obj1pal[pal][col] = colx;
+            sys_obj2pal[pal][col] = colx;
+        }
+    }
 }
 
 //Just requests that a transfer occurs when next frame finishes rendering
@@ -1137,7 +1156,7 @@ void lcd::do_vram_transfer() {
 
 //regenerate the background texture
 void lcd::regen_background() {
-    printf("Regenerate! (from type %d)\n", sgb_vram_transfer_type);
+    //printf("Regenerate! (from type %d)\n", sgb_vram_transfer_type);
     uint32_t * pixels = (uint32_t *)(sgb_border->pixels);
     uint32_t palette[16];
     palette[0] = SDL_MapRGBA(sgb_border->format, 255,0,0,0);
