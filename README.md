@@ -31,7 +31,7 @@ Display output composites the video roughly correctly, although sprite priority 
 
 ### Super GameBoy
 
-There won't ever be full support; full support would mean implementing a full SNES emulator. I'll support common features: drawing the border, custom palette support, VRAM transfers, screen blanking. These are comparatively simple to do.
+There won't ever be full support; full support would mean implementing a full SNES emulator. The emulator supports drawing custom game borders, applying palette changes to the screen, screen blanking, and could be easily enhanced to support 2/4-player input. I'm leaving out SNES audio output support, various functions that adjust settings for the SGB itself, and anything that copies/run program code on the SNES (although I'll provide printed notification that those commands were received).
 
 ### GameBoy Camera
 
