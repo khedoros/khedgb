@@ -590,14 +590,14 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                         int y0 = sgb_cmd_data[3+offset] & 0x1f;
                         int x1 = sgb_cmd_data[4+offset] & 0x1f;
                         int y1 = sgb_cmd_data[5+offset] & 0x1f;
-                        printf("\tFor (%02x, %02x) - (%02x, %02x), ", x0, y0, x1, y1);
+                        //printf("\tFor (%02x, %02x) - (%02x, %02x), ", x0, y0, x1, y1);
                         bool change_inside = ((control & 1) == 1);
                         bool change_border = ((control & 2) == 2);
                         bool change_outside = ((control & 4) == 4);
                         if(!(change_inside||change_border||change_outside)) printf("nothing");
                         else {
                             if(change_inside) {
-                                printf("%d to inside ", pal_in);
+                                //printf("%d to inside ", pal_in);
                                 for(int i=y0+1;i<y1;i++) {
                                     for(int j=x0+1;j<x1;j++) {
                                         attrs[i*20+j] = pal_in;
@@ -605,7 +605,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                                 }
                             }
                             if(change_border) {
-                                printf("%d to border ", pal_on);
+                                //printf("%d to border ", pal_on);
                                 for(int i=y0;i<=y1;i++) {
                                     attrs[i*20+x0] = pal_on;
                                     attrs[i*20+x1] = pal_on;
@@ -617,7 +617,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                                 }
                             }
                             if(change_outside) {
-                                printf("%d to outside ", pal_out);
+                                //printf("%d to outside ", pal_out);
                                 for(int i=0;i<18;i++) {
                                     for(int j=0;j<20;j++) {
                                         if(i >= y0 && i <= y1 && j >= x0 && j <= x1) continue;
@@ -626,7 +626,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                                 }
                             }
                         }
-                        printf("\n");
+                        //printf("\n");
                     }
                     screen.sgb_set_attrs(attrs);
                 }
@@ -749,7 +749,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                     uint16_t addr = (sgb_cmd_data[2]<<8) + sgb_cmd_data[1];
                     uint8_t bank = sgb_cmd_data[3];
                     uint8_t count = sgb_cmd_data[4];
-                    printf(": DATA_SND Send %d bytes to SNES WRAM %02x:%04x\n", count, bank, addr);
+                    printf(": DATA_SND Send %d bytes to SNES WRAM %02x:%04x (not supported)\n", count, bank, addr);
                 }
                 break;
             case 0x11: //MLT_REQ
@@ -829,7 +829,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                 printf(": PAL_PRI  Player/Application pal priority: %d\n", sgb_cmd_data[1]);
                 break;
             default:
-                printf(": Unsupported SGB command: %02x\n", sgb_cmd);
+                printf(": Unsupported SGB command (usually something that needs SNES emulation): %02x\n", sgb_cmd);
                 break;
         }
     }

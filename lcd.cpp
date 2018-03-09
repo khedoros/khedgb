@@ -773,6 +773,13 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
         if(output_sdl && render_line == 143) {
             if(sgb_vram_transfer_type != 0) {
+                printf("Map:%02x Scroll:(%02x. %02x) AddrMode:%02x pal:(%x,%x,%x,%x)\n", control.bg_map, bg_scroll_x, bg_scroll_y, control.tile_addr_mode, bgpal.pal[0], bgpal.pal[1], bgpal.pal[2], bgpal.pal[3]);
+                uint16_t map_base=0x1800;
+                if(control.bg_map) map_base+=0x400;
+                for(int i=0;i<0x400;i++) {
+                    printf("%02x ", vram[map_base+i]);
+                    if((i+1)%32==0) printf("\n");
+                }
                 do_vram_transfer();
                 sgb_vram_transfer_type = 0;
             }
@@ -1217,15 +1224,21 @@ void lcd::regen_background() {
     sgb_texture = SDL_CreateTextureFromSurface(renderer, sgb_border);
 }
 
-//Interprets current rendering state and sticks it in VRAM
+//Interprets current rendering state and VRAM and simulates sending it to the SGB
 void lcd::interpret_vram(Vect<uint8_t>& vram_data) {
-    //TODO: Interpret some version of graphics output for the transfer instead of just dumping the vram ;-)
     assert(bg_scroll_x == 0);
     assert(bg_scroll_y == 0);
     assert(vram_data.size() == 4096);
-    //uint16_t bgmapbase = 0x800 + 0x400 * control.bg_map;
-    //for(int bgmap_tile = 0; bgmap_tile < 256
-    memcpy(&(vram_data[0]), &(vram[0x800]), 4096); //copy 0x800 - 0x17FF into the vector
+    int map_base = 0x1800 + 0x400 * control.bg_map;
+    bool signed_addr = !control.tile_addr_mode;
+    for(int tile=0;tile<256;tile++) {
+        int bgx=tile%20;
+        int bgy=tile/20;
+        int map_index=map_base+bgy*32+bgx;
+        int tile_num=vram[map_index];
+        if(signed_addr) tile_num = 256 + int8_t(tile_num);
+        memcpy(&(vram_data[tile*16]), &(vram[tile_num*16]), 16);
+    }
 }
 
 void lcd::sgb_set_mask_mode(uint8_t mode) { //SGB command 17
