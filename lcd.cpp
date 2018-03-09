@@ -773,12 +773,12 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
         if(output_sdl && render_line == 143) {
             if(sgb_vram_transfer_type != 0) {
-                printf("Map:%02x Scroll:(%02x. %02x) AddrMode:%02x pal:(%x,%x,%x,%x)\n", control.bg_map, bg_scroll_x, bg_scroll_y, control.tile_addr_mode, bgpal.pal[0], bgpal.pal[1], bgpal.pal[2], bgpal.pal[3]);
+                //printf("Map:%02x Scroll:(%02x. %02x) AddrMode:%02x pal:(%x,%x,%x,%x)\n", control.bg_map, bg_scroll_x, bg_scroll_y, control.tile_addr_mode, bgpal.pal[0], bgpal.pal[1], bgpal.pal[2], bgpal.pal[3]);
                 uint16_t map_base=0x1800;
                 if(control.bg_map) map_base+=0x400;
                 for(int i=0;i<0x400;i++) {
-                    printf("%02x ", vram[map_base+i]);
-                    if((i+1)%32==0) printf("\n");
+                    //printf("%02x ", vram[map_base+i]);
+                    //if((i+1)%32==0) printf("\n");
                 }
                 do_vram_transfer();
                 sgb_vram_transfer_type = 0;
@@ -798,21 +798,27 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 if(sgb_mask_mode == 0) {
                     float xscale = float(win_x_res) / float(cur_x_res);
                     float yscale = float(win_y_res) / float(cur_y_res);
+                    sgb_color bgcol = sgb_frame_pals[0].col[0];
+                    SDL_SetRenderDrawColor(renderer, bgcol.red, bgcol.green, bgcol.blue, 255);
+                    SDL_RenderClear(renderer);
                     SDL_Rect screen_middle{int(48.0*xscale),int(40.0*yscale),int(160.0*xscale),int(144.0*yscale)};
                     SDL_RenderCopy(renderer,texture,NULL,&screen_middle);
+                    SDL_RenderCopy(renderer, sgb_texture, NULL, NULL);
                 }
-                else if(sgb_mask_mode != 1) { //Screen frozen
-                    //SDL_RenderClear(renderer);
+                else if(sgb_mask_mode == 1) { //Screen frozen
                 }
                 else if(sgb_mask_mode == 2) { //Screen to black
                     SDL_SetRenderDrawColor(renderer, 0,0,0,255);
+                    SDL_RenderClear(renderer);
                 }
                 else if(sgb_mask_mode == 3) { //Screen to bg color 0
                     SDL_SetRenderDrawColor(renderer, sys_bgpal[0][bgpal.pal[0]], sys_bgpal[0][bgpal.pal[0]], sys_bgpal[0][bgpal.pal[0]], 255);
+                    SDL_RenderClear(renderer);
                 }
-                //Copy the SGB border texture, then render the screen
-                SDL_RenderCopy(renderer, sgb_texture, NULL, NULL);
-                SDL_RenderPresent(renderer);
+
+                if(sgb_mask_mode != 1) {
+                    SDL_RenderPresent(renderer);
+                }
             }
             else if(!debug) {
                 SDL_RenderCopy(renderer,texture,NULL,NULL);
@@ -1015,11 +1021,11 @@ void lcd::draw_debug_overlay() {
 }
 
 void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors) { //SGB commands 00, 01, 02, 03
-    printf("Setting palettes %d and %d to: ", pal1, pal2);
+    //printf("Setting palettes %d and %d to: ", pal1, pal2);
     for(int i=0;i<7;i++) {
 	    sgb_color col;
 	    col.val=colors[i];
-	    printf("%04x=(%02x,%02x,%02x) ",colors[i],col.red,col.green,col.blue);
+	    //printf("%04x=(%02x,%02x,%02x) ",colors[i],col.red,col.green,col.blue);
     }
     assert(colors.size() == 7);
     sgb_color col;
@@ -1082,9 +1088,9 @@ void lcd::sgb_pal_transfer(uint16_t pal0, uint16_t pal1, uint16_t pal2, uint16_t
 
     for(int pal=0;pal<4;pal++) {
         for(int col=0;col<4;col++) {
-            uint8_t r = sgb_sys_pals[pal].col[col].red * 8;
-            uint8_t g = sgb_sys_pals[pal].col[col].green * 8;
-            uint8_t b = sgb_sys_pals[pal].col[col].blue * 8;
+            uint8_t r = sgb_sys_pals[pals[pal]].col[col].red * 8;
+            uint8_t g = sgb_sys_pals[pals[pal]].col[col].green * 8;
+            uint8_t b = sgb_sys_pals[pals[pal]].col[col].blue * 8;
             uint32_t colx = SDL_MapRGB(buffer->format, r, g, b);
             sys_bgpal[pal][col] = colx;
             sys_winpal[pal][col] = colx;
