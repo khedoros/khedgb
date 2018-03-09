@@ -1008,8 +1008,15 @@ void lcd::draw_debug_overlay() {
 }
 
 void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors) { //SGB commands 00, 01, 02, 03
+    printf("Setting palettes %d and %d to: ", pal1, pal2);
+    for(int i=0;i<7;i++) {
+	    sgb_color col;
+	    col.val=colors[i];
+	    printf("%04x=(%02x,%02x,%02x) ",colors[i],col.red,col.green,col.blue);
+    }
     assert(colors.size() == 7);
-    sgb_color col{.val=colors[0]};
+    sgb_color col;
+    col.val=colors[0];
     uint32_t col0 = SDL_MapRGB(buffer->format, col.red*8, col.green*8, col.blue*8);
     sys_bgpal[pal1][0] = col0;
     sys_winpal[pal1][0] = col0;
@@ -1027,7 +1034,7 @@ void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors) { //S
         sys_obj1pal[pal1][i] = colx;
         sys_obj2pal[pal1][i] = colx;
 
-        col.val = colors[i+4];
+        col.val = colors[i+3];
         colx = SDL_MapRGB(buffer->format, col.red*8, col.green*8, col.blue*8);
         sys_bgpal[pal2][i] = colx;
         sys_winpal[pal2][i] = colx;

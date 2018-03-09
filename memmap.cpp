@@ -569,8 +569,8 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                 }
                 printf(": PAL%d%d    Set palettes %d and %d\n", pal1,pal2,pal1,pal2);
                 Vect<uint16_t> pals(7,0);
-                for(int col=0;col<7;col++) {
-                    pals[col] = sgb_cmd_data[col+1];
+                for(int col=0;col<14;col+=2) {
+                    pals[col/2] = 256*sgb_cmd_data[col+2] + sgb_cmd_data[col+1];
                 }
                 screen.sgb_set_pals(pal1,pal2,pals);
                 }
@@ -657,7 +657,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                     bool hv = ((sgb_cmd_data[1] & 0x40) == 0x40);
                     int line = sgb_cmd_data[2] & 0x1f;
                     if(hv) { //vertical
-                        //printf("Divide at x=%d, left to %d, line to %d, right to %d\n", line, tl, on, br);
+                        printf("Divide at x=%d, left to %d, line to %d, right to %d\n", line, tl, on, br);
                         for(int j = 0; j < 18; j++) {
                             for(int i = 0; i < line; i++) attrs[j*20+i] = tl;
                             attrs[j*20+line] = on;
@@ -665,7 +665,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                         }
                     }
                     else { //Horizontal
-                        //printf("Divide at y=%d, top to %d, line to %d, bottom to %d\n", line, tl, on, br);
+                        printf("Divide at y=%d, top to %d, line to %d, bottom to %d\n", line, tl, on, br);
                         for(int i = 0; i < 20; i++) {
                             for(int j = 0; j < line; j++) attrs[j*20+i] = tl;
                             attrs[line*20+i] = on;
