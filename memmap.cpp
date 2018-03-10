@@ -528,11 +528,15 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
     if(sgb_cmd_index == 0) {
         sgb_cmd = s_b[0]>>3; //what's the command in this packet
         sgb_cmd_count = s_b[0] & 0x07; //how many packets are expected
+        if(sgb_cmd_count == 0) {
+            return;
+        }
         sgb_cmd_data.resize(sgb_cmd_count*16); //allocate space to store the data
         //printf("SGB command %02x, expected %02x packets\n", sgb_cmd, sgb_cmd_count);
     }
 
-    assert(sgb_cmd_data.size() == sgb_cmd_count * 16 && sgb_cmd_data.size() > 0);
+    //printf("Command data size: %d, expected: %d\n", sgb_cmd_data.size(), sgb_cmd_count * 16);
+    assert(sgb_cmd_data.size() == sgb_cmd_count * 16);
 
     //printf("%d / %d: ", sgb_cmd_index+1, sgb_cmd_count);
 
