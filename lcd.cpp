@@ -627,6 +627,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
         int render_line = line % 154;
         if(debug && !sgb_mode && render_line == 153 && output_sdl) {
             draw_debug_overlay();
+            continue;
         }
         else if(render_line > 143) continue;
 
@@ -1021,12 +1022,12 @@ void lcd::draw_debug_overlay() {
 }
 
 void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors) { //SGB commands 00, 01, 02, 03
-    //printf("Setting palettes %d and %d to: ", pal1, pal2);
+    /*printf("Setting palettes %d and %d to: ", pal1, pal2);
     for(int i=0;i<7;i++) {
 	    sgb_color col;
 	    col.val=colors[i];
-	    //printf("%04x=(%02x,%02x,%02x) ",colors[i],col.red,col.green,col.blue);
-    }
+	    printf("%04x=(%02x,%02x,%02x) ",colors[i],col.red,col.green,col.blue);
+    }*/
     assert(colors.size() == 7);
     sgb_color col;
     col.val=colors[0];
@@ -1173,7 +1174,7 @@ void lcd::do_vram_transfer() {
             break;
         case 5: //attr, transfers 45 90-byte attribute transfer files
             assert(sgb_attr_files.size() == 45);
-            printf("attrib file size: %d\n", sizeof(attrib_file));
+            printf("attrib file size: %ld\n", sizeof(attrib_file));
             assert(sizeof(attrib_file) == 90);
             memcpy(&(sgb_attr_files[0]), &(vram_data[0]), 4050);
             break;
