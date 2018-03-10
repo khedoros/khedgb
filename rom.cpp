@@ -267,6 +267,7 @@ void rom::write(uint32_t addr, void * val, int size, int cycle) {
         }
         else if(addr >= 0xffffff00) {
             //printf("Wrote %02x to camera?\n", addr&0xff);
+            map->write(addr, val, size, cycle);
         }
     }
     else {
@@ -419,6 +420,9 @@ void mbc3_rom::write(uint32_t addr, void * val, int size, int cycle) {
             rtc_latch = false;
         }
     }
+    else if(addr >= 0xa000 && addr < 0xc000) {
+        printf("MBC3 write to RTC registers\n");
+    }
 }
 
 
@@ -440,14 +444,30 @@ uint32_t camera_rom::map_ram(uint32_t addr, int cycle) {
     if(ram_enabled && rambank < 16) {
         return addr+(uint32_t(rambank) * 0x2000);
     }
-    else if(rambank >= 16) {
-        printf("RAM read from out-of-range bank. Reading camera? addr: %d en: %d bank: %d\n", addr+0xa000, ram_enabled, rambank);
-        return 0xffffffaa;
-    }
+    else {
+        switch(addr%0x80) {
+            case 0x00: 
+                printf("camera read: Trigger reg (capture + status)\n"); 
+                return 0xffffffaa;
+                break;
+            case 0x01: printf("camera read: Reg1 (Output gain+edge ops)\n"); break;
+            case 0x02: printf("camera read: Reg2 (Exposure time MSB)\n"); break;
+            case 0x03: printf("camera read: Reg3 (Exposure time LSB)\n"); break;
+            case 0x04: printf("camera read: Reg7 (Edge, invert, voltage ref)\n"); break;
+            case 0x05: printf("camera read: Reg0 (out ref volt, zp calc)\n"); break;
+            default:
+                if((addr%0x80) >= 0x06 && (addr%0x80) <= 0x35) {
+                    printf("camera read: Dithering register element %d\n", (addr%0x80) - 6);
+                }
+                else {
+                    printf("camera read: Unknown register at addr %04x\n", addr);
+                }
+                break;
+        }
 
-    if(!ram_enabled) {
-        printf("RAM read while off. Reading camera? addr: %d en: %d bank: %d\n", addr+0xa000, ram_enabled, rambank);
-        return 0xffffff7e;
+        return 0xffffff00;
+        //printf("RAM read from out-of-range bank. Reading camera? addr: %d en: %d bank: %d\n", addr+0xa000, ram_enabled, rambank);
+        //TODO: Return correct camera status for addr a000
     }
 
     return 0xffffff;
@@ -466,7 +486,6 @@ void camera_rom::write(uint32_t addr, void * val, int size, int cycle) {
     }
     else if(addr < 0x4000) {
         rombank = (*(((uint8_t *)val))&0x3f);
-        //if(! *((uint8_t *)val)) rombank++;
         printf("(rombank to %02x)\n", rombank);
     }
     else if(addr < 0x6000) {
@@ -474,6 +493,9 @@ void camera_rom::write(uint32_t addr, void * val, int size, int cycle) {
             rambank = *(uint8_t *)val;
         }
         printf("(rambank to %02x)\n", rambank);
+    }
+    else if(addr >= 0xa000 && addr < 0xc000) {
+        printf(" (write register: %04x = %02x\n", addr, *((uint8_t *)val));
     }
 }
 
