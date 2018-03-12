@@ -1,7 +1,7 @@
 #include "camera.h"
 #include<cstdio>
 
-camera::camera() : cap(0), valid(false), capture_start_cycle(0), capture_length(0),
+camera::camera() : cap(0/*"vid.mp4"*/), valid(false), capture_start_cycle(0), capture_length(0),
                    screen_raw(NULL), screen_processed(NULL), renderer_raw(NULL), buffer_raw(NULL),
                    buffer_processed(NULL), texture_raw(NULL), texture_processed(NULL), renderer_processed(NULL)
 {
@@ -64,11 +64,11 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
             uint8_t l = matrix[matrix_base];
             uint8_t m = matrix[matrix_base+1];
             uint8_t h = matrix[matrix_base+2];
-            if(val < l) val = 0;
-            else if(val < m) val = 1;
-            else if(val < h) val = 2;
-            else val = 3;
-            pix_p[i*128+j] = SDL_MapRGB(buffer_processed->format, val*80, val*80, val*80);
+            if(val < l) val = 3;
+            else if(val < m) val = 2;
+            else if(val < h) val = 1;
+            else val = 0;
+            pix_p[i*128+j] = SDL_MapRGB(buffer_processed->format, (3-val)*80, (3-val)*80, (3-val)*80);
             camera_frame[(i-8)*128+j] = val;
         }
     }
@@ -112,7 +112,7 @@ void camera::write(uint32_t addr, uint8_t val, uint64_t cycle) {
         default:
             if(addr > 5 && addr < 0x36) {
                 matrix[addr - 6] = val;
-                printf("Set matrix %d to %d\n", addr-6, val);
+                //printf("Set matrix %d to %d\n", addr-6, val);
             }
             else {
                 printf("Camera received write request for unknown address: %02x = %02x\n", addr, val);
