@@ -1,14 +1,26 @@
 #include "camera.h"
 #include<cstdio>
 
-camera::camera() : cap(0), valid(false), capture_start_cycle(0), capture_length(0) {
+camera::camera() : cap(0), valid(false), capture_start_cycle(0), capture_length(0),
+                   screen_raw(NULL), screen_processed(NULL), renderer_raw(NULL), buffer_raw(NULL),
+                   buffer_processed(NULL), texture_raw(NULL), texture_processed(NULL), renderer_processed(NULL)
+{
     if(cap.isOpened()) {
         valid = true;
     }
-    //bool success = cap.set(cv::CAP_PROP_FRAME_WIDTH, 128);
-    //if(!success) printf("Setting camera width returned false\n");
-    //success = cap.set(cv::CAP_PROP_FRAME_HEIGHT, 128);
-    //if(!success) printf("Setting camera height returned false\n");
+
+    util::reinit_sdl_screen(&screen_raw, &renderer_raw, &texture_raw, 128, 128);
+    util::reinit_sdl_screen(&screen_processed, &renderer_processed, &texture_processed, 128, 128);
+
+    buffer_raw = SDL_CreateRGBSurface(0,128,128,32,0,0,0,0); 
+    buffer_processed = SDL_CreateRGBSurface(0,128,128,32,0,0,0,0); 
+    
+    SDL_SetRenderDrawColor(renderer_raw, 0, 0, 0, 0);
+    SDL_RenderClear(renderer_raw);
+    SDL_RenderPresent(renderer_raw);
+    SDL_SetRenderDrawColor(renderer_processed, 0, 0, 0, 0);
+    SDL_RenderClear(renderer_processed);
+    SDL_RenderPresent(renderer_processed);
 }
 
 camera::~camera() {
@@ -29,8 +41,8 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
     cv::Mat sub_image;
     int height = image.size().height;
     int width = image.size().width;
-    cv::getRectSubPix(image, cv::Size{height, height}, cv::Point2f{float(height/2),float(width/2)}, sub_image);
-    cv::cvtColor(sub_image, gray_image, CV_BGR2GRAY);
+    cv::cvtColor(image, gray_image, CV_BGR2GRAY);
+    cv::getRectSubPix(gray_image, cv::Size{height, height}, cv::Point2f{float(height/2),float(width/2)}, sub_image);
     cv::Mat shrunk_image;
     cv::resize(sub_image, shrunk_image, cv::Size{128,128}, 0, 0);
 
@@ -40,20 +52,40 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
     assert(height == 128 && width == 128);
     assert(shrunk_image.rows == 128 && shrunk_image.cols == 128);
 
+    uint32_t * pix_r = ((uint32_t *)buffer_raw->pixels);
+    uint32_t * pix_p = ((uint32_t *)buffer_processed->pixels);
+
+
     for(int i=8;i<120;i++) {
         for(int j=0;j<128;j++) {
             uint8_t val = shrunk_image.at<uint8_t>(i,j);
+            pix_r[i*128+j] = SDL_MapRGB(buffer_raw->format, val, val, val);
             uint8_t matrix_base = (i%4)*12 + (j%4)*3;
             uint8_t l = matrix[matrix_base];
-            uint8_t m = matrix[matrix_base];
-            uint8_t h = matrix[matrix_base];
-            if(val < l) val = 3;
-            else if(val < m) val = 2;
-            else if(val < h) val = 1;
-            else val = 0;
+            uint8_t m = matrix[matrix_base+1];
+            uint8_t h = matrix[matrix_base+2];
+            if(val < l) val = 0;
+            else if(val < m) val = 1;
+            else if(val < h) val = 2;
+            else val = 3;
+            pix_p[i*128+j] = SDL_MapRGB(buffer_processed->format, val*80, val*80, val*80);
             camera_frame[(i-8)*128+j] = val;
         }
     }
+    if(texture_raw) {
+        SDL_DestroyTexture(texture_raw);
+    }
+    texture_raw = SDL_CreateTextureFromSurface(renderer_raw, buffer_raw);
+    SDL_RenderCopy(renderer_raw, texture_raw, NULL, NULL);
+    SDL_RenderPresent(renderer_raw);
+
+    if(texture_processed) {
+        SDL_DestroyTexture(texture_processed);
+    }
+    texture_processed = SDL_CreateTextureFromSurface(renderer_processed, buffer_processed);
+    SDL_RenderCopy(renderer_processed, texture_processed, NULL, NULL);
+    SDL_RenderPresent(renderer_processed);
+
 }
 
 void camera::write(uint32_t addr, uint8_t val, uint64_t cycle) {
@@ -80,6 +112,7 @@ void camera::write(uint32_t addr, uint8_t val, uint64_t cycle) {
         default:
             if(addr > 5 && addr < 0x36) {
                 matrix[addr - 6] = val;
+                printf("Set matrix %d to %d\n", addr-6, val);
             }
             else {
                 printf("Camera received write request for unknown address: %02x = %02x\n", addr, val);

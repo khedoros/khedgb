@@ -2,6 +2,7 @@
 #include<cstdint>
 #include "util.h"
 #include<opencv2/opencv.hpp>
+#include<SDL2/SDL.h>
 
 class camera {
 public:
@@ -24,6 +25,17 @@ private:
                            //a004: maps to register 7, controls output voltage reference, edge enhancement ratio, can invert the image
                            //a005: maps to register 0. sets output reference voltage and enables 0-point calculation.
     uint8_t matrix[48];    //a006-a035: 4x4 matrix, 3 bytes per element. handle dithering and contrast. The matrix is repeated across the screen, in 4x4 pixel groups.
+
+    SDL_Window * screen_raw;
+    SDL_Window * screen_processed;
+    SDL_Renderer * renderer_raw;
+    SDL_Renderer * renderer_processed;
+
+    SDL_Surface * buffer_raw; //Output buffer
+    SDL_Surface * buffer_processed; //Output buffer
+    SDL_Texture * texture_raw; //Texture used for output
+    SDL_Texture * texture_processed;
+
     //a006 is the 0,0 low threshold, a007 is the 0,0 med thresh, a008 is 0,0 high, etc, left-to-right, top-to-bottom.
     //Exposure times (in 1MHz cycles):
     //N_bit = ([A001] & BIT(7)) ? 0 : 512

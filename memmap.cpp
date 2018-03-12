@@ -689,12 +689,12 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                     if(items > 360) items = 360;
                     //printf("x0: %d y0: %d items: %d\n", x0,y0,items);
                     bool hv = ((sgb_cmd_data[5] & 1) == 1);
-                    char out_screen[360] = {'-'};
+                    //char out_screen[360] = {'-'};
                     for(int i=0; i<items; i++) {
                         int byte = i / 4;
                         int bit = i % 4;
                         int col = ((sgb_cmd_data[6+byte] & (0xc0>>(bit*2)))>>((3-bit)*2));
-                        out_screen[y0*20+x0] = col + '0';
+                        //out_screen[y0*20+x0] = col + '0';
                         pal_attrs[y0*20+x0] = col;
 
                         if(hv) {
