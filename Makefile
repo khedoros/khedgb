@@ -11,7 +11,7 @@ ifeq "$(CAMERA)" "yes"
     CXXFLAGS+=-DCAMERA
     KHEDGB_REQ_LIST+=camera.o camera.h
     KHEDGB_OBJ_LIST+=camera.o
-    LDFLAGS+= -lopencv_core -lopencv_highgui -lopencv_imgproc
+    LDFLAGS+= -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_videoio
 endif
 
 

@@ -1,7 +1,7 @@
 #include "camera.h"
 #include<cstdio>
 
-camera::camera() : cap(0/*"vid.mp4"*/), valid(false), capture_start_cycle(0), capture_length(0),
+camera::camera() : cap(0), valid(false), capture_start_cycle(0), capture_length(0),
                    screen_raw(NULL), screen_processed(NULL), renderer_raw(NULL), buffer_raw(NULL),
                    buffer_processed(NULL), texture_raw(NULL), texture_processed(NULL), renderer_processed(NULL)
 {
@@ -56,7 +56,7 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
     uint32_t * pix_p = ((uint32_t *)buffer_processed->pixels);
 
 
-    for(int i=8;i<120;i++) {
+    for(int i=0;i<128;i++) {
         for(int j=0;j<128;j++) {
             uint8_t val = shrunk_image.at<uint8_t>(i,j);
             pix_r[i*128+j] = SDL_MapRGB(buffer_raw->format, val, val, val);
@@ -69,7 +69,9 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
             else if(val < h) val = 1;
             else val = 0;
             pix_p[i*128+j] = SDL_MapRGB(buffer_processed->format, (3-val)*80, (3-val)*80, (3-val)*80);
-            camera_frame[(i-8)*128+j] = val;
+            if(i>=8 && i < 120) {
+                camera_frame[(i-8)*128+j] = val;
+            }
         }
     }
     if(texture_raw) {

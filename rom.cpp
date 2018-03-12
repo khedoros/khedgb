@@ -443,10 +443,15 @@ uint32_t camera_rom::map_ram(uint32_t addr, uint64_t cycle) {
     addr -= 0xa000;
 
     if(ram_enabled && rambank < 16) {
-        //printf("cam_ram mapped bank %02x:%04x\n", rambank, addr);
+        if(rambank == 0) {
+            printf("cam_ram mapped bank %02x:%04x\n", rambank, addr);
+        }
         return addr+(uint32_t(rambank) * 0x2000);
     }
     else if(!ram_enabled && rambank < 16) {
+        if(rambank == 0) {
+            printf("cam_ram mapped bank %02x:%04x (ram disabled)\n", rambank, addr);
+        }
         return 0xffffff00 + cram[addr+uint32_t(rambank) * 0x2000];
     }
     else {
@@ -497,9 +502,7 @@ void camera_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
         //printf("(rombank to %02x)\n", rombank);
     }
     else if(addr < 0x6000) {
-        if(*(uint8_t *)val < 0x11) {
-            rambank = *(uint8_t *)val;
-        }
+        rambank = ((*(uint8_t *)val) & 0x1f);
         //printf("(rambank to %02x)\n", rambank);
     }
     else if(addr >= 0xa000 && addr < 0xc000) {
@@ -515,24 +518,24 @@ void camera_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
                 for(int tx=0;tx<16;tx++) {
                     int in_offset = y*128+tx*8;
                     int out_offset = 0x100 + ((ty * 16) + tx) * 16 + py * 2;
-                    cram[out_offset+0] = (output[in_offset+0] & BIT1)<<6;
-                    cram[out_offset+1] = (output[in_offset+0] & BIT0)<<7;
-                    cram[out_offset+0] |= (output[in_offset+1] & BIT1)<<5;
-                    cram[out_offset+1] |= (output[in_offset+1] & BIT0)<<6;
-                    cram[out_offset+0] |= (output[in_offset+2] & BIT1)<<4;
-                    cram[out_offset+1] |= (output[in_offset+2] & BIT0)<<5;
-                    cram[out_offset+0] |= (output[in_offset+3] & BIT1)<<3;
-                    cram[out_offset+1] |= (output[in_offset+3] & BIT0)<<4;
-                    cram[out_offset+0] |= (output[in_offset+4] & BIT1)<<2;
-                    cram[out_offset+1] |= (output[in_offset+4] & BIT0)<<3;
-                    cram[out_offset+0] |= (output[in_offset+5] & BIT1)<<1;
-                    cram[out_offset+1] |= (output[in_offset+5] & BIT0)<<2;
-                    cram[out_offset+0] |= (output[in_offset+6] & BIT1)<<0;
-                    cram[out_offset+1] |= (output[in_offset+6] & BIT0)<<1;
-                    cram[out_offset+0] |= (output[in_offset+7] & BIT1)>>1;
-                    cram[out_offset+1] |= (output[in_offset+7] & BIT0)<<0;
+                    //printf("Outputting to cram %04x\n", out_offset);
+                    cram[out_offset+0] = (output[in_offset+0] & BIT0)<<7;
+                    cram[out_offset+1] = (output[in_offset+0] & BIT1)<<6;
+                    cram[out_offset+0] |= (output[in_offset+1] & BIT0)<<6;
+                    cram[out_offset+1] |= (output[in_offset+1] & BIT1)<<5;
+                    cram[out_offset+0] |= (output[in_offset+2] & BIT0)<<5;
+                    cram[out_offset+1] |= (output[in_offset+2] & BIT1)<<4;
+                    cram[out_offset+0] |= (output[in_offset+3] & BIT0)<<4;
+                    cram[out_offset+1] |= (output[in_offset+3] & BIT1)<<3;
+                    cram[out_offset+0] |= (output[in_offset+4] & BIT0)<<3;
+                    cram[out_offset+1] |= (output[in_offset+4] & BIT1)<<2;
+                    cram[out_offset+0] |= (output[in_offset+5] & BIT0)<<2;
+                    cram[out_offset+1] |= (output[in_offset+5] & BIT1)<<1;
+                    cram[out_offset+0] |= (output[in_offset+6] & BIT0)<<1;
+                    cram[out_offset+1] |= (output[in_offset+6] & BIT1)<<0;
+                    cram[out_offset+0] |= (output[in_offset+7] & BIT0)>>0;
+                    cram[out_offset+1] |= (output[in_offset+7] & BIT1)>>1;
                 }
-                //cram[0x100 + out_offset] = output[];
             }
         }
         cam.write(addr, *((uint8_t *)val),cycle);
