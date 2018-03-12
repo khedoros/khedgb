@@ -42,7 +42,7 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
     int height = image.size().height;
     int width = image.size().width;
     cv::cvtColor(image, gray_image, CV_BGR2GRAY);
-    cv::getRectSubPix(gray_image, cv::Size{height, height}, cv::Point2f{float(height/2),float(width/2)}, sub_image);
+    cv::getRectSubPix(gray_image, cv::Size{height, height}, cv::Point2f{float(height)/float(2),float(width)/float(2)}, sub_image);
     cv::Mat shrunk_image;
     cv::resize(sub_image, shrunk_image, cv::Size{128,128}, 0, 0);
 
@@ -55,11 +55,14 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
     uint32_t * pix_r = ((uint32_t *)buffer_raw->pixels);
     uint32_t * pix_p = ((uint32_t *)buffer_processed->pixels);
 
+    uint32_t exposure = uint32_t(((parameters[1])<<8)) + parameters[2];
 
     for(int i=0;i<128;i++) {
         for(int j=0;j<128;j++) {
-            uint8_t val = shrunk_image.at<uint8_t>(i,j);
+            uint32_t val = shrunk_image.at<uint8_t>(i,j);
             pix_r[i*128+j] = SDL_MapRGB(buffer_raw->format, val, val, val);
+            val = util::clamp(0,(exposure*val)/2048,255);
+            val = util::clamp(0,val,255);
             uint8_t matrix_base = (i%4)*12 + (j%4)*3;
             uint8_t l = matrix[matrix_base];
             uint8_t m = matrix[matrix_base+1];
@@ -69,9 +72,7 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
             else if(val < h) val = 1;
             else val = 0;
             pix_p[i*128+j] = SDL_MapRGB(buffer_processed->format, (3-val)*80, (3-val)*80, (3-val)*80);
-            if(i>=8 && i < 120) {
-                camera_frame[(i-8)*128+j] = val;
-            }
+            camera_frame[i*128+j] = val;
         }
     }
     if(texture_raw) {
@@ -93,17 +94,19 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
 void camera::write(uint32_t addr, uint8_t val, uint64_t cycle) {
     addr = ((addr - 0xa000) & 0x7f);
     switch(addr) {
-        case 0: //trigger register, and lookup for camera registers 4, 5, and 6.
+        case 0: //trigger register, and lookup for camera registers 4, 5, and 6. A000
             trigger_register = (val & 0x6);
             break;
-        case 1: //Register 1, NVHGGGGG N=vert edge, VH=v/h edge, G=analog output gain, GB likes 0,4,8,a, for 5x,10x,20x,40x enhancement
+        case 1: //Register 1, NVHGGGGG N=vert edge, VH=v/h edge, G=analog output gain, GB likes 0,4,8,a, for 5x,10x,20x,40x enhancement A001
             parameters[0] = val;
             break;
-        case 2: //MSB of exposure time
+        case 2: //MSB of exposure time A002
             parameters[1] = val;
+            printf("Exposure: %d uS\n", 16 * (uint32_t(parameters[1])<<8 | parameters[2]));
             break;
-        case 3: //LSB of exposure time. Each unit is roughly 16uS
+        case 3: //LSB of exposure time. Each unit is roughly 16uS A003
             parameters[2] = val;
+            printf("Exposure: %d uS\n", 16 * (uint32_t(parameters[1])<<8 | parameters[2]));
             break;
         case 4: //EEEEIVVV E=edge enhancement ratio, I=inverted/non V=output node bias voltage
             parameters[3] = val;

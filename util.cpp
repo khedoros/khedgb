@@ -229,4 +229,10 @@ bool reinit_sdl_screen(SDL_Window ** screen, SDL_Renderer ** renderer, SDL_Textu
 void destroy_sdl_screen() {
 
 }
+int clamp(int low, int val, int high) {
+    if(val < low) val = low;
+    if(val > high) val = high;
+    return val;
 }
+}
+

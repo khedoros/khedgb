@@ -42,6 +42,7 @@ int unzip(const std::string& zip_filename, Vect<uint8_t>& output, size_t min, si
 #endif
 int read(const std::string& filename, Vect<uint8_t>& output, size_t min_size, size_t max_size);
 bool reinit_sdl_screen(SDL_Window ** screen, SDL_Renderer ** renderer, SDL_Texture ** texture, unsigned int xres, unsigned int yres);
+int clamp(int low, int val, int high);
 }
 //Sign-extend value from 8-bit to 32-bit
 #define extend(x) ( (x>0x7f) ? 0xffffff00|x : x)

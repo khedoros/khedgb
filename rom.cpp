@@ -509,15 +509,15 @@ void camera_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
         //printf("(write register: %04x = %02x\n", addr, *((uint8_t *)val));
 #ifdef CAMERA
         if(addr == 0xa000 && ((*((uint8_t *)val)) & 0x01) == 1) {
-            Vect<uint8_t> output(128*112,0);
+            Vect<uint8_t> output(128*128,0);
             cam.capture(cycle, &(output[0]));
 
-            for(int y=0;y<112;y++) {
+            for(int y=0;y<128;y++) {
                 int ty = y / 8;
                 int py = y % 8;
                 for(int tx=0;tx<16;tx++) {
                     int in_offset = y*128+tx*8;
-                    int out_offset = 0x100 + ((ty * 16) + tx) * 16 + py * 2;
+                    int out_offset = ((ty * 16) + tx) * 16 + py * 2;
                     //printf("Outputting to cram %04x\n", out_offset);
                     cram[out_offset+0] = (output[in_offset+0] & BIT0)<<7;
                     cram[out_offset+1] = (output[in_offset+0] & BIT1)<<6;
