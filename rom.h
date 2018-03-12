@@ -5,6 +5,10 @@
 #include<cstdint>
 #include "util.h"
 
+#ifdef CAMERA
+#include "camera.h"
+#endif
+
 enum map_type {
     MAP_NONE,
     MAP_MBC1,
@@ -19,9 +23,9 @@ class mapper {
     public:
         mapper(int rom_size, int ram_size, bool has_bat, bool has_rtc=false);
         virtual ~mapper();
-        virtual uint32_t map_rom(uint32_t addr, int cycle);
-        virtual uint32_t map_ram(uint32_t addr, int cycle);
-        virtual void write(uint32_t addr, void * val, int size, int cycle);
+        virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
+        virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
+        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
     protected:
         bool has_bat;
         bool has_rtc;
@@ -33,8 +37,8 @@ class rom {
     public:
         rom(const std::string& rom_filename, const std::string& firmware_filename);
         ~rom();
-        virtual void read(uint32_t addr, void * val, int size, int cycle);
-        virtual void write(uint32_t addr, void * val, int size, int cycle);
+        virtual void read(uint32_t addr, void * val, int size, uint64_t cycle);
+        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
         bool supports_sgb();
 
         struct header {
@@ -75,9 +79,9 @@ class rom {
 class mbc1_rom: public mapper {
     public:
         mbc1_rom(int rom_size, int ram_size, bool has_bat);
-        virtual uint32_t map_rom(uint32_t addr, int cycle);
-        virtual uint32_t map_ram(uint32_t addr, int cycle);
-        virtual void write(uint32_t addr, void * val, int size, int cycle);
+        virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
+        virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
+        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
     private:
         bool ram_enabled;
         bool mode; //0=rom banking, 1=ram banking
@@ -103,9 +107,9 @@ class mbc1_rom: public mapper {
 class mbc2_rom: public mapper {
     public:
         mbc2_rom(uint32_t rom_size, bool has_bat);
-        virtual uint32_t map_rom(uint32_t addr, int cycle);
-        virtual uint32_t map_ram(uint32_t addr, int cycle);
-        virtual void write(uint32_t addr, void * val, int size, int cycle);
+        virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
+        virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
+        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
     private:
         bool ram_enabled;
         unsigned banknum:4;
@@ -114,9 +118,9 @@ class mbc2_rom: public mapper {
 class mbc3_rom: public mapper {
     public:
         mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc, Vect<uint8_t>& rtc_data);
-        virtual uint32_t map_rom(uint32_t addr, int cycle);
-        virtual uint32_t map_ram(uint32_t addr, int cycle);
-        virtual void write(uint32_t addr, void * val, int size, int cycle);
+        virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
+        virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
+        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
     private:
         uint8_t rombank;
         uint8_t rambank;
@@ -129,17 +133,23 @@ class mbc3_rom: public mapper {
 
 class camera_rom: public mapper {
     public:
-        camera_rom(int rom_size, int ram_size, bool has_bat);
-        virtual uint32_t map_rom(uint32_t addr, int cycle);
-        virtual uint32_t map_ram(uint32_t addr, int cycle);
-        virtual void write(uint32_t addr, void * val, int size, int cycle);
+        camera_rom(int rom_size, int ram_size, bool has_bat, uint8_t * cram);
+        virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
+        virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
+        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
     private:
         uint8_t rombank;
         uint8_t rambank;
         bool ram_enabled;
+        uint8_t * cram; //need a way to write camera data directly to cartridge RAM
+#ifdef CAMERA
+        camera cam;
+#endif
 
         bool capturing; //currently capturing an image. RAM returns 0, writes ignored, trigger status can be read.
-        uint8_t trigger_register; //writing 1 to bit 0 triggers capture. returns 1 when hardware is working, and 0 when it's done. Writing 0 stops an in-progress read.
+        uint64_t capture_start_cycle;  //Last time a capture was started
+        uint64_t capture_length;  //How long it will take, calculated when the transfer was started
+        uint8_t trigger_register; //a000: writing 1 to bit 0 triggers capture. returns 1 when hardware is working, and 0 when it's done. Writing 0 stops an in-progress read.
         uint8_t parameters[5]; //a001: maps to register 1, controls output gain and edge operation mode
                                //a002,3: maps to registers 2+3, control exposure time. a003 is lsb. 
                                //a004: maps to register 7, controls output voltage reference, edge enhancement ratio, can invert the image
@@ -172,9 +182,9 @@ class camera_rom: public mapper {
 class mbc5_rom: public mapper {
     public:
         mbc5_rom(int rom_size, int ram_size, bool has_bat, bool has_rumble);
-        virtual uint32_t map_rom(uint32_t addr, int cycle);
-        virtual uint32_t map_ram(uint32_t addr, int cycle);
-        virtual void write(uint32_t addr, void * val, int size, int cycle);
+        virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
+        virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
+        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
     private:
         union rom_bank {
             struct {

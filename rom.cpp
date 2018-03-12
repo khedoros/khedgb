@@ -203,7 +203,7 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
             map = new mbc5_rom(h.rom_size, h.ram_size, h.has_bat, h.has_rumble);
             break;
         case MAP_CAMERA:
-            map = new camera_rom(h.rom_size, h.ram_size, h.has_bat);
+            map = new camera_rom(h.rom_size, h.ram_size, h.has_bat, &(cram[0]));
             break;
         default: return;
     }
@@ -223,7 +223,7 @@ rom::~rom() {
     delete map;
 }
 
-void rom::read(uint32_t addr, void * val, int size, int cycle) {
+void rom::read(uint32_t addr, void * val, int size, uint64_t cycle) {
     if(addr < 0x4000) {
         memcpy(val, &(rom_data[addr]), size);
     }
@@ -252,12 +252,11 @@ void rom::read(uint32_t addr, void * val, int size, int cycle) {
     }
 }
 
-//TODO: Replace this with mapper implementation
-void rom::write(uint32_t addr, void * val, int size, int cycle) {
-    if(addr == 0xff50) memcpy(reinterpret_cast<char *>(&rom_data[0]), reinterpret_cast<char *>(&rom_backup[0]), 256);
-    else if(addr >= 0xa000 && addr < 0xc000) {
+void rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
+    uint32_t orig_addr = addr;
+    if(addr >= 0xa000 && addr < 0xc000) {
         addr = map->map_ram(addr, cycle);
-        if(addr < 0xffffff) {
+        if(addr < 0xffffff) { //in-range RAM mapping, and writes enabled
             memcpy(&(cram[addr]), val, size);
             if(h.mapper == MAP_MBC2) {
                 for(int i=0;i<size;i++) {
@@ -265,11 +264,13 @@ void rom::write(uint32_t addr, void * val, int size, int cycle) {
                 }
             }
         }
-        else if(addr >= 0xffffff00) {
-            //printf("Wrote %02x to camera?\n", addr&0xff);
-            map->write(addr, val, size, cycle);
+        //else if(addr == 0xffffff) {} //Address out of range, or RAM disabled
+        else if(addr >= 0xffffff00) { //RAM disabled, but mapper 
+            //printf("Wrote %02x to mapper register at %04x\n", *((uint8_t *)val),orig_addr);
+            map->write(orig_addr, val, size, cycle);
         }
     }
+    else if(addr == 0xff50) memcpy(reinterpret_cast<char *>(&rom_data[0]), reinterpret_cast<char *>(&rom_backup[0]), 256);
     else {
         map->write(addr, val, size, cycle);
     }
@@ -287,11 +288,11 @@ uint32_t rom::ram_sizes[6] = {0, 2048, 8192, 32768, 131072, 65536};
 
 //NULL mapper
 mapper::mapper(int rom_size, int ram_size, bool bat, bool rtc/*=false*/) : has_bat(bat), has_rtc(rtc), romsize(rom_size), ramsize(ram_size) {}
-uint32_t mapper::map_rom(uint32_t addr, int cycle) {
+uint32_t mapper::map_rom(uint32_t addr, uint64_t cycle) {
     return addr;
 }
 mapper::~mapper() {}
-uint32_t mapper::map_ram(uint32_t addr, int cycle) {
+uint32_t mapper::map_ram(uint32_t addr, uint64_t cycle) {
     if(ramsize > addr - 0xa000) {
         return addr-0xa000;
     }
@@ -300,7 +301,7 @@ uint32_t mapper::map_ram(uint32_t addr, int cycle) {
     }
     return 0;
 }
-void mapper::write(uint32_t addr, void * val, int size, int cycle) { }
+void mapper::write(uint32_t addr, void * val, int size, uint64_t cycle) { }
 
 
 
@@ -308,7 +309,7 @@ void mapper::write(uint32_t addr, void * val, int size, int cycle) { }
 mbc1_rom::mbc1_rom(int rom_size, int ram_size, bool has_bat) : mapper(rom_size, ram_size, has_bat), ram_enabled(false), mode(false) {
     bank.rom_bank = 1; //also sets RAM bank to 0
 }
-uint32_t mbc1_rom::map_rom(uint32_t addr, int cycle) {
+uint32_t mbc1_rom::map_rom(uint32_t addr, uint64_t cycle) {
     if(addr<0x4000) {
         return addr;
     }
@@ -324,7 +325,7 @@ uint32_t mbc1_rom::map_rom(uint32_t addr, int cycle) {
     }
     return addr;
 }
-uint32_t mbc1_rom::map_ram(uint32_t addr, int cycle) {
+uint32_t mbc1_rom::map_ram(uint32_t addr, uint64_t cycle) {
     addr-=0xa000;
     if(addr >= ramsize || !ram_enabled) {
         return 0xffffff;
@@ -335,7 +336,7 @@ uint32_t mbc1_rom::map_ram(uint32_t addr, int cycle) {
     //else addr=addr (only use first bank)
     return addr;
 }
-void mbc1_rom::write(uint32_t addr, void * val, int size, int cycle) {
+void mbc1_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
     if(addr<0x2000 && (*((uint8_t *)val) == 0x0a)) ram_enabled = true;
     else if(addr<0x2000) ram_enabled = false;
     else if(addr >= 0x2000 && addr < 0x4000) bank.lower = *(((uint8_t *)val));
@@ -353,17 +354,17 @@ void mbc1_rom::write(uint32_t addr, void * val, int size, int cycle) {
 
 //MBC2 mapper
 mbc2_rom::mbc2_rom(uint32_t rom_size, bool has_bat) : mapper(rom_size, 512, has_bat), ram_enabled(false), banknum(1) {}
-uint32_t mbc2_rom::map_rom(uint32_t addr, int cycle) {
+uint32_t mbc2_rom::map_rom(uint32_t addr, uint64_t cycle) {
     return  addr + (uint32_t(banknum) * 0x4000) - 0x4000;
 }
-uint32_t mbc2_rom::map_ram(uint32_t addr, int cycle) {
+uint32_t mbc2_rom::map_ram(uint32_t addr, uint64_t cycle) {
     addr -= 0xa000;
     if(addr >= ramsize || !ram_enabled) {
         return 0xffffff;
     }
     return addr;
 }
-void mbc2_rom::write(uint32_t addr, void * val, int size, int cycle) {
+void mbc2_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
     if(addr >= 0x2000 && (addr & 0x100) == 0x100 && addr < 0x4000) banknum = *(((uint8_t *)val));
     else if(addr < 0x2000 && addr < 0x4000 && (addr & 0x100) == 0) ram_enabled = *(((uint8_t *)val));
 }
@@ -374,7 +375,7 @@ void mbc2_rom::write(uint32_t addr, void * val, int size, int cycle) {
 mbc3_rom::mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc, Vect<uint8_t>& rtc_data) : mapper(rom_size, ram_size+5, has_bat), rombank(1), rambank(0), ram_enabled(false), rtc_latch(false), rtc{0,0,0,0,0}, latched_rtc{0,0,0,0,0}, load_timestamp(0) {
     //TODO: Add RTC load code
 }
-uint32_t mbc3_rom::map_rom(uint32_t addr, int cycle) {
+uint32_t mbc3_rom::map_rom(uint32_t addr, uint64_t cycle) {
     if(addr < 0x4000) {
         return addr;
     }
@@ -382,7 +383,7 @@ uint32_t mbc3_rom::map_rom(uint32_t addr, int cycle) {
     addr -= 0x4000;
     return addr+(uint32_t(rombank) * 0x4000);
 }
-uint32_t mbc3_rom::map_ram(uint32_t addr, int cycle) {
+uint32_t mbc3_rom::map_ram(uint32_t addr, uint64_t cycle) {
     if(rambank < 0x04) {
         addr -= 0xa000;
         if(addr >= ramsize || !ram_enabled) {
@@ -396,7 +397,7 @@ uint32_t mbc3_rom::map_ram(uint32_t addr, int cycle) {
     }
     return 0;
 }
-void mbc3_rom::write(uint32_t addr, void * val, int size, int cycle) {
+void mbc3_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
     if(addr < 0x2000) {
         if(*((uint8_t *)val) == 0x0a) {
             ram_enabled = true;
@@ -428,9 +429,9 @@ void mbc3_rom::write(uint32_t addr, void * val, int size, int cycle) {
 
 
 //GameBoy Pocket Camera mapper
-camera_rom::camera_rom(int rom_size, int ram_size, bool has_bat) : mapper(rom_size, ram_size, has_bat), rombank(1), rambank(0), ram_enabled(false) {
+camera_rom::camera_rom(int rom_size, int ram_size, bool has_bat, uint8_t * ramptr) : mapper(rom_size, ram_size, has_bat), rombank(1), rambank(0), ram_enabled(false), cram(ramptr) {
 }
-uint32_t camera_rom::map_rom(uint32_t addr, int cycle) {
+uint32_t camera_rom::map_rom(uint32_t addr, uint64_t cycle) {
     if(addr < 0x4000) {
         return addr;
     }
@@ -438,13 +439,20 @@ uint32_t camera_rom::map_rom(uint32_t addr, int cycle) {
     addr -= 0x4000;
     return addr+(uint32_t(rombank) * 0x4000);
 }
-uint32_t camera_rom::map_ram(uint32_t addr, int cycle) {
+uint32_t camera_rom::map_ram(uint32_t addr, uint64_t cycle) {
     addr -= 0xa000;
 
     if(ram_enabled && rambank < 16) {
+        printf("cam_ram mapped bank %02x:%04x\n", rambank, addr);
         return addr+(uint32_t(rambank) * 0x2000);
     }
+    else if(!ram_enabled && rambank < 16) {
+        return 0xffffff00 + cram[addr+uint32_t(rambank) * 0x2000];
+    }
     else {
+#ifdef CAMERA
+        return 0xffffff00 + cam.read(addr,cycle);
+#else
         switch(addr%0x80) {
             case 0x00: 
                 printf("camera read: Trigger reg (capture + status)\n"); 
@@ -464,7 +472,7 @@ uint32_t camera_rom::map_ram(uint32_t addr, int cycle) {
                 }
                 break;
         }
-
+#endif
         return 0xffffff00;
         //printf("RAM read from out-of-range bank. Reading camera? addr: %d en: %d bank: %d\n", addr+0xa000, ram_enabled, rambank);
         //TODO: Return correct camera status for addr a000
@@ -472,7 +480,7 @@ uint32_t camera_rom::map_ram(uint32_t addr, int cycle) {
 
     return 0xffffff;
 }
-void camera_rom::write(uint32_t addr, void * val, int size, int cycle) {
+void camera_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
     printf("camera_rom::write addr: %04x val: %02x ", addr, *((uint8_t *)val));
     if(addr < 0x2000) {
         if(*((uint8_t *)val) == 0x0a) {
@@ -495,7 +503,40 @@ void camera_rom::write(uint32_t addr, void * val, int size, int cycle) {
         printf("(rambank to %02x)\n", rambank);
     }
     else if(addr >= 0xa000 && addr < 0xc000) {
-        printf(" (write register: %04x = %02x\n", addr, *((uint8_t *)val));
+        printf("(write register: %04x = %02x\n", addr, *((uint8_t *)val));
+#ifdef CAMERA
+        if(addr == 0xa000 && ((*((uint8_t *)val)) & 0x01) == 1) {
+            Vect<uint8_t> output(128*112,0);
+            cam.capture(cycle, &(output[0]));
+
+            for(int y=0;y<112;y++) {
+                int ty = y / 8;
+                int py = y % 8;
+                for(int tx=0;tx<16;tx++) {
+                    int in_offset = y*128+tx*8;
+                    int out_offset = 0x100 + ((ty * 16) + tx) * 16 + py * 2;
+                    cram[out_offset+0] = (output[in_offset+0] & BIT1)<<6;
+                    cram[out_offset+1] = (output[in_offset+0] & BIT0)<<7;
+                    cram[out_offset+0] = (output[in_offset+1] & BIT1)<<5;
+                    cram[out_offset+1] = (output[in_offset+1] & BIT0)<<6;
+                    cram[out_offset+0] = (output[in_offset+2] & BIT1)<<4;
+                    cram[out_offset+1] = (output[in_offset+2] & BIT0)<<5;
+                    cram[out_offset+0] = (output[in_offset+3] & BIT1)<<3;
+                    cram[out_offset+1] = (output[in_offset+3] & BIT0)<<4;
+                    cram[out_offset+0] = (output[in_offset+4] & BIT1)<<2;
+                    cram[out_offset+1] = (output[in_offset+4] & BIT0)<<3;
+                    cram[out_offset+0] = (output[in_offset+5] & BIT1)<<1;
+                    cram[out_offset+1] = (output[in_offset+5] & BIT0)<<2;
+                    cram[out_offset+0] = (output[in_offset+6] & BIT1)<<0;
+                    cram[out_offset+1] = (output[in_offset+6] & BIT0)<<1;
+                    cram[out_offset+0] = (output[in_offset+7] & BIT1)>>1;
+                    cram[out_offset+1] = (output[in_offset+7] & BIT0)<<0;
+                }
+                //cram[0x100 + out_offset] = output[];
+            }
+        }
+        cam.write(addr, *((uint8_t *)val),cycle);
+#endif
     }
 }
 
@@ -503,7 +544,7 @@ void camera_rom::write(uint32_t addr, void * val, int size, int cycle) {
 
 //MBC5 mapper
 mbc5_rom::mbc5_rom(int rom_size, int ram_size, bool has_bat, bool has_rumble) : mapper(rom_size, ram_size, has_bat), rombank{.bank=1}, rambank(0), ram_enabled(false) {}
-uint32_t mbc5_rom::map_rom(uint32_t addr, int cycle) {
+uint32_t mbc5_rom::map_rom(uint32_t addr, uint64_t cycle) {
     if(addr<0x4000) {
         return addr;
     }
@@ -513,7 +554,7 @@ uint32_t mbc5_rom::map_rom(uint32_t addr, int cycle) {
     return addr;
 }
 
-uint32_t mbc5_rom::map_ram(uint32_t addr, int cycle) {
+uint32_t mbc5_rom::map_ram(uint32_t addr, uint64_t cycle) {
     if(!ram_enabled) {
         return 0xffffff;
     }
@@ -522,7 +563,7 @@ uint32_t mbc5_rom::map_ram(uint32_t addr, int cycle) {
     return addr;
 }
 
-void mbc5_rom::write(uint32_t addr, void * val, int size, int cycle) {
+void mbc5_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
     if(addr < 0x2000) {
         ram_enabled = (*((uint8_t *)val) == 0x0a);
     }
