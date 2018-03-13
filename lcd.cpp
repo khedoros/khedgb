@@ -1275,7 +1275,8 @@ void lcd::sgb_enable(bool enable) {
             SDL_FreeSurface(sgb_border);
             sgb_border = NULL;
         }
-        sgb_border = SDL_CreateRGBSurfaceWithFormat(0,256,224,32,SDL_PIXELFORMAT_RGBA8888);
+        sgb_border = SDL_CreateRGBSurface(0,256,224,32,0,0,0,0);
+        sgb_border = SDL_ConvertSurface(sgb_border, SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888), 0);
         SDL_SetSurfaceBlendMode(sgb_border, SDL_BLENDMODE_BLEND);
 
         SDL_Rect center{48,40,160,144};
