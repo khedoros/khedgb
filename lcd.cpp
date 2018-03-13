@@ -887,7 +887,7 @@ void lcd::update_estimates(uint64_t cycle) {
     if((cpu_status & LYC) > 0) {
         lyc_next_cycle = frame_base_cycle + cpu_lyc * 114 + 1;
         if(lyc_next_cycle <= cycle) { //We've passed it this frame; go to the next.
-            lyc_next_cycle = frame_base_cycle + 17556 + cpu_lyc * 144 + 1;
+            lyc_next_cycle = frame_base_cycle + 17556 + cpu_lyc * 114 + 1;
         }
     }
     else {
