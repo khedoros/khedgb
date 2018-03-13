@@ -376,6 +376,9 @@ void memmap::keydown(SDL_Scancode k) {
         case SDL_SCANCODE_E:
             screen.toggle_debug();
             break;
+        case SDL_SCANCODE_O:
+            screen.sgb_trigger_dump(std::string("vram_dump.dat"));
+            break;
         default:
             break;
     }

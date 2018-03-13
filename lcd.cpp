@@ -275,6 +275,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             int line_cycle = (cycle - cpu_active_cycle) % 114;
             timing_queue.emplace_back(util::cmd{line,line_cycle,0,0});
         }
+        if(addr >= 0x9800) { printf("PPU BGMAP %04x = %02x @ %d\n", addr, *(uint8_t *)val, cycle); }
         //else {
         //    printf("PPU: Cycle %010ld Denied write during mode   3: 0x%04x = 0x%02x\n", cycle, addr, *((uint8_t *)val));
         //}
@@ -578,14 +579,12 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
     }
 
     //printf("Raw: start cycle: %lld end: %lld\n", start_cycle, end_cycle);
-    /*
     if(sgb_dump_filename != "") {
         std::ofstream chr_out(sgb_dump_filename.c_str());
-        chr_out.write(reinterpret_cast<char *>(&vram[0x800]), 0x1000);
+        chr_out.write(reinterpret_cast<char *>(&vram[0x0]), 0x2000);
         chr_out.close();
         sgb_dump_filename = "";
     }
-    */
 
     uint64_t start_frame_cycle = (start_cycle - active_cycle) % 17556;
     uint64_t start_frame_line = start_frame_cycle / 114;

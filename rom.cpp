@@ -444,13 +444,13 @@ uint32_t camera_rom::map_ram(uint32_t addr, uint64_t cycle) {
 
     if(ram_enabled && rambank < 16) {
         if(rambank == 0) {
-            printf("cam_ram mapped bank %02x:%04x\n", rambank, addr);
+            //printf("cam_ram mapped bank %02x:%04x\n", rambank, addr);
         }
         return addr+(uint32_t(rambank) * 0x2000);
     }
     else if(!ram_enabled && rambank < 16) {
         if(rambank == 0) {
-            printf("cam_ram mapped bank %02x:%04x (ram disabled)\n", rambank, addr);
+            //printf("cam_ram mapped bank %02x:%04x (ram disabled)\n", rambank, addr);
         }
         return 0xffffff00 + cram[addr+uint32_t(rambank) * 0x2000];
     }

@@ -1,5 +1,8 @@
 #include<cstdio>
 #include "lcd.h"
+#include<vector>
+#include<iostream>
+#include<fstream>
 
 uint8_t tiles[] {
 0xc6, 0xc6, 0xaa, 0xaa, 0xaa, 0xaa, 0x92, 0x92, 0x82, 0x82, 0x82, 0x82, 0x82, 0x82, 0x00, 0x00, //M
@@ -22,7 +25,7 @@ uint8_t lcdc = 0x97;
 uint8_t oam[] {0x20, 0x20, 0x08, 0x00,
                0x20, 0x28, 0x08, 0x20};
 
-int main() {
+int main(int argc, char *argv[]) {
     SDL_Init(SDL_INIT_VIDEO);
     lcd ppu;
 
@@ -30,28 +33,50 @@ int main() {
     uint8_t ly=0;     //ff44
     uint8_t lyc=12;   //ff45
 
-    for(int i=0;i<11*16;i++) {
-        ppu.write(0x8000+i, &(tiles[i]), 1, 0);
+    if(argc == 1) {
+        for(int i=0;i<11*16;i++) {
+            ppu.write(0x8000+i, &(tiles[i]), 1, 0);
+        }
+        for(int i=0;i<15;i++) {
+            ppu.write(0x9800+i, &(bg[i]), 1, 0);
+        }
+        for(int i=0;i<8;i++) {
+            ppu.write(0xfe00+i, &(oam[i]), 1, 0);
+        }
+        ppu.write(0xff45, &lyc, 1, 0);
+        ppu.write(0xff40, &lcdc, 1, 0);
+        for(int i=0; i<114*154; i++) {
+            ppu.read(0xff41, &status, 1, i);
+            ppu.read(0xff44, &ly, 1, i);
+            uint64_t frame = ppu.get_frame();
+            uint8_t mode = ppu.get_mode(i);
+            uint8_t stat_mode = status&0x03;
+            uint8_t lyc_flag = (status&4)>>2;
+            printf("Cycle: %d (Frame: %d, line: %d, line_cycle: %d) ly(%d)==12: %d mode %d (stat_mode: %d)\n", i, frame, (i%17556)/114, i%114, ly, lyc_flag, mode, stat_mode);
+            ppu.run(i+1);
+        }
+        SDL_Delay(10000);
+        SDL_Quit();
     }
-    for(int i=0;i<15;i++) {
-        ppu.write(0x9800+i, &(bg[i]), 1, 0);
+
+    else {
+        lcdc = 0x81;
+        uint8_t bgx = 16;
+        ppu.write(0xff40, &lcdc, 1, 0);
+
+        ppu.write(0xff42, &bgx, 1, 0);
+        ppu.write(0xff43, &bgx, 1, 0);
+        std::ifstream in(argv[1]);
+        std::vector<uint8_t> vram(0x2000,0);
+        if(in.is_open()) {
+            in.read(reinterpret_cast<char *>(&vram[0]), 0x2000);
+        }
+        for(int i=0;i<0x2000;i++) {
+            ppu.write(0x8000+i, &vram[i], 1, 1);
+        }
+        for(int i=1;i<154;i++) ppu.run(114*i);
+        SDL_Delay(10000);
+        SDL_Quit();
     }
-    for(int i=0;i<8;i++) {
-        ppu.write(0xfe00+i, &(oam[i]), 1, 0);
-    }
-    ppu.write(0xff45, &lyc, 1, 0);
-    ppu.write(0xff40, &lcdc, 1, 0);
-    for(int i=0; i<114*154; i++) {
-        ppu.read(0xff41, &status, 1, i);
-        ppu.read(0xff44, &ly, 1, i);
-        uint64_t frame = ppu.get_frame();
-        uint8_t mode = ppu.get_mode(i);
-        uint8_t stat_mode = status&0x03;
-        uint8_t lyc_flag = (status&4)>>2;
-        printf("Cycle: %d (Frame: %d, line: %d, line_cycle: %d) ly(%d)==12: %d mode %d (stat_mode: %d)\n", i, frame, (i%17556)/114, i%114, ly, lyc_flag, mode, stat_mode);
-        ppu.run(i+1);
-    }
-    SDL_Delay(10000);
-    SDL_Quit();
     return 0;
 }

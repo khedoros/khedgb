@@ -9,6 +9,7 @@ camera::camera() : cap(0), valid(false), capture_start_cycle(0), capture_length(
         valid = true;
     }
 
+    /*
     util::reinit_sdl_screen(&screen_raw, &renderer_raw, &texture_raw, 128, 128);
     util::reinit_sdl_screen(&screen_processed, &renderer_processed, &texture_processed, 128, 128);
 
@@ -21,6 +22,7 @@ camera::camera() : cap(0), valid(false), capture_start_cycle(0), capture_length(
     SDL_SetRenderDrawColor(renderer_processed, 0, 0, 0, 0);
     SDL_RenderClear(renderer_processed);
     SDL_RenderPresent(renderer_processed);
+    */
 }
 
 camera::~camera() {
@@ -42,7 +44,7 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
     int height = image.size().height;
     int width = image.size().width;
     cv::cvtColor(image, gray_image, CV_BGR2GRAY);
-    cv::getRectSubPix(gray_image, cv::Size{height, height}, cv::Point2f{float(height)/float(2),float(width)/float(2)}, sub_image);
+    cv::getRectSubPix(gray_image, cv::Size{(2*height)/3, (2*height)/3}, cv::Point2f{float(height)/float(2),float(width)/float(2)}, sub_image);
     cv::Mat shrunk_image;
     cv::resize(sub_image, shrunk_image, cv::Size{128,128}, 0, 0);
 
@@ -52,15 +54,15 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
     assert(height == 128 && width == 128);
     assert(shrunk_image.rows == 128 && shrunk_image.cols == 128);
 
-    uint32_t * pix_r = ((uint32_t *)buffer_raw->pixels);
-    uint32_t * pix_p = ((uint32_t *)buffer_processed->pixels);
+    //uint32_t * pix_r = ((uint32_t *)buffer_raw->pixels);
+    //uint32_t * pix_p = ((uint32_t *)buffer_processed->pixels);
 
     uint32_t exposure = uint32_t(((parameters[1])<<8)) + parameters[2];
 
     for(int i=0;i<128;i++) {
         for(int j=0;j<128;j++) {
             uint32_t val = shrunk_image.at<uint8_t>(i,j);
-            pix_r[i*128+j] = SDL_MapRGB(buffer_raw->format, val, val, val);
+            //pix_r[i*128+j] = SDL_MapRGB(buffer_raw->format, val, val, val);
             val = util::clamp(0,(exposure*val)/2048,255);
             val = util::clamp(0,val,255);
             uint8_t matrix_base = (i%4)*12 + (j%4)*3;
@@ -71,10 +73,12 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
             else if(val < m) val = 2;
             else if(val < h) val = 1;
             else val = 0;
-            pix_p[i*128+j] = SDL_MapRGB(buffer_processed->format, (3-val)*80, (3-val)*80, (3-val)*80);
+            //pix_p[i*128+j] = SDL_MapRGB(buffer_processed->format, (3-val)*80, (3-val)*80, (3-val)*80);
             camera_frame[i*128+j] = val;
         }
     }
+
+    /*
     if(texture_raw) {
         SDL_DestroyTexture(texture_raw);
     }
@@ -88,7 +92,7 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
     texture_processed = SDL_CreateTextureFromSurface(renderer_processed, buffer_processed);
     SDL_RenderCopy(renderer_processed, texture_processed, NULL, NULL);
     SDL_RenderPresent(renderer_processed);
-
+    */
 }
 
 void camera::write(uint32_t addr, uint8_t val, uint64_t cycle) {
@@ -102,11 +106,11 @@ void camera::write(uint32_t addr, uint8_t val, uint64_t cycle) {
             break;
         case 2: //MSB of exposure time A002
             parameters[1] = val;
-            printf("Exposure: %d uS\n", 16 * (uint32_t(parameters[1])<<8 | parameters[2]));
+            //printf("Exposure: %d uS\n", 16 * (uint32_t(parameters[1])<<8 | parameters[2]));
             break;
         case 3: //LSB of exposure time. Each unit is roughly 16uS A003
             parameters[2] = val;
-            printf("Exposure: %d uS\n", 16 * (uint32_t(parameters[1])<<8 | parameters[2]));
+            //printf("Exposure: %d uS\n", 16 * (uint32_t(parameters[1])<<8 | parameters[2]));
             break;
         case 4: //EEEEIVVV E=edge enhancement ratio, I=inverted/non V=output node bias voltage
             parameters[3] = val;
@@ -120,15 +124,15 @@ void camera::write(uint32_t addr, uint8_t val, uint64_t cycle) {
                 //printf("Set matrix %d to %d\n", addr-6, val);
             }
             else {
-                printf("Camera received write request for unknown address: %02x = %02x\n", addr, val);
+                //printf("Camera received write request for unknown address: %02x = %02x\n", addr, val);
             }
     }
 }
 
 uint8_t camera::read(uint16_t addr, uint64_t cycle) {
     if(addr == 0xa000) {
-        if(cycle >= capture_start_cycle + capture_length) return 0;
-        else return 1;
+        if(cycle >= capture_start_cycle + capture_length) return trigger_register;
+        else return (trigger_register | 1);
     }
     return 0;
 }
