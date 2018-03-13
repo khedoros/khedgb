@@ -539,6 +539,11 @@ void camera_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
             }
         }
         cam.write(addr, *((uint8_t *)val),cycle);
+#else
+        const uint8_t image[0x1000] = {
+#include "image.hex"
+        };
+        memcpy(cram, image, 0x1000);
 #endif
     }
 }
