@@ -9,6 +9,7 @@
 #endif
 #include<iostream>
 #include<fstream>
+#include<cassert>
 
 namespace util {
 #ifndef PPU_ONLY
@@ -234,5 +235,15 @@ int clamp(int low, int val, int high) {
     if(val > high) val = high;
     return val;
 }
+std::string to_hex_string(uint32_t val, int length) { 
+    assert(length <= 8); 
+    char buf[10]; 
+    char fmt[10]; 
+    std::snprintf(fmt,10,"%%0%dx",length); 
+    std::snprintf(buf,10,fmt,val); 
+    std::string out(buf);
+    return out; 
+}   
+
 }
 

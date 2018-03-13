@@ -126,6 +126,8 @@ private:
     uint16_t clock_divisor_reset; //based on 0xff07 writes
     uint16_t clock_divisor;
     static const unsigned int timer_clock_select[4]; //0xff07 bit 0+1, table of number of CPU clocks to tick the timer
+
+    uint8_t screen_status; //Cached copy of lcd control register, for interrupt checks
 };
 /*
  * 0x0000-0x3FFF: Permanently-mapped ROM bank.

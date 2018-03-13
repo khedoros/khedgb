@@ -13,10 +13,11 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
              cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}},             cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
              screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL), sgb_border(NULL), sgb_texture(NULL),
              sgb_mode(false), sgb_dump_filename(""), sgb_vram_transfer_type(0), sgb_mask_mode(0), sgb_sys_pals(512), sgb_attrs(20*18, 0),
-             sgb_frame_attrs(32*32), sgb_frame_pals(4), sgb_tiles(256*8*8), sgb_attr_files(45) {
+             sgb_frame_attrs(32*32), sgb_frame_pals(4), sgb_tiles(256*8*8), sgb_attr_files(45), trace(false) {
 
     vram.resize(0x2000);
     oam.resize(0xa0);
+    row_cache.resize(384*8, Vect<uint8_t>(8,0));
     cpu_vram.resize(0x2000);
     cpu_oam.resize(0xa0);
 
@@ -189,8 +190,11 @@ uint64_t lcd::run(uint64_t run_to) {
 void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
     //uint8_t prev = 0xb5; //stands for "BS"
     if(addr >= 0x8000 && addr < 0xa000) {
-        //prev = vram[addr&0x1fff];
+        uint8_t prev = vram[addr&0x1fff];
         vram[addr & 0x1fff] = val;
+        if(addr < 0x9800 && prev != val) {
+            update_row_cache(addr);
+        }
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
         //prev = oam[addr-0xfe00];
@@ -255,7 +259,23 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
     return;
 }
 
+void lcd::update_row_cache(uint16_t addr) {
+    addr -= 0x8000;
+    int tilenum = addr / 16;
+    int row = (addr / 2) % 8;
+    int index = tilenum * 8 + row;
+    int data_base = tilenum * 16 + row * 2;
+    int b1 = vram[data_base];
+    int b2 = vram[data_base + 1];
+    for(int x = 0; x < 8; x++) {
+        int shift = 128>>(x);
+        row_cache[index][x] = ((b1&shift)/shift + 2*((b2&shift)/shift));
+    }
+    return;
+}
+
 void lcd::write(int addr, void * val, int size, uint64_t cycle) {
+    if(trace) {printf("PPU write (pre ): %s\n", lcd_to_string(addr, *((uint8_t *)val)).c_str());}
     if(size > 1) {
         printf("addr: %04x = ", addr);
         for(int i=0;i<size;i++) {
@@ -275,7 +295,9 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             int line_cycle = (cycle - cpu_active_cycle) % 114;
             timing_queue.emplace_back(util::cmd{line,line_cycle,0,0});
         }
-        if(addr >= 0x9800) { printf("PPU BGMAP %04x = %02x @ %d\n", addr, *(uint8_t *)val, cycle); }
+        if(addr >= 0x9800) {
+            //printf("PPU BGMAP %04x = %02x @ %d\n", addr, *(uint8_t *)val, cycle);
+        }
         //else {
         //    printf("PPU: Cycle %010ld Denied write during mode   3: 0x%04x = 0x%02x\n", cycle, addr, *((uint8_t *)val));
         //}
@@ -434,6 +456,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         }
     }
+    if(trace) printf("PPU write (post): %s\n", lcd_to_string(addr, *((uint8_t *)val)).c_str());
     return;
 }
 
@@ -554,10 +577,12 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
                 *((uint8_t *)val) = 0xff;
         }
     }
+    if(trace) printf("PPU read: %s\n", lcd_to_string(addr, *((uint8_t *)val)).c_str());
     return;
 }
 
 void lcd::get_tile_row(int tilenum, int row, bool reverse, Vect<uint8_t>& pixels) {
+#ifdef UNCACHED
     assert(tilenum < 384); assert(row < 16); assert(pixels.size() == 8);
     int addr = tilenum * 16 + row * 2;
     int b1 = vram[addr];
@@ -569,6 +594,14 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, Vect<uint8_t>& pixels
         pixels[x] = ((b1&shift)/shift + 2*((b2&shift)/shift));
     }
     return;
+#else
+    int index = tilenum * 8 + row;
+    if(reverse) {
+        std::copy(row_cache[index].begin(), row_cache[index].end(), pixels.rbegin());
+    } else {
+        std::copy(row_cache[index].begin(), row_cache[index].end(), pixels.begin());
+    }
+#endif
 }
 
 uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
@@ -731,19 +764,14 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 if(sprite_dat.yflip == 1) {
                     y_i = sprite_size - (y_i + 1);
                 }
-                get_tile_row(tile, y_i, false, tile_line);
+                get_tile_row(tile, y_i, sprite_dat.xflip, tile_line);
 
                 if(sprite_x >=0 && sprite_x < 160) {
                     pal_index = sgb_attrs[(render_line/8)*20+sprite_x/8];
                 }
 
                 for(int x=0;x!=8;x++) {
-                    int x_i = x;
-                    if(sprite_dat.xflip == 1) {
-                        x_i = 7 - x;
-                    }
-
-                    uint8_t col = tile_line[x_i];
+                    uint8_t col = tile_line[x];
                     uint32_t color = 0;
                     if(!col) continue;
 
@@ -954,6 +982,10 @@ void lcd::set_debug(bool db) {
 
 void lcd::toggle_debug() {
     debug = !debug;
+}
+
+void lcd::toggle_trace() {
+    trace = !trace;
 }
 
 uint64_t lcd::get_frame() {
@@ -1317,4 +1349,53 @@ void lcd::sgb_enable(bool enable) {
 void lcd::win_resize(unsigned int new_x, unsigned int new_y) {
     win_x_res = new_x;
     win_y_res = new_y;
+}
+
+std::string lcd::lcd_to_string(uint16_t addr, uint8_t val) {
+    std::string out("");
+    if(addr >= 0x8000 && addr < 0xa000) {
+        out = std::string("vram[")+util::to_hex_string(addr,4)+"] = 0x"+util::to_hex_string(val,2);
+    }
+    else if(addr >= 0xfe00 && addr < 0xfea0) {
+        uint8_t spr_num = (addr&0xff)/4;
+        char name[][10] = {"ypos","xpos","tile","flags"};
+        uint8_t spr_type = addr % 4;
+        out = std::string("oam[")+util::to_hex_string(addr,4)+"] ("+name[spr_type]+" for #" + std::to_string(spr_num) + ") = 0x"+util::to_hex_string(val,2);
+    }
+    else {
+        switch(addr) {
+            case 0xff40:
+                out = std::string("display: ") + std::to_string(cpu_control.display_enable) +
+                      std::string(" background: ") + std::to_string(cpu_control.priority) +
+                      std::string(" bg map: ") + util::to_hex_string(0x9800 + cpu_control.bg_map * 0x400, 4) +
+                      std::string(" tile addr mode: ") + ((cpu_control.tile_addr_mode)?"unsigned":"signed")+
+                      std::string(" window: ") + std::to_string(cpu_control.window_enable) +
+                      std::string(" win map: ") + std::to_string(cpu_control.window_map) +
+                      std::string(" sprites: ") + std::to_string(cpu_control.sprite_enable) +
+                      std::string(" bigsprites: ") + std::to_string(cpu_control.sprite_size);
+                break;
+                /*
+            case 0xff42:
+                break;
+            case 0xff43:
+                break;
+            case 0xff46:
+                break;
+            case 0xff47:
+                break;
+            case 0xff48:
+                break;
+            case 0xff49:
+                break;
+            case 0xff4a:
+                break;
+            case 0xff4b:
+                break;*/
+            default:
+                out = util::to_hex_string(addr,4) + " = 0x" + util::to_hex_string(val, 2);
+                //Various data aren't necessary to render the screen, so we ignore anything like interrupts and status
+                break;
+        }
+    }
+    return out;
 }

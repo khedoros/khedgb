@@ -460,20 +460,30 @@ uint32_t camera_rom::map_ram(uint32_t addr, uint64_t cycle) {
 #else
         switch(addr%0x80) {
             case 0x00: 
-                printf("camera read: Trigger reg (capture + status)\n"); 
+                //printf("camera read: Trigger reg (capture + status)\n"); 
                 return 0xffffffaa;
                 break;
-            case 0x01: printf("camera read: Reg1 (Output gain+edge ops)\n"); break;
-            case 0x02: printf("camera read: Reg2 (Exposure time MSB)\n"); break;
-            case 0x03: printf("camera read: Reg3 (Exposure time LSB)\n"); break;
-            case 0x04: printf("camera read: Reg7 (Edge, invert, voltage ref)\n"); break;
-            case 0x05: printf("camera read: Reg0 (out ref volt, zp calc)\n"); break;
+            case 0x01: 
+                //printf("camera read: Reg1 (Output gain+edge ops)\n");
+                break;
+            case 0x02: 
+                //printf("camera read: Reg2 (Exposure time MSB)\n");
+                break;
+            case 0x03: 
+                //printf("camera read: Reg3 (Exposure time LSB)\n");
+                break;
+            case 0x04: 
+                //printf("camera read: Reg7 (Edge, invert, voltage ref)\n");
+                break;
+            case 0x05: 
+                //printf("camera read: Reg0 (out ref volt, zp calc)\n");
+                break;
             default:
                 if((addr%0x80) >= 0x06 && (addr%0x80) <= 0x35) {
-                    printf("camera read: Dithering register element %d\n", (addr%0x80) - 6);
+                    //printf("camera read: Dithering register element %d\n", (addr%0x80) - 6);
                 }
                 else {
-                    printf("camera read: Unknown register at addr %04x\n", addr);
+                    //printf("camera read: Unknown register at addr %04x\n", addr);
                 }
                 break;
         }

@@ -18,7 +18,7 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
 /*Super GameBoy values            */              sgb_active(false), sgb_bit_ptr(0), sgb_buffered(false), sgb_cur_joypad(0), sgb_joypad_count(1), sgb_cmd_count(0), sgb_cmd_index(0),
 /*serial/link cable               */              link_data(0), serial_transfer(false), internal_clock(false), transfer_start(-1), bits_transferred(0),
 /*div register + timer            */              div(0), div_period(0),last_int_check(0), timer(0), timer_modulus(0), timer_control{.val=0},
-/*                                */              clock_divisor_reset(timer_clock_select[0]), clock_divisor(0) {
+/*                                */              clock_divisor_reset(timer_clock_select[0]), clock_divisor(0), screen_status(0) {
 
     valid = cart.valid;
     if(!valid) return;
@@ -312,6 +312,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 }
                 else if(addr > 0xff3f && addr < 0xff4c) {
                     screen.write(addr, val, size, cycle);
+                    if(addr == 0xff40) screen_status = *(uint8_t *)val;
                     //std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 }
                 else if(addr > 0xff4e && addr < 0xff6c) { //0xff50 is handled up above
@@ -413,6 +414,9 @@ void memmap::keyup(SDL_Scancode k) {
         case SDL_SCANCODE_L:
             btns[0].a=0;
             break;
+        case SDL_SCANCODE_T:
+            screen.toggle_trace();
+            break;
         default:
             break;
     }
@@ -431,10 +435,10 @@ INT_TYPE memmap::get_interrupt() {
 //Update any interrupt states that are dependent on time
 void memmap::update_interrupts(uint64_t cycle) {
     uint64_t time_diff = cycle - last_int_check;
-    uint8_t enabled = 0;
-    screen.read(0xff40, &enabled, 1, cycle);
+    //uint8_t enabled = 0;
+    //screen.read(0xff40, &enabled, 1, cycle);
     //We aren't still in previously-seen vblank, we *are* in vblank, and the screen is enabled
-    if(!int_requested.vblank && cycle > last_int_cycle + 1140 && screen.get_mode(cycle) == 1 && ((enabled&0x80) > 0)) {
+    if(!int_requested.vblank && cycle > last_int_cycle + 1140 && screen.get_mode(cycle) == 1 && ((screen_status&0x80) > 0)) {
         int_requested.vblank = 1;
         last_int_cycle = cycle; 
         //printf("INT: vbl set active @ cycle %ld\n", cycle);

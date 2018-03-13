@@ -40,6 +40,7 @@ public:
     uint8_t get_mode(uint64_t cycle, bool ppu_view = false);
     void set_debug(bool db);
     void toggle_debug();
+    void toggle_trace();
     uint64_t get_frame();
     void dma(bool dma_active, uint64_t cycle, uint8_t dma_addr);
     void win_resize(unsigned int new_x, unsigned int new_y);
@@ -66,7 +67,8 @@ private:
     void do_vram_transfer();
     void interpret_vram(Vect<uint8_t>& vram_data);
     void regen_background();
-
+    std::string lcd_to_string(uint16_t addr, uint8_t val);
+    void update_row_cache(uint16_t);
 
     void draw_debug_overlay();
 
@@ -122,6 +124,7 @@ private:
     std::list<util::cmd> timing_queue; //Abusing the util::cmd type to store line, cycle, and whether the access was a write to oam, vram, or some other control register
     Vect<uint8_t> vram;
     Vect<uint8_t> oam;
+    Vect<Vect<uint8_t>> row_cache; //pre-calculated cache of tile data
     uint64_t cycle;      //Last cycle executed during previous invocation of "lcd::run()"
     uint64_t next_line; //Next line to render in frame
     control_reg control; //0xff40
@@ -270,4 +273,5 @@ private:
     Vect<sgb_pal16> sgb_frame_pals;
     Vect<uint8_t> sgb_tiles; //256 8x8 4-bit tiles
     Vect<attrib_file> sgb_attr_files; //45 attribute files
+    bool trace; //Enable trace output
 };
