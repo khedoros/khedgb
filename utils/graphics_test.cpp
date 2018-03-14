@@ -1,5 +1,5 @@
 #include<cstdio>
-#include "lcd.h"
+#include "../lcd.h"
 #include<vector>
 #include<iostream>
 #include<fstream>

@@ -23,8 +23,8 @@ endif
 khedgb: $(KHEDGB_REQ_LIST)
 	$(CXX) $(CXXFLAGS) $(KHEDGB_OBJ_LIST) -o khedgb $(LDFLAGS)
 
-graphics_test: graphics_test.cpp lcd.cpp util.cpp
-	$(CXX) -std=c++11 -DPPU_ONLY graphics_test.cpp lcd.cpp util.cpp -o graphics_test $(LDFLAGS)
+graphics_test: utils/graphics_test.cpp lcd.cpp util.cpp
+	$(CXX) -std=c++11 -DPPU_ONLY utils/graphics_test.cpp lcd.cpp util.cpp -o graphics_test $(LDFLAGS)
 
 %.o: %.cpp %.h
 	$(CXX) -c $(CXXFLAGS) $<
