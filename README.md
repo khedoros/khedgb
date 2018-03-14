@@ -39,7 +39,7 @@ T | Toggle CPU and PPU trace mode
 
 ### Cammand-line Options
 
-Command: `khedgb [options] romfile
+Command: `khedgb [options] romfile`
 
 Option | Effect
 ------ | ------
@@ -48,7 +48,7 @@ Option | Effect
 --trace | Activate CPU+PPU instruction trace (listing of what the game is doing)
 --headless | Headless mode (disable graphics) (I don't test this often)
 --nosound | NoSound mode (disable audio) (Sound isn't working yet anyhow...)
---fw fw_filename | Boot using specified bootstrap firmware (expect 256 byte files for SGB and DMG, and a 2,304 byte file for CGB)
+--fw `fw_filename` | Boot using specified bootstrap firmware (expect 256 byte files for SGB and DMG, and a 2,304 byte file for CGB)
 
 Note about the firmware: They aren't strictly necessary. The emulator runs without them just fine. They just complete the experience.
 
