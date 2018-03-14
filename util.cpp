@@ -28,6 +28,7 @@ bool process_events(cpu * proc, memmap * bus) {
                 }
                 else if(event.key.keysym.scancode==SDL_SCANCODE_T) {
                     proc->toggle_trace();
+                    bus->keydown(event.key.keysym.scancode);
                 }
                 else {
                     bus->keydown(event.key.keysym.scancode);

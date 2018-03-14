@@ -5,6 +5,52 @@ Adventures in Game Boy emulation (Or, What Khedoros Likes To Do In His Not-so-ab
 
 This starts as a DMG (original GameBoy) emulator and expand to CGB either when I feel like the core emulator is solid, or I start getting bored. The color hardware is mostly a direct extension of the Game Boy system and is backwards compatible with its software. I'll also branch into peripheral support, as the mood strikes.
 
+## Usage
+
+### Building
+
+You'll need SDL2 development libraries. I've built the emulator on a few versions of SDL2; I'd expect it to just work.
+
+If you want camera support, you'll need OpenCV development libraries. In slightly older versions of OpenCV (2.4.9, for example), it uses the core, highgui, and imgproc modules. In newer versions (probably starting around 3.x), you also need the videoio module. The necessary linking options change between versions of OpenCV, so the Makefile currently has the correct options for OpenCV 3.2. Since OpenCV and cameras are non-core functionalities and are a pain to set up, linking in camera support is disabled by default.
+
+Typing `make` in the root directory of the project is enough to build the emulator. Adding `CAMERA=yes` and/or `BUILD=debug` will enable camera linking and debug mode, and the names imply.
+
+So the version with the most options turned on would currently be built by `make CAMERA=yes BUILD=debug`.
+
+### Keys
+
+Keys are currently statically-mapped and the keyboard's the only input method.
+
+Key | Function
+--- | --------
+Q | Quit
+W | Up
+A | Left
+S | Down
+D | Right
+G | Start
+H | Select
+K | B Button
+L | A Button
+E | Graphics debug timing diagram
+O | Dump VRAM to `vram_dump.dat`
+T | Toggle CPU and PPU trace mode
+
+
+### Cammand-line Options
+
+Command: `khedgb [options] romfile
+Option | Effect
+------ | ------
+--sgb | Set Super Gameboy mode, if supported by the ROM
+--cgb | Set Color Gameboy mode (not written yet, just planned)
+--trace | Activate CPU+PPU instruction trace (listing of what the game is doing)
+--headless | Headless mode (disable graphics) (I don't test this often)
+--nosound | NoSound mode (disable audio) (Sound isn't working yet anyhow...)
+--fw fw_filename | Boot using specified bootstrap firmware (expect 256 byte files for SGB and DMG, and a 2,304 byte file for CGB)
+
+Note about the firmware: They aren't strictly necessary. The emulator runs without them just fine. They just complete the experience.
+
 ## Current state
 
 Most games are booting and running (I'll claim 95% booting without issue, and 70% running stably during gameplay and without major visible bugs). Most original Game Boy games are playable. Saving and loading games (not save states) is basically working, including with save files from other emulators (tested with BGB, for example). Timing issues abound. Some games may do things that I haven't tested, and crash for that reason.
@@ -19,7 +65,7 @@ The Memory Map is fairly fleshed-out, but not complete, and some of the peripher
 
 ### ROM mapping
 
-ROMs load, and I added the ability to load them directly from zip files (it just finds the first file in the archive, and loads it if it's between 32KB and 8MB). Onboard ROM+RAM work, and I've got the mappers I consider important written (null, mbc1, mbc2, mbc3, mbc5, camera). Null covers the simpler 32KB games, MBC1+2 cover a lot of early ones, MBC3 covers most of them that need to keep time (like the Pokemon games), and MBC5 covers later GameBoy games, and especially almost all of the Color games. MBC3 doesn't correctly support the clock chip, or saving and loading the time in save games. The Camera mapper has just enough to let the cartridge boot and avoid crashing.
+ROMs load, and I added the ability to load them directly from zip files (it just finds the first file in the archive, and loads it if it's between 32KB and 8MB). Onboard ROM+RAM work, and I've got the mappers I consider important written (null, mbc1, mbc2, mbc3, mbc5, camera). Null covers the simpler 32KB games, MBC1+2 cover a lot of early ones, MBC3 covers most of them that need to keep time (like the Pokemon games), and MBC5 covers later GameBoy games, and especially almost all of the Color games. MBC3 doesn't correctly support the clock chip, or saving and loading the time in save games. The Camera mapper correctly boots the game and provides access to the camera (if you specify the option to support the camera).
 
 ### Interrupts
 
@@ -27,7 +73,7 @@ The link cable isn't fully emulated. There's a kludge for Blargg test serial lin
 
 ### Display
 
-Display output composites the video roughly correctly, although sprite priority isn't quite right. On real hardware, it's possible to modify certain display registers during rendering. I don't support sub-line rendering changes, right now.
+Display output composites the video roughly correctly, although sprite priority isn't quite right. On real hardware, it's possible to modify certain display registers during rendering. I don't support sub-line rendering changes, right now. The emulator does a partial colorization when possible, kind of like how the Game Boy Color does with non-color games. Sprites are blue and green-tinted (since there are 2 internal sprite palettes), the background is monochrome, and the "window" overlay is red/pink. In Super Game Boy mode, most games provide a themed backdrop, and this emulator supports displaying that.
 
 ### Super GameBoy
 
@@ -35,7 +81,7 @@ There won't ever be full support; full support would mean implementing a full SN
 
 ### GameBoy Camera
 
-I plan to eventually support using a webcam, doing my best to adapt the behavior to be as similar to the Mitsubishi M64282FP as possible. Currently, I think I know enough to write a kind of kludgy image capture, but I'd like to support things like edge detection and other features that were specific to that camera module.
+If you specify "CAMERA=yes" when compiling, and have OpenCV dev headers installed, the Camera mapper will try to capture images from the first V4L2 device, emulating the Mitsubishi M64282FP camera used in the Game Boy Camera. It supports the dithering/quantization registers (contrast) and the exposure registers (brightness), which is enough to support the options used by the Game Boy Camera software. There are options that the camera module supports, and that the mapper provides access to, but that the Camera never used. I'm not supporting those options, for the time being.
 
 ## Far Future
 
