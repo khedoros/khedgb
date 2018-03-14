@@ -9,6 +9,8 @@ This starts as a DMG (original GameBoy) emulator and expand to CGB either when I
 
 ### Building
 
+I've built this emulator on several versions of Linux and in Cygwin on Windows. The Cygwin builds will work on any Windows machine, as long as you distribute the appropriate dll files with it. However, the Cygwin version of OpenCV seems not to like talking to webcams under Windows, so I'm afraid the camera won't work (although it's almost trivial to fake it, but giving OpenCV a video file to open, instead of a camera). I haven't done a Mac build, although I expect it would work fine, as long as you provided the libraries (i.e. it would be a bit more of a manual process; I don't have a Mac to do the dev work on).
+
 You'll need SDL2 development libraries. I've built the emulator on a few versions of SDL2; I'd expect it to just work.
 
 If you want camera support, you'll need OpenCV development libraries. In slightly older versions of OpenCV (2.4.9, for example), it uses the core, highgui, and imgproc modules. In newer versions (probably starting around 3.x), you also need the videoio module. The necessary linking options change between versions of OpenCV, so the Makefile currently has the correct options for OpenCV 3.2. Since OpenCV and cameras are non-core functionalities and are a pain to set up, linking in camera support is disabled by default.
