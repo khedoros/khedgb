@@ -667,7 +667,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                     int on = ((sgb_cmd_data[1]>>4) & 0x03);
                     bool hv = ((sgb_cmd_data[1] & 0x40) == 0x40);
                     int line = sgb_cmd_data[2] & 0x1f;
-                    if(hv) { //vertical
+                    if(!hv) { //vertical
                         printf("Divide at x=%d, left to %d, line to %d, right to %d\n", line, tl, on, br);
                         for(int j = 0; j < 18; j++) {
                             for(int i = 0; i < line; i++) attrs[j*20+i] = tl;

@@ -102,6 +102,7 @@ int main(int argc, char *argv[]) {
 
     if(cpu_trace) {
         proc.toggle_trace();
+        ppu->toggle_trace();
     }
 
     uint64_t cycle = 144*114; //Cycles since the machine started running (the system starts in vblank)
