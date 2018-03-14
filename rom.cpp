@@ -337,7 +337,7 @@ uint32_t mbc1_rom::map_ram(uint32_t addr, uint64_t cycle) {
     return addr;
 }
 void mbc1_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
-    if(addr<0x2000 && (*((uint8_t *)val) == 0x0a)) ram_enabled = true;
+    if(addr<0x2000 && ((*((uint8_t *)val) & 0x0f) == 0x0a)) ram_enabled = true;
     else if(addr<0x2000) ram_enabled = false;
     else if(addr >= 0x2000 && addr < 0x4000) bank.lower = *(((uint8_t *)val));
     else if(addr >= 0x4000 && addr < 0x6000) bank.upper = *(((uint8_t *)val));

@@ -68,6 +68,11 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
 }
 
 void memmap::read(int addr, void * val, int size, uint64_t cycle) {
+    if(size > 1) {
+        for(int i=0;i<size;i++) {
+            read(addr+i, (uint8_t *)val + i, 1, cycle + i);
+        }
+    }
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
     if(addr >= 0 && addr < 0x8000) { //Cartridge 0x0000-0x7fff
         cart.read(addr, val, size, cycle);
@@ -179,6 +184,11 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
 }
 
 void memmap::write(int addr, void * val, int size, uint64_t cycle) {
+    if(size > 1) {
+        for(int i=0;i<size;i++) {
+            write(addr+i, (uint8_t *)val + i, 1, cycle + i);
+        }
+    }
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
     if(addr >= 0 && addr < 0x8000) { //Cartridge ROM
         //std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (mappers not implemented yet)"<<std::endl;
