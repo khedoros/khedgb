@@ -40,6 +40,7 @@ T | Toggle CPU and PPU trace mode
 ### Cammand-line Options
 
 Command: `khedgb [options] romfile
+
 Option | Effect
 ------ | ------
 --sgb | Set Super Gameboy mode, if supported by the ROM
