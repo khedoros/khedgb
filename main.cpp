@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
             sgb = true;
             printf("Option: Set Super Gameboy mode, if possible.\n");
         }
-        else if(args[arg] == "--cgb") {
+        else if(args[arg] == "--cgb" || args[arg] == "--gbc") {
             cgb = true;
             printf("Option: Set Color Gameboy mode, if possible.\n");
         }
@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
     }
 
     if(cgb) {
-        bus.set_color();
+        cgb = bus.set_color(); //This will fail, if a DMG/SGB firmware was provided
         //fprintf(stderr, "Sorry to get your hopes up, color is completely unsupported at this time.\n");
     }
     else {

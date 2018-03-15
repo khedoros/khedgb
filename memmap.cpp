@@ -988,10 +988,15 @@ bool memmap::needs_color() {
     return cart.needs_color();
 }
 
-void memmap::set_color() {
-    cgb = true;
-    sgb_buffer.resize(16,0);
-    wram.resize(8);
+bool memmap::set_color() {
+    if(cart.color_firmware || !cart.firmware) {
+        cgb = true;
+        wram.resize(8 * 0x1000);
+        return true;
+    }
+
+    //Return false if a DMG or SGB firmware was supplied
+    return false;
 }
 
 /*

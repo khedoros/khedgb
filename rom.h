@@ -60,6 +60,7 @@ class rom {
             size_t filesize;
         };
         bool firmware;
+        bool color_firmware;
         bool valid;
 
         static std::string mapper_names[7];

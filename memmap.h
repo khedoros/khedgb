@@ -48,8 +48,8 @@ public:
     bool valid;
     void speed_switch();
     bool needs_color();
-    void set_color();
-    bool feel_the_need; //speed mode pending
+    bool set_color();
+    bool feel_the_need; //the need for speed (speed mode pending)
 private:
     lcd screen;
     apu sound;
