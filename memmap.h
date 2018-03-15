@@ -46,6 +46,8 @@ public:
         };
     };
     bool valid;
+    void speed_switch();
+    bool feel_the_need; //speed mode pending
 private:
     lcd screen;
     apu sound;
@@ -128,6 +130,8 @@ private:
     static const unsigned int timer_clock_select[4]; //0xff07 bit 0+1, table of number of CPU clocks to tick the timer
 
     uint8_t screen_status; //Cached copy of lcd control register, for interrupt checks
+
+    bool be_speedy; //Pretend CPU is in high-speed mode
 };
 /*
  * 0x0000-0x3FFF: Permanently-mapped ROM bank.

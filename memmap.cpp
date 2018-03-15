@@ -18,7 +18,7 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
 /*Super GameBoy values            */              sgb_active(false), sgb_bit_ptr(0), sgb_buffered(false), sgb_cur_joypad(0), sgb_joypad_count(1), sgb_cmd_count(0), sgb_cmd_index(0),
 /*serial/link cable               */              link_data(0), serial_transfer(false), internal_clock(false), transfer_start(-1), bits_transferred(0),
 /*div register + timer            */              div(0), div_period(0),last_int_check(0), timer(0), timer_modulus(0), timer_control{.val=0},
-/*                                */              clock_divisor_reset(timer_clock_select[0]), clock_divisor(0), screen_status(0) {
+/*                                */              clock_divisor_reset(timer_clock_select[0]), clock_divisor(0), screen_status(0), be_speedy(false) {
 
     valid = cart.valid;
     if(!valid) return;
@@ -149,15 +149,62 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             break;
         case 0xff4d: //CGB KEY1 speed switch register
             //TODO: Implement speed switching (bit 7: current speed, bit 0: request switch)
-            *((uint8_t *)val) = 0;
+            *((uint8_t *)val) = (0 | (be_speedy * 0x80));
             printf("Read from unimplemented KEY1 speed switch register\n");
             break;
+        case 0xff4f: //VBK (CGB VRAM bank)
+            //TODO:CGB
+            printf("Read from CGB VRAM bank register\n");
+            break;
+        case 0xff51: //TODO: Implement the 5 HDMA registers
+            printf("Read from CGB HDMA1 (DMA source, high byte)\n");
+            *((uint8_t *)val) = 0;
+            break;
+        case 0xff52:
+            printf("Read from CGB HDMA2 (DMA source, low byte)\n");
+            *((uint8_t *)val) = 0;
+            break;
+        case 0xff53:
+            printf("Read from CGB HDMA3 (DMA destination, high byte)\n");
+            *((uint8_t *)val) = 0;
+            break;
+        case 0xff54:
+            printf("Read from CGB HDMA4 (DMA destination, high byte)\n");
+            *((uint8_t *)val) = 0;
+            break;
+        case 0xff55:
+            printf("Read from CGB HDMA5 (DMA length/mode/start): %02x\n", *(uint8_t *)val);
+            *((uint8_t *)val) = 0;
+            break;
+
         case 0xff56: //CGB infrared communication port
             //TODO: Write it, after CGB, and probably along with serial support.
             //bit0: write data (RW), bit1: read data (RO), bit6+7 data read enable (3=enable)
             *((uint8_t *)val) = 0;
             printf("Read from unimplemented IR communication register\n");
             break;
+        case 0xff68:
+                //TODO: CGB palette stuff.
+                //BIT0-5 are the byte index. byte 0 is pal0/col0/lsb, byte 63 is pal7/col3/msb (8 pals, 4 colors, 2 bytes = 64 bytes)
+                //BIT7 says whether to increment address on write.
+                printf("Read from CGB BG palette index\n");
+                *(uint8_t *)val = 0;
+                break;
+        case 0xff69:
+                //Writes data to specified palette byte
+                printf("Read from CGB BG palette data port\n");
+                *(uint8_t *)val = 0;
+                break;
+        case 0xff6a:
+                //OBJ palettes work the same as BG palettes.
+                printf("Write to CGB OBJ palette index\n");
+                *(uint8_t *)val = 0;
+                break;
+        case 0xff6b:
+                printf("Read from CGB OBJ palette data port\n");
+                *(uint8_t *)val = 0;
+                break;
+
         case 0xff70: //CGB WRAM size switch
             //TODO: Implement with CGB stuff (switches upper 4KB of WRAM (0xD000-0xDFFF)
             *((uint8_t *)val) = 0;
@@ -273,6 +320,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                     }
                     serial_transfer = ((cmd & 0x80) == 0x80);
                     internal_clock = ((cmd & 0x01) == 0x01);
+                    //high_speed = ((cmd & 0x02) == 0x02); //TODO: High speed mode for CGB
                     if(serial_transfer) {
                         bits_transferred = 0;
                         transfer_start = cycle;
@@ -323,12 +371,55 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff4d: //KEY1 Prepare speed switch
                 //TODO: CGB Stuff
+                printf("Write to CGB speed-switching register: %02x\n", *(uint8_t *)val);
+                if(*(uint8_t *)val & 0x01) feel_the_need = true;
+                break;
+            case 0xff4f: //VBK (CGB VRAM bank)
+                //TODO:CGB
+                printf("Write to CGB VRAM bank register: %02x\n", *(uint8_t *)val);
                 break;
             case 0xff50: //disables CPU firmware
                 cart.write(addr,val,size,cycle);
                 break;
+            case 0xff51: //TODO: Implement the 5 HDMA registers
+                printf("Write to CGB HDMA1 (DMA source, high byte): %02x\n", *(uint8_t *)val);
+                break;
+            case 0xff52:
+                printf("Write to CGB HDMA2 (DMA source, low byte): %02x\n", *(uint8_t *)val);
+                break;
+            case 0xff53:
+                printf("Write to CGB HDMA3 (DMA destination, high byte): %02x\n", *(uint8_t *)val);
+                break;
+            case 0xff54:
+                printf("Write to CGB HDMA4 (DMA destination, high byte): %02x\n", *(uint8_t *)val);
+                break;
+            case 0xff55:
+                printf("Write to CGB HDMA5 (DMA length/mode/start): %02x\n", *(uint8_t *)val);
+                break;
+            case 0xff56: //CGB IR Comm register
+                //bit0: write data (RW), bit1: read data (RO), bit6+7 data read enable (3=enable)
+                printf("Write to CGB IR port: %02x\n", *(uint8_t *)val);
+                break;
+            case 0xff68:
+                //TODO: CGB palette stuff.
+                //BIT0-5 are the byte index. byte 0 is pal0/col0/lsb, byte 63 is pal7/col3/msb (8 pals, 4 colors, 2 bytes = 64 bytes)
+                //BIT7 says whether to increment address on write.
+                printf("Write to CGB BG palette index: %02x\n", *(uint8_t *)val);
+                break;
+            case 0xff69:
+                //Writes data to specified palette byte
+                printf("Write to CGB BG palette data port: %02x\n", *(uint8_t *)val);
+                break;
+            case 0xff6a:
+                //OBJ palettes work the same as BG palettes.
+                printf("Write to CGB OBJ palette index: %02x\n", *(uint8_t *)val);
+                break;
+            case 0xff6b:
+                printf("Write to CGB OBJ palette data port: %02x\n", *(uint8_t *)val);
+                break;
             case 0xff70: //CGB WRAM page switch
                 //TODO: Implement as part of CGB support
+                printf("Write to CGB WRAM page setting: %02x\n", *(uint8_t *)val);
                 break;
             default:
                 if(addr > 0xff0f && addr <= 0xff3f) {
@@ -873,6 +964,11 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
         //printf("\n");
     }
 }
+
+void memmap::speed_switch() {
+    be_speedy = !be_speedy;
+}
+
 /*
 0x0000-0x3FFF: Permanently-mapped ROM bank.
 0x4000-0x7FFF: Area for switchable ROM banks.

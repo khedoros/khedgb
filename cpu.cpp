@@ -228,8 +228,14 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 case 0x2: //0x10
                     //Different than Z80
-                    stopped = true;
+                    if(bus->feel_the_need) {
+                        bus->speed_switch();
+                    }
+                    else {
+                        stopped = true;
+                    }
                     //printf("STOP 0\n");
+                    //TODO: Implement CGB speed switching, using this instruction
                     break;
                 case 0x3: //0x18
                     data = extend(data);
