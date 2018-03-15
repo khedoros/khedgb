@@ -147,9 +147,21 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             *((uint8_t *)val) = 0xe0 | int_requested.reg;
             //std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(int_requested.reg)<<" at cycle "<<std::dec<<cycle<<std::endl;
             break;
-        case 0xff70: //CGB WRAM size switch
-            //TODO: Implement with CGB stuff
+        case 0xff4d: //CGB KEY1 speed switch register
+            //TODO: Implement speed switching (bit 7: current speed, bit 0: request switch)
             *((uint8_t *)val) = 0;
+            printf("Read from unimplemented KEY1 speed switch register\n");
+            break;
+        case 0xff56: //CGB infrared communication port
+            //TODO: Write it, after CGB, and probably along with serial support.
+            //bit0: write data (RW), bit1: read data (RO), bit6+7 data read enable (3=enable)
+            *((uint8_t *)val) = 0;
+            printf("Read from unimplemented IR communication register\n");
+            break;
+        case 0xff70: //CGB WRAM size switch
+            //TODO: Implement with CGB stuff (switches upper 4KB of WRAM (0xD000-0xDFFF)
+            *((uint8_t *)val) = 0;
+            printf("Read of CGB WRAM bank select register\n");
             break;
         default:
             if(addr > 0xff0f && addr <= 0xff3f) {
@@ -308,6 +320,9 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                         screen.dma(false, cycle + 0xa0, *((uint8_t *)val));
                     }
                 }
+                break;
+            case 0xff4d: //KEY1 Prepare speed switch
+                //TODO: CGB Stuff
                 break;
             case 0xff50: //disables CPU firmware
                 cart.write(addr,val,size,cycle);

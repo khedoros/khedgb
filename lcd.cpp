@@ -67,12 +67,24 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
         sys_obj2pal[i].resize(4);
     }
 
+
+//Semi-colorized default palette
+//    uint8_t default_palette[] =
+//         0              1              2              3
+//*bg*/  {255, 255, 255, 170, 170, 170,  85,  85,  85,   0,   0,   0, //B+W, going from white to black
+//*win*/  255, 210, 210, 175, 140, 140,  95,  70,  70,  15,   0,   0, //Light pink to deep, dark red
+//*ob1*/  210, 255, 210, 140, 175, 140,  70,  95,  70,   0,  15,   0, //Seafoam green to Schwarzwald at midnight
+//*ob2*/  210, 210, 255, 140, 140, 175,  70,  70,  95,   0,   0,  15}; //Powder blue to Mariana trench
+
+
+//GB Pocket inspired palette
     uint8_t default_palette[] =
 //         0              1              2              3
-/*bg*/  {255, 255, 255, 170, 170, 170,  85,  85,  85,   0,   0,   0, //B+W, going from white to black
-/*win*/  255, 210, 210, 175, 140, 140,  95,  70,  70,  15,   0,   0, //Light pink to deep, dark red
-/*ob1*/  210, 255, 210, 140, 175, 140,  70,  95,  70,   0,  15,   0, //Seafoam green to Schwarzwald at midnight
-/*ob2*/  210, 210, 255, 140, 140, 175,  70,  70,  95,   0,   0,  15}; //Powder blue to Mariana trench
+/*bg*/  {224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38, //B+W, going from white to black
+/*win*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38, //Light pink to deep, dark red
+/*ob1*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38, //Seafoam green to Schwarzwald at midnight
+/*ob2*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38}; //Powder blue to Mariana trench
+
 
     for(int i=0; buffer && i<4; i++) {
         sys_bgpal[0][i] = SDL_MapRGB(buffer->format, default_palette[i*3], default_palette[i*3+1], default_palette[i*3+2]);
