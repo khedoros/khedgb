@@ -93,10 +93,17 @@ int main(int argc, char *argv[]) {
     }
 
     if(cgb) {
-        fprintf(stderr, "Sorry to get your hopes up, color is completely unsupported at this time.\n");
+        bus.set_color();
+        //fprintf(stderr, "Sorry to get your hopes up, color is completely unsupported at this time.\n");
+    }
+    else {
+        if(bus.needs_color()) {
+            cgb = true;
+            bus.set_color();
+        }
     }
 
-    cpu    proc(&bus,bus.has_firmware());
+    cpu    proc(&bus, cgb, bus.has_firmware());
     lcd *  ppu = bus.get_lcd();
     apu *  sound = bus.get_apu();
 

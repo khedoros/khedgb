@@ -29,10 +29,11 @@
 
 void decode(int pre,int x,int y,int z,int data);
 
-cpu::cpu(memmap * b, bool has_firmware): bus(b),
+cpu::cpu(memmap * b, bool cgb_mode, bool has_firmware/*=false*/): bus(b),
         r{&bc.hi, &bc.low, &de.hi, &de.low, &hl.hi, &hl.low, &dummy, &af.hi},
         rp{&bc.pair, &de.pair, &hl.pair, &sp},
-        rp2{&bc.pair, &de.pair, &hl.pair, &af.pair}
+        rp2{&bc.pair, &de.pair, &hl.pair, &af.pair},
+        cgb(cgb_mode), high_speed(false)
 {
     trace = false;
     interrupts = false;
@@ -49,10 +50,18 @@ cpu::cpu(memmap * b, bool has_firmware): bus(b),
     if(has_firmware) {
         pc = 0;
     }
-    else {
+    else if(!cgb){
         pc = 0x100;
         sp = 0xfffe;
         af.pair = 0x01b0;
+        bc.pair = 0x0013;
+        de.pair = 0x00d8;
+        hl.pair = 0x014d;
+    }
+    else {
+        pc = 0x100;
+        sp = 0xfffe;
+        af.pair = 0x11b0;
         bc.pair = 0x0013;
         de.pair = 0x00d8;
         hl.pair = 0x014d;
@@ -228,8 +237,16 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 case 0x2: //0x10
                     //Different than Z80
-                    if(bus->feel_the_need) {
+                    if(cgb && bus->feel_the_need) {
                         bus->speed_switch();
+                        if(high_speed) {
+                            extra_cycles = 32;
+                            high_speed = false;
+                        }
+                        else {
+                            extra_cycles = 16;
+                            high_speed = true;
+                        }
                     }
                     else {
                         stopped = true;

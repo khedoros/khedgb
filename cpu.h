@@ -14,7 +14,7 @@
 
 class cpu {
 public:
-    cpu(memmap * bus, bool has_firmware=false);
+    cpu(memmap * bus, bool cgb_mode, bool has_firmware=false);
     uint64_t run(uint64_t run_to);
     bool halted;
     bool halt_bug;
@@ -52,8 +52,9 @@ private:
     uint16_t * const rp2[4];
     bool interrupts;       //Interrupt Master Enable
     bool set_ime;          //Use to delay one cycle after EI is run
-    bool trace;
-
+    bool trace;            //Activate CPU trace output
+    bool cgb;              //Run in CGB mode
+    bool high_speed;       //Run in CGB high-speed mode
 };
 
 

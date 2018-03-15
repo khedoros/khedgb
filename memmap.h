@@ -47,12 +47,15 @@ public:
     };
     bool valid;
     void speed_switch();
+    bool needs_color();
+    void set_color();
     bool feel_the_need; //speed mode pending
 private:
     lcd screen;
     apu sound;
     rom cart;
     Vect<uint8_t> wram;
+    uint8_t wram_bank;
     Vect<uint8_t> hram;
 
     //Interrupt registers
@@ -132,6 +135,7 @@ private:
     uint8_t screen_status; //Cached copy of lcd control register, for interrupt checks
 
     bool be_speedy; //Pretend CPU is in high-speed mode
+    bool cgb;       //Is the emulated hardware a CGB?
 };
 /*
  * 0x0000-0x3FFF: Permanently-mapped ROM bank.

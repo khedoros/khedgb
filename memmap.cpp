@@ -27,6 +27,8 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
         directions[i].keys = 0x00;
         btns[i].keys = 0x00;
     }
+
+    wram_bank = 1;
     wram.resize(0x2000);
     hram.resize(0x7f);
     sgb_buffer.resize(16,0);
@@ -84,8 +86,11 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
         cart.read(addr, val, size, cycle);
         //std::cout<<"Read from external RAM: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
     }
-    else if (addr >= 0xc000 && addr < 0xfe00) { //8KB of memory, c000-dfff, then a partial mirror of it e000-fe00
-        memcpy(val, &(wram[addr & 0x1fff]), size);
+    else if ((addr >= 0xc000 && addr < 0xd000) || (addr >= 0xe000 && addr < 0xf000)) { //4KB of memory, c000-cfff, then a mirror of it e000-efff
+        memcpy(val, &(wram[addr & 0xfff]), size);
+    }
+    else if ((addr >= 0xd000 && addr < 0xe000) || (addr >= 0xf000 && addr < 0xfe00)) { //28KB of memory in 7 banks, d000-dfff, then a partial mirror of it f000-fdff
+        memcpy(val, &(wram[(addr & 0xfff) + wram_bank * 0x1000]), size);
     }
     else if (addr >= 0xfe00 && addr < 0xfea0) {
         screen.read(addr, val, size, cycle);
@@ -206,9 +211,13 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
                 break;
 
         case 0xff70: //CGB WRAM size switch
-            //TODO: Implement with CGB stuff (switches upper 4KB of WRAM (0xD000-0xDFFF)
-            *((uint8_t *)val) = 0;
-            printf("Read of CGB WRAM bank select register\n");
+            if(!cgb) {
+                *((uint8_t *)val) = 0;
+            }
+            else {
+                *((uint8_t *)val) = wram_bank;
+            }
+            //printf("Read of CGB WRAM bank select register\n");
             break;
         default:
             if(addr > 0xff0f && addr <= 0xff3f) {
@@ -419,7 +428,13 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff70: //CGB WRAM page switch
                 //TODO: Implement as part of CGB support
-                printf("Write to CGB WRAM page setting: %02x\n", *(uint8_t *)val);
+                if(cgb) {
+                    wram_bank = ((*(uint8_t *)val) & 7);
+                    if(!wram_bank) wram_bank = 1;
+                }
+                else {
+                    printf("Write to CGB WRAM page setting: %02x\n", *(uint8_t *)val);
+                }
                 break;
             default:
                 if(addr > 0xff0f && addr <= 0xff3f) {
@@ -967,6 +982,16 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
 
 void memmap::speed_switch() {
     be_speedy = !be_speedy;
+}
+
+bool memmap::needs_color() {
+    return cart.needs_color();
+}
+
+void memmap::set_color() {
+    cgb = true;
+    sgb_buffer.resize(16,0);
+    wram.resize(8);
 }
 
 /*

@@ -270,7 +270,7 @@ void rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
             map->write(orig_addr, val, size, cycle);
         }
     }
-    else if(addr == 0xff50) memcpy(reinterpret_cast<char *>(&rom_data[0]), reinterpret_cast<char *>(&rom_backup[0]), 256);
+    else if(addr == 0xff50) memcpy(&rom_data[0], &rom_backup[0], 256);
     else {
         map->write(addr, val, size, cycle);
     }
@@ -278,6 +278,10 @@ void rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
 
 bool rom::supports_sgb() {
     return h.support_sgb;
+}
+
+bool rom::needs_color() {
+    return h.cgb_flag == 0xc0;
 }
 
 std::string rom::mapper_names[7] = {"None", "MBC1", "MBC2", "MBC3", "MBC5", "GameBoy Camera", "Unsupported"};
