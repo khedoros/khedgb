@@ -12,7 +12,7 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
              cpu_control{.val=0x00}, cpu_status(0), cpu_bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_lyc(0), cpu_dma_addr(0), 
              cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}},             cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
              screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL), sgb_border(NULL), sgb_texture(NULL),
-             sgb_mode(false), sgb_dump_filename(""), sgb_vram_transfer_type(0), sgb_mask_mode(0), sgb_sys_pals(512), sgb_attrs(20*18, 0),
+             sgb_mode(false), sgb_dump_filename(""), sgb_vram_transfer_type(0), sgb_mask_mode(0), sgb_sys_pals(512), sgb_attrs(SCREEN_TILE_WIDTH*SCREEN_TILE_HEIGHT, 0),
              sgb_frame_attrs(32*32), sgb_frame_pals(4), sgb_tiles(256*8*8), sgb_attr_files(45), trace(false) {
 
     vram.resize(0x2000);
@@ -22,8 +22,8 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
     cpu_oam.resize(0xa0);
 
     /* Initialize the SDL library */
-    cur_x_res=160;
-    cur_y_res=144;
+    cur_x_res=SCREEN_WIDTH;
+    cur_y_res=SCREEN_HEIGHT;
 
     prev_texture = NULL;
 
@@ -33,17 +33,17 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
         return;
     }
 
-    buffer = SDL_CreateRGBSurface(0,160,144,32,0,0,0,0);
+    buffer = SDL_CreateRGBSurface(0,SCREEN_WIDTH,SCREEN_HEIGHT,32,0,0,0,0);
 
-    overlay = SDL_CreateRGBSurface(0,160,144,32,0,0,0,0);
-    lps = SDL_CreateRGBSurface(0,160,144,32,0,0,0,0);
-    hps = SDL_CreateRGBSurface(0,160,144,32,0,0,0,0);
+    overlay = SDL_CreateRGBSurface(0,SCREEN_WIDTH,SCREEN_HEIGHT,32,0,0,0,0);
+    lps = SDL_CreateRGBSurface(0,SCREEN_WIDTH,SCREEN_HEIGHT,32,0,0,0,0);
+    hps = SDL_CreateRGBSurface(0,SCREEN_WIDTH,SCREEN_HEIGHT,32,0,0,0,0);
 
     bg1 = SDL_CreateRGBSurface(0,512,512,32,0,0,0,0);
     bg2 = SDL_CreateRGBSurface(0,512,512,32,0,0,0,0);
 
     if(buffer && bg1) {
-        assert(buffer->pitch == 160*4);
+        assert(buffer->pitch == SCREEN_WIDTH*4);
         assert(bg1->pitch == 512 * 4);
     }
 
@@ -225,12 +225,12 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                 }
                 break;
             case 0xff42:
-                //printf("cycle: %ld (mode: %d line: %d cycle: %d) bg_scroll_y = %d\n", cycle, get_mode(cycle, true), ((cycle-active_cycle)%17556)/114, (cycle - active_cycle)%114, val);
+                //printf("cycle: %ld (mode: %d line: %d cycle: %d) bg_scroll_y = %d\n", cycle, get_mode(cycle, true), ((cycle-active_cycle)%17556)/CYCLES_PER_LINE, (cycle - active_cycle)%CYCLES_PER_LINE, val);
                 //prev = bg_scroll_y;
                 bg_scroll_y = val;
                 break;
             case 0xff43:
-                //printf("cycle: %ld (mode: %d line: %d cycle: %d) bg_scroll_x = %d\n", cycle, get_mode(cycle, true), ((cycle-active_cycle)%17556)/114, (cycle - active_cycle)%114 ,val);
+                //printf("cycle: %ld (mode: %d line: %d cycle: %d) bg_scroll_x = %d\n", cycle, get_mode(cycle, true), ((cycle-active_cycle)%17556)/CYCLES_PER_LINE, (cycle - active_cycle)%CYCLES_PER_LINE ,val);
                 //prev = bg_scroll_x;
                 bg_scroll_x = val;
                 break;
@@ -303,8 +303,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
         }
         if(debug) {
-            uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
-            int line_cycle = (cycle - cpu_active_cycle) % 114;
+            uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
+            int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
             timing_queue.emplace_back(util::cmd{line,line_cycle,0,0});
         }
         if(addr >= 0x9800) {
@@ -320,8 +320,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
         }
         if(debug) {
-            uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
-            int line_cycle = (cycle - cpu_active_cycle) % 114;
+            uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
+            int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
             timing_queue.emplace_back(util::cmd{line,line_cycle,1,cpu_during_dma});
         }
         //else {
@@ -358,8 +358,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
 
                 if(debug) {
-                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
-                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
+                    int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
                     timing_queue.emplace_back(util::cmd{line,line_cycle,2,0});
                 }
                 break;
@@ -378,8 +378,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_bg_scroll_y = *((uint8_t *)val);
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 if(debug) {
-                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
-                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
+                    int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
                     timing_queue.emplace_back(util::cmd{line,line_cycle,3,0});
                 }
                 break;
@@ -387,8 +387,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_bg_scroll_x = *((uint8_t *)val);
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 if(debug) {
-                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
-                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
+                    int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
                     timing_queue.emplace_back(util::cmd{line,line_cycle,4,0});
                 }
                 break;
@@ -417,8 +417,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_bgpal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 if(debug) {
-                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
-                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
+                    int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
                     timing_queue.emplace_back(util::cmd{line,line_cycle,6,0});
                 }
                 break;
@@ -429,8 +429,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_obj1pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 if(debug) {
-                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
-                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
+                    int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
                     timing_queue.emplace_back(util::cmd{line,line_cycle,7,0});
                 }
                 break;
@@ -441,8 +441,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_obj2pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 if(debug) {
-                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
-                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
+                    int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
                     timing_queue.emplace_back(util::cmd{line,line_cycle,8,0});
                 }
                 break;
@@ -450,8 +450,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_win_scroll_y = *((uint8_t *)val);
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 if(debug) {
-                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
-                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
+                    int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
                     timing_queue.emplace_back(util::cmd{line,line_cycle,9,0});
                 }
                 break;
@@ -459,8 +459,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_win_scroll_x = *((uint8_t *)val);
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 if(debug) {
-                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / 114;
-                    int line_cycle = (cycle - cpu_active_cycle) % 114;
+                    uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
+                    int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
                     timing_queue.emplace_back(util::cmd{line,line_cycle,0x0a,0});
                 }
                 break;
@@ -485,13 +485,13 @@ uint8_t lcd::get_mode(uint64_t cycle, bool ppu_view/*=false*/) {
         return 1;
     }
     int frame_cycle = (cycle - active) % 17556;
-    int line = frame_cycle / 114;
+    int line = frame_cycle / CYCLES_PER_LINE;
 
-    assert(line < 154);
+    assert(line < LINES_PER_FRAME);
     assert(line >= 0);
 
     int mode = 0; //hblank; largest amount of time per frame. May as well use it.
-    if(line > 143) {
+    if(line > LAST_RENDER_LINE) {
         mode = 1; //vblank
     }
     else {
@@ -499,9 +499,9 @@ uint8_t lcd::get_mode(uint64_t cycle, bool ppu_view/*=false*/) {
         //2. transfer to lcd for around 43 cycles (mode 3)
         //3. h-blank around 51 cycles (mode 0)
         //4. repeat 144 times, then vblank for 1140 cycles (mode 1)
-        int line_cycle = frame_cycle % 114;
-        if(line_cycle < 20) mode = 2; //OAM access
-        else if (line_cycle < 20+43) mode = 3; //LCD transfer
+        int line_cycle = frame_cycle % CYCLES_PER_LINE;
+        if(line_cycle < MODE_2_LENGTH) mode = 2; //OAM access
+        else if (line_cycle < MODE_2_LENGTH+MODE_3_LENGTH) mode = 3; //LCD transfer
     }
     return mode;
 }
@@ -537,7 +537,7 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
                 }
                 else {
                     int mode = get_mode(cycle);
-                    if(cpu_lyc == ((cycle - cpu_active_cycle) % 17556) / 114) {
+                    if(cpu_lyc == ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE) {
                         mode |= BIT2;
                     }
                     *((uint8_t *)val) = mode | cpu_status | BIT7;
@@ -555,9 +555,9 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
                 }
                 else {
                     int frame_cycle = (cycle - cpu_active_cycle) % 17556;
-                    int line = frame_cycle / 114;
+                    int line = frame_cycle / CYCLES_PER_LINE;
                     //Weird timing bug, that line 153 reads as line 0 for most of the time
-                    if(line == 153 && frame_cycle % 114 >= 4) {
+                    if(line == 153 && frame_cycle % CYCLES_PER_LINE >= 4) {
                         line = 0;
                     }
                     *((uint8_t *)val) = line;
@@ -632,20 +632,20 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
     }
 
     uint64_t start_frame_cycle = (start_cycle - active_cycle) % 17556;
-    uint64_t start_frame_line = start_frame_cycle / 114;
+    uint64_t start_frame_line = start_frame_cycle / CYCLES_PER_LINE;
     if(get_mode(start_cycle, true) == 0) { //output from that line has gone to the screen already
         start_frame_line++;
     }
 
     uint64_t end_frame_cycle = (end_cycle - active_cycle) % 17556;
-    uint64_t end_frame_line = end_frame_cycle / 114;
+    uint64_t end_frame_line = end_frame_cycle / CYCLES_PER_LINE;
     if(get_mode(end_cycle, true) >= 2) { //output from that line *hasn't* gone to the screen yet
         end_frame_line--;
     }
 
     if(end_frame_line > 153) return 0;
-    if(end_frame_line < start_frame_line && end_frame_cycle - start_frame_cycle >= 114) {
-        end_frame_line+=154;
+    if(end_frame_line < start_frame_line && end_frame_cycle - start_frame_cycle >= CYCLES_PER_LINE) {
+        end_frame_line+=LINES_PER_FRAME;
     }
 
     bool output_sdl = true;
@@ -655,7 +655,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
     uint32_t * pixels = NULL;
 
-    Vect<uint8_t> bgmap(160, 0);
+    Vect<uint8_t> bgmap(SCREEN_WIDTH, 0);
 
     if(!screen||!texture||!renderer) {
         printf("PPU: problem!\n");
@@ -668,12 +668,12 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
     //printf("Render starting conditions: startline: %lld endline: %lld\n", start_frame_line, end_frame_line);
     for(unsigned int line=start_frame_line;line <= end_frame_line; line++) {
         //printf("Running line: %d\n", line);
-        int render_line = line % 154;
+        int render_line = line % LINES_PER_FRAME;
         if(debug && !sgb_mode && render_line == 153 && output_sdl) {
             draw_debug_overlay();
             continue;
         }
-        else if(render_line > 143) continue;
+        else if(render_line > LAST_RENDER_LINE) continue;
 
         //Draw the background
         if(control.priority) { //cpu_controls whether the background displays, in regular DMG mode
@@ -682,8 +682,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 SDL_RenderClear(renderer);
             }
 
-            uint32_t bgbase = 0x1800;
-            if(control.bg_map) bgbase = 0x1c00;
+            uint32_t bgbase = 0x1800 + 0x400 * control.bg_map;
 
             int y_in_pix = (render_line + bg_scroll_y) & 0xff;
             int y_tile = y_in_pix / 8;
@@ -692,9 +691,9 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
             bool unloaded = true;
             int tile_num = 0;
 
-            for(int x_out_pix = 0; x_out_pix < 160; x_out_pix++) {
+            for(int x_out_pix = 0; x_out_pix < SCREEN_WIDTH; x_out_pix++) {
                 if(x_out_pix % 8 == 0) {
-                    pal_index = sgb_attrs[(render_line/8)*20+x_out_pix/8];
+                    pal_index = sgb_attrs[(render_line/8)*SCREEN_TILE_WIDTH+x_out_pix/8];
                 }
                 int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
                 int x_tile = x_in_pix / 8;
@@ -710,7 +709,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 }
 
                 if(output_sdl /*&& c != 0*/) {
-                    pixels[render_line * 160 + x_out_pix] = sys_bgpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
+                    pixels[render_line * SCREEN_WIDTH + x_out_pix] = sys_bgpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
                     bgmap[x_out_pix] = tile_line[x_tile_pix];
                 }
             }
@@ -720,29 +719,28 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
         //Draw the window
         if(control.window_enable) {
-            uint32_t winbase = 0x1800;
-            if(control.window_map) winbase = 0x1c00;
+            uint32_t winbase = 0x1800 + 0x400 * control.window_map;
 
             int win_y = (render_line - win_scroll_y);
             if(win_y >= 0) {
                 int tile_y = win_y / 8;
                 int y_tile_pix = win_y % 8;
-                for(int tile_x = 0; tile_x * 8 + win_scroll_x - 7 < 160; tile_x++) {
+                for(int tile_x = 0; tile_x * 8 + win_scroll_x - 7 < SCREEN_WIDTH; tile_x++) {
                     int tile_num = vram[winbase+tile_y*32+tile_x];
                     if(!control.tile_addr_mode) {
                         tile_num = 256+int8_t(tile_num);
                     }
                     get_tile_row(tile_num, y_tile_pix, false, tile_line);
-                    for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 - 7 < 160; x_tile_pix++) {
+                    for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 - 7 < SCREEN_WIDTH; x_tile_pix++) {
                         int ycoord = tile_y * 8 + y_tile_pix + win_scroll_y;
                         int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
 
-                        if(xcoord >= 0 && xcoord < 160) {
-                            pal_index = sgb_attrs[(ycoord/8)*20+xcoord/8];
+                        if(xcoord >= 0 && xcoord < SCREEN_WIDTH) {
+                            pal_index = sgb_attrs[(ycoord/8)*SCREEN_TILE_WIDTH+xcoord/8];
                         }
 
                         if(output_sdl && xcoord >= 0) {
-                            pixels[ycoord * 160 + xcoord] = sys_winpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
+                            pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_winpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
                             bgmap[xcoord] = tile_line[x_tile_pix];
                         }
                     }
@@ -778,8 +776,8 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 }
                 get_tile_row(tile, y_i, sprite_dat.xflip, tile_line);
 
-                if(sprite_x >=0 && sprite_x < 160) {
-                    pal_index = sgb_attrs[(render_line/8)*20+sprite_x/8];
+                if(sprite_x >=0 && sprite_x < SCREEN_WIDTH) {
+                    pal_index = sgb_attrs[(render_line/8)*SCREEN_TILE_WIDTH+sprite_x/8];
                 }
 
                 for(int x=0;x!=8;x++) {
@@ -790,8 +788,8 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     int xcoord = sprite_x + x;
                     int ycoord = render_line;
 
-                    if(xcoord % 8 == 0 && xcoord >= 0 && xcoord < 160) {
-                        pal_index = sgb_attrs[(render_line/8)*20+sprite_x/8];
+                    if(xcoord % 8 == 0 && xcoord >= 0 && xcoord < SCREEN_WIDTH) {
+                        pal_index = sgb_attrs[(render_line/8)*SCREEN_TILE_WIDTH+sprite_x/8];
                     }
 
                     if(sprite_dat.palnum_dmg) {
@@ -803,19 +801,18 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
                     if(xcoord > 159 || xcoord < 0) continue;
 
-                    if(xcoord >= 0 && xcoord < 160 && (bgmap[xcoord] == 0 || !sprite_dat.priority)) {
-                        pixels[ycoord * 160 + xcoord] = color;
+                    if(xcoord >= 0 && xcoord < SCREEN_WIDTH && (bgmap[xcoord] == 0 || !sprite_dat.priority)) {
+                        pixels[ycoord * SCREEN_WIDTH + xcoord] = color;
                     }
                 }
             }
 
         }
 
-        if(output_sdl && render_line == 143) {
+        if(output_sdl && render_line == LAST_RENDER_LINE) {
             if(sgb_vram_transfer_type != 0) {
                 //printf("Map:%02x Scroll:(%02x. %02x) AddrMode:%02x pal:(%x,%x,%x,%x)\n", control.bg_map, bg_scroll_x, bg_scroll_y, control.tile_addr_mode, bgpal.pal[0], bgpal.pal[1], bgpal.pal[2], bgpal.pal[3]);
-                uint16_t map_base=0x1800;
-                if(control.bg_map) map_base+=0x400;
+                uint16_t map_base=0x1800 + 0x400 * control.bg_map;
                 for(int i=0;i<0x400;i++) {
                     //printf("%02x ", vram[map_base+i]);
                     //if((i+1)%32==0) printf("\n");
@@ -841,7 +838,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     sgb_color bgcol = sgb_frame_pals[0].col[0];
                     SDL_SetRenderDrawColor(renderer, bgcol.red, bgcol.green, bgcol.blue, 255);
                     SDL_RenderClear(renderer);
-                    SDL_Rect screen_middle{int(48.0*xscale),int(40.0*yscale),int(160.0*xscale),int(144.0*yscale)};
+                    SDL_Rect screen_middle{int(48.0*xscale),int(40.0*yscale),int(xscale * SCREEN_WIDTH),int(yscale * SCREEN_HEIGHT)};
                     SDL_RenderCopy(renderer,texture,NULL,&screen_middle);
                     SDL_RenderCopy(renderer, sgb_texture, NULL, NULL);
                 }
@@ -865,12 +862,12 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 SDL_RenderPresent(renderer);
             }
             else { //Debug, but not SGB
-                SDL_Rect debug_space{114,0,160,144};
+                SDL_Rect debug_space{CYCLES_PER_LINE,0,SCREEN_WIDTH,SCREEN_HEIGHT};
                 SDL_RenderCopy(renderer, texture, NULL, &debug_space);
             }
         }
-        if(render_line == 143) {
-            output_cycle = start_cycle - start_frame_cycle + (143*114) + 20 + 43;
+        if(render_line == LAST_RENDER_LINE) {
+            output_cycle = start_cycle - start_frame_cycle + (LAST_RENDER_LINE*CYCLES_PER_LINE) + MODE_2_LENGTH + MODE_3_LENGTH;
             //printf("Outputting at cycle: %lld\n", output_cycle);
         }
 
@@ -889,17 +886,17 @@ void lcd::update_estimates(uint64_t cycle) {
     }
     
     uint64_t frame_cycle = (cycle - cpu_active_cycle) % 17556;
-    uint64_t line = frame_cycle / 114;
-    uint64_t line_cycle = frame_cycle % 114;
+    uint64_t line = frame_cycle / CYCLES_PER_LINE;
+    uint64_t line_cycle = frame_cycle % CYCLES_PER_LINE;
     uint64_t frame_base_cycle = cycle - frame_cycle;
 
     //uint64_t mode = get_mode(cycle);
 
     //TODO: The code telling it to skip to the next frame makes me uneasy. I should probably track whether it was just triggered, and needs to be updated.
     if((cpu_status & LYC) > 0) {
-        lyc_next_cycle = frame_base_cycle + cpu_lyc * 114 + 1;
+        lyc_next_cycle = frame_base_cycle + cpu_lyc * CYCLES_PER_LINE + 1;
         if(lyc_next_cycle <= cycle) { //We've passed it this frame; go to the next.
-            lyc_next_cycle = frame_base_cycle + 17556 + cpu_lyc * 114 + 1;
+            lyc_next_cycle = frame_base_cycle + 17556 + cpu_lyc * CYCLES_PER_LINE + 1;
         }
     }
     else {
@@ -907,9 +904,9 @@ void lcd::update_estimates(uint64_t cycle) {
     }
 
     if((cpu_status & M0) > 0) {
-        m0_next_cycle = frame_base_cycle + (114 * line) + 63;
-        if(line_cycle >= 20 + 43) {
-            m0_next_cycle += 114;
+        m0_next_cycle = frame_base_cycle + (CYCLES_PER_LINE * line) + 63;
+        if(line_cycle >= MODE_2_LENGTH + 43) {
+            m0_next_cycle += CYCLES_PER_LINE;
         }
     }
     else {
@@ -917,7 +914,7 @@ void lcd::update_estimates(uint64_t cycle) {
     }
 
     if((cpu_status & M1) > 0) {
-        m1_next_cycle = frame_base_cycle + (144 * 114);
+        m1_next_cycle = frame_base_cycle + (SCREEN_HEIGHT * CYCLES_PER_LINE);
         if(m1_next_cycle <= cycle) {
             m1_next_cycle += 17556;
         }
@@ -927,7 +924,7 @@ void lcd::update_estimates(uint64_t cycle) {
     }
 
     if((cpu_status & M2) > 0) {
-        m2_next_cycle = frame_base_cycle + (114 * (line + 1));
+        m2_next_cycle = frame_base_cycle + (CYCLES_PER_LINE * (line + 1));
     }
     else {
         m2_next_cycle = -1;
@@ -1013,9 +1010,9 @@ void lcd::dma(bool during_dma, uint64_t cycle, uint8_t dma_addr) {
 
 void lcd::draw_debug_overlay() {
     //Draw the guides
-    SDL_Rect white_rect  = { 0,0,114,154};
-    SDL_Rect yellow_rect = { 0,0, 20,144};
-    SDL_Rect pink_rect   = {20,0, 43,144};
+    SDL_Rect white_rect  = { 0,0,CYCLES_PER_LINE,LINES_PER_FRAME};
+    SDL_Rect yellow_rect = { 0,0, MODE_2_LENGTH,SCREEN_HEIGHT};
+    SDL_Rect pink_rect   = {MODE_2_LENGTH,0, 43,SCREEN_HEIGHT};
     SDL_SetRenderDrawColor(renderer, 255,255,255,150);
     SDL_RenderFillRect(renderer, &white_rect);
     if(control.display_enable) {
@@ -1036,7 +1033,7 @@ void lcd::draw_debug_overlay() {
         uint8_t type = c.val;
         uint64_t during_dma = c.data_index;
         if(type == 1 || type == 5) { //OAM writes
-            if(line_cycle < 63 && line < 144 && control.display_enable && ! during_dma) { //Forbidden
+            if(line_cycle < 63 && line < SCREEN_HEIGHT && control.display_enable && ! during_dma) { //Forbidden
                 SDL_SetRenderDrawColor(renderer, 255,0,0,255);
                 SDL_RenderDrawPoint(renderer, line_cycle, line);
             }
@@ -1046,7 +1043,7 @@ void lcd::draw_debug_overlay() {
             }
         }
         else if(type == 0) { //VRAM writes
-            if(line_cycle >= 20 && line_cycle < 63 && line < 144 && control.display_enable) { //VRAM writes
+            if(line_cycle >= MODE_2_LENGTH && line_cycle < 63 && line < SCREEN_HEIGHT && control.display_enable) { //VRAM writes
                 SDL_SetRenderDrawColor(renderer, 255,0,0,255);
                 SDL_RenderDrawPoint(renderer, line_cycle, line);
             }
@@ -1282,8 +1279,8 @@ void lcd::interpret_vram(Vect<uint8_t>& vram_data) {
     int map_base = 0x1800 + 0x400 * control.bg_map;
     bool signed_addr = !control.tile_addr_mode;
     for(int tile=0;tile<256;tile++) {
-        int bgx=tile%20;
-        int bgy=tile/20;
+        int bgx=tile%SCREEN_TILE_WIDTH;
+        int bgy=tile/SCREEN_TILE_WIDTH;
         int map_index=map_base+bgy*32+bgx;
         int tile_num=vram[map_index];
         if(signed_addr) tile_num = 256 + int8_t(tile_num);
@@ -1322,7 +1319,7 @@ void lcd::sgb_enable(bool enable) {
         sgb_border = SDL_ConvertSurface(sgb_border, SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888), 0);
         SDL_SetSurfaceBlendMode(sgb_border, SDL_BLENDMODE_BLEND);
 
-        SDL_Rect center{48,40,160,144};
+        SDL_Rect center{48,40,SCREEN_WIDTH,SCREEN_HEIGHT};
         SDL_FillRect(sgb_border, NULL, SDL_MapRGBA(sgb_border->format, 0,0,0,255));
         SDL_FillRect(sgb_border, &center, SDL_MapRGBA(sgb_border->format, 255,0,0,0));
 
@@ -1335,8 +1332,8 @@ void lcd::sgb_enable(bool enable) {
         assert(sgb_frame_pals.size() == 4);
     }
     else if(switched) {
-        cur_x_res = 160;
-        cur_y_res = 144;
+        cur_x_res = SCREEN_WIDTH;
+        cur_y_res = SCREEN_HEIGHT;
         win_x_res = 320;
         win_y_res = 288;
         bool success = util::reinit_sdl_screen(&screen, &renderer, &texture, cur_x_res, cur_y_res);
@@ -1345,7 +1342,7 @@ void lcd::sgb_enable(bool enable) {
             SDL_FreeSurface(overlay);
             overlay = NULL;
         }
-        overlay = SDL_CreateRGBSurface(0,160,144,32,0,0,0,0);
+        overlay = SDL_CreateRGBSurface(0,SCREEN_WIDTH,SCREEN_HEIGHT,32,0,0,0,0);
 
         if(sgb_border) {
             SDL_FreeSurface(sgb_border);

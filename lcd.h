@@ -28,6 +28,19 @@ enum lcd_ints {
     M0  = 0x08
 };
 
+const static int CYCLES_PER_LINE = 114;
+const static int SCREEN_WIDTH = 160;
+const static int SCREEN_HEIGHT = 144;
+const static int SCREEN_TILE_WIDTH = 20;
+const static int SCREEN_TILE_HEIGHT = 18;
+const static int LINES_PER_FRAME = 154;
+const static int CYCLES_PER_FRAME = CYCLES_PER_LINE * LINES_PER_FRAME;
+const static int LAST_RENDER_LINE = SCREEN_HEIGHT - 1;
+const static int MODE_2_LENGTH = 20;
+const static int MODE_3_LENGTH = 43;
+const static int MODE_0_LENGTH = 51;
+const static int MODE_1_LENGTH = CYCLES_PER_LINE * (LINES_PER_FRAME - SCREEN_HEIGHT);
+
 class lcd {
 public:
     lcd();
