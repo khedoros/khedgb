@@ -13,12 +13,16 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
              cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}},             cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
              screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL), sgb_border(NULL), sgb_texture(NULL),
              sgb_mode(false), sgb_dump_filename(""), sgb_vram_transfer_type(0), sgb_mask_mode(0), sgb_sys_pals(512), sgb_attrs(SCREEN_TILE_WIDTH*SCREEN_TILE_HEIGHT, 0),
-             sgb_frame_attrs(32*32), sgb_frame_pals(4), sgb_tiles(256*8*8), sgb_attr_files(45), trace(false) {
+             sgb_frame_attrs(32*32), sgb_frame_pals(4), sgb_tiles(256*8*8), sgb_attr_files(45), trace(false), vram_bank(0), cpu_vram_bank(0) {
 
-    vram.resize(0x2000);
     oam.resize(0xa0);
     row_cache.resize(384*8, Vect<uint8_t>(8,0));
-    cpu_vram.resize(0x2000);
+    vram.resize(2);
+    cpu_vram.resize(2);
+    for(int i=0;i<2;i++) {
+        vram[i].resize(0x2000, 0);
+        cpu_vram[i].resize(0x2000, 0);
+    }
     cpu_oam.resize(0xa0);
 
     /* Initialize the SDL library */
@@ -202,8 +206,8 @@ uint64_t lcd::run(uint64_t run_to) {
 void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
     //uint8_t prev = 0xb5; //stands for "BS"
     if(addr >= 0x8000 && addr < 0xa000) {
-        uint8_t prev = vram[addr&0x1fff];
-        vram[addr & 0x1fff] = val;
+        uint8_t prev = vram[vram_bank][addr&0x1fff];
+        vram[vram_bank][addr & 0x1fff] = val;
         if(addr < 0x9800 && prev != val) {
             update_row_cache(addr);
         }
@@ -261,6 +265,9 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
             case 0xff4b:
                 win_scroll_x = val;
                 break;
+            case 0xff4f:
+                vram_bank = val;
+                break;
             default:
                 printf("Ignoring 0x%04x = %02x @ %ld\n", addr, val, cycle);
                 //Various data aren't necessary to render the screen, so we ignore anything like interrupts and status
@@ -277,8 +284,8 @@ void lcd::update_row_cache(uint16_t addr) {
     int row = (addr / 2) % 8;
     int index = tilenum * 8 + row;
     int data_base = tilenum * 16 + row * 2;
-    int b1 = vram[data_base];
-    int b2 = vram[data_base + 1];
+    int b1 = vram[vram_bank][data_base];
+    int b2 = vram[vram_bank][data_base + 1];
     for(int x = 0; x < 8; x++) {
         int shift = 128>>(x);
         row_cache[index][x] = ((b1&shift)/shift + 2*((b2&shift)/shift));
@@ -299,7 +306,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
     //printf("PPU: 0x%04X = 0x%02x @ %ld (mode %d)\n", addr, *((uint8_t *)val), cycle, get_mode(cycle));
     if(addr >= 0x8000 && addr < 0xa000) {
         if(get_mode(cycle) != 3 || !cpu_control.display_enable) {
-            memcpy(&(cpu_vram[addr-0x8000]), val, size);
+            memcpy(&(cpu_vram[cpu_vram_bank][addr-0x8000]), val, size);
             cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
         }
         if(debug) {
@@ -464,6 +471,11 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                     timing_queue.emplace_back(util::cmd{line,line_cycle,0x0a,0});
                 }
                 break;
+            case 0xff4f: //CGB VRAM bank
+                *((uint8_t *)val) &= 1;
+                cpu_vram_bank = *((uint8_t *)val);
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                break;
             default:
                 std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         }
@@ -516,7 +528,7 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
     //assert(size==1);
     if(addr >= 0x8000 && addr < 0xa000) {
         if(get_mode(cycle) != 3) {
-            memcpy(val, &(cpu_vram[addr-0x8000]), size);
+            memcpy(val, &(cpu_vram[cpu_vram_bank][addr-0x8000]), size);
         }
         else *((uint8_t *)val) = 0xff;
     }
@@ -584,6 +596,8 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
             case 0xff4b:
                 *((uint8_t *)val) = cpu_win_scroll_x;
                 break;
+            case 0xff4f:
+                *((uint8_t *)val) = cpu_vram_bank;
             default:
                 std::cout<<"PPU: Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
                 *((uint8_t *)val) = 0xff;
@@ -597,8 +611,8 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, Vect<uint8_t>& pixels
 #ifdef UNCACHED
     assert(tilenum < 384); assert(row < 16); assert(pixels.size() == 8);
     int addr = tilenum * 16 + row * 2;
-    int b1 = vram[addr];
-    int b2 = vram[addr + 1];
+    int b1 = vram[vram_bank][addr];
+    int b2 = vram[vram_bank][addr + 1];
     for(int x = 0; x < 8; x++) {
         int x_i = x;
         if(reverse) x_i = 7 - x;
@@ -626,7 +640,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
     //printf("Raw: start cycle: %lld end: %lld\n", start_cycle, end_cycle);
     if(sgb_dump_filename != "") {
         std::ofstream chr_out(sgb_dump_filename.c_str());
-        chr_out.write(reinterpret_cast<char *>(&vram[0x0]), 0x2000);
+        chr_out.write(reinterpret_cast<char *>(&vram[0][0x0]), 0x2000);
         chr_out.close();
         sgb_dump_filename = "";
     }
@@ -700,7 +714,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 int x_tile_pix = x_in_pix % 8;
 
                 if(x_tile_pix == 0 || unloaded) {
-                    tile_num = vram[bgbase+y_tile*32+x_tile];
+                    tile_num = vram[vram_bank][bgbase+y_tile*32+x_tile];
                     if(!control.tile_addr_mode) {
                         tile_num = 256 + int8_t(tile_num);
                     }
@@ -726,7 +740,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 int tile_y = win_y / 8;
                 int y_tile_pix = win_y % 8;
                 for(int tile_x = 0; tile_x * 8 + win_scroll_x - 7 < SCREEN_WIDTH; tile_x++) {
-                    int tile_num = vram[winbase+tile_y*32+tile_x];
+                    int tile_num = vram[vram_bank][winbase+tile_y*32+tile_x];
                     if(!control.tile_addr_mode) {
                         tile_num = 256+int8_t(tile_num);
                     }
@@ -1282,9 +1296,9 @@ void lcd::interpret_vram(Vect<uint8_t>& vram_data) {
         int bgx=tile%SCREEN_TILE_WIDTH;
         int bgy=tile/SCREEN_TILE_WIDTH;
         int map_index=map_base+bgy*32+bgx;
-        int tile_num=vram[map_index];
+        int tile_num=vram[vram_bank][map_index];
         if(signed_addr) tile_num = 256 + int8_t(tile_num);
-        memcpy(&(vram_data[tile*16]), &(vram[tile_num*16]), 16);
+        memcpy(&(vram_data[tile*16]), &(vram[vram_bank][tile_num*16]), 16);
     }
 }
 

@@ -135,7 +135,7 @@ private:
     //Needed for rendering, so must be mirrored to "catch up" with the CPU's view of the PPU state
     std::list<util::cmd> cmd_queue; //List of commands to catch up PPU with CPU
     std::list<util::cmd> timing_queue; //Abusing the util::cmd type to store line, cycle, and whether the access was a write to oam, vram, or some other control register
-    Vect<uint8_t> vram;
+    Vect<Vect<uint8_t>> vram;
     Vect<uint8_t> oam;
     Vect<Vect<uint8_t>> row_cache; //pre-calculated cache of tile data
     uint64_t cycle;      //Last cycle executed during previous invocation of "lcd::run()"
@@ -181,7 +181,7 @@ private:
 
     //Modes cycle: (2-3-0) 144 times, then to 1, with about 20, 
 
-    Vect<uint8_t> cpu_vram;
+    Vect<Vect<uint8_t>> cpu_vram;
     Vect<uint8_t> cpu_oam;
     control_reg cpu_control; //0xff40
     uint8_t cpu_status;      //0xff41 (store interrupt flags, calculate coincidence and mode flags)
@@ -287,4 +287,7 @@ private:
     Vect<uint8_t> sgb_tiles; //256 8x8 4-bit tiles
     Vect<attrib_file> sgb_attr_files; //45 attribute files
     bool trace; //Enable trace output
+
+    uint8_t vram_bank;
+    uint8_t cpu_vram_bank;
 };

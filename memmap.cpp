@@ -160,6 +160,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
         case 0xff4f: //VBK (CGB VRAM bank)
             //TODO:CGB
             printf("Read from CGB VRAM bank register\n");
+            screen.read(addr, val, size, cycle);
             break;
         case 0xff51: //TODO: Implement the 5 HDMA registers
             printf("Read from CGB HDMA1 (DMA source, high byte)\n");
@@ -386,6 +387,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff4f: //VBK (CGB VRAM bank)
                 //TODO:CGB
                 printf("Write to CGB VRAM bank register: %02x\n", *(uint8_t *)val);
+                screen.write(addr, val, size, cycle);
                 break;
             case 0xff50: //disables CPU firmware
                 cart.write(addr,val,size,cycle);
