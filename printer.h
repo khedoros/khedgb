@@ -1,7 +1,6 @@
 #pragma once
 #include<cstdint>
 #include "util.h"
-#include "lcd.h"
 
 class printer {
 public:
@@ -31,6 +30,10 @@ private:
         READ_STATUS=15
     };
 
+    struct dmgpal {
+        uint8_t pal[4];
+    };
+
     p_state state;
     uint8_t command;
     uint16_t cmd_length;
@@ -40,7 +43,7 @@ private:
     uint16_t check_data; //checksum number received from connection
     bool compression;
     Vect<uint8_t> data_buffer;
-    Arr<uin8_t, 8192> graphics_buffer;
+    Arr<uint8_t, 8192> graphics_buffer;
     dmgpal p;
     uint8_t start_margin;
     uint8_t end_margin;

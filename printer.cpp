@@ -1,4 +1,6 @@
 #include<cstdio>
+#include<cassert>
+#include<SDL2/SDL.h>
 #include "printer.h"
 
 printer::printer() {
@@ -7,21 +9,40 @@ printer::printer() {
 
 uint8_t printer::send(uint8_t incoming) {
     uint8_t outval = 0;
-    printf("Printer got %02x");//, sending 0.\n");
+    printf("Printer starts in state %d, ", state);
     switch(state) {
         case MAGIC1:
-            if(incoming == 0x88) state = MAGIC2;
+            if(incoming == 0x88) {
+                state = MAGIC2;
+                printf(", got expected magic1, ");
+            }
+            else {
+                printf(", got unexpected magic1, not proceeding, ");
+            }
             break;
-        case MAGIC1:
-            if(incoming == 0x33) state = COMMAND;
-            else                 state = MAGIC1;
+        case MAGIC2:
+            if(incoming == 0x33) {
+                state = COMMAND;
+                printf(", got expected magic2,");
+            }
+            else {
+                state = MAGIC1;
+                printf(", got unexpected magic2, resetting state, ");
+            }
             break;
         case COMMAND:
             command = incoming;
+            if(command == 1 || command == 2 || command == 4 || command == 15) {
+                printf(", received known command %d, ", command);
+            }
+            else {
+                printf(", received unknown command %d, ", command);
+            }
             state = COMPRESS;
             break;
         case COMPRESS:
             compression = (incoming & 1);
+            printf(", received compression value %d, ", incoming);
             state = LENGTH1;
             break;
         case LENGTH1:
@@ -32,9 +53,16 @@ uint8_t printer::send(uint8_t incoming) {
             cmd_length |= 256 * incoming;
             data_ptr = 0;
             data_buffer.resize(cmd_length);
-            state = DATA;
+            printf(", received 2 bytes of length: %d, ", cmd_length);
+            if(cmd_length > 0) {
+                state = DATA;
+            }
+            else { //skip data, if none is included in this command
+                state = CHECK1;
+            }
             break;
         case DATA:
+            printf(", data[%d] = %02x, ", data_ptr, incoming);
             data_buffer[data_ptr] = incoming;
             data_ptr++;
             if(data_ptr == cmd_length) {
@@ -48,6 +76,7 @@ uint8_t printer::send(uint8_t incoming) {
         case CHECK2:
             check_data |= 256 * incoming;
             state = ALIVE;
+            printf(", got checksum %04x, ", check_data);
             break;
         case ALIVE:
             if(incoming == 0) state = STATUS;
@@ -78,12 +107,12 @@ uint8_t printer::send(uint8_t incoming) {
                     break;
                 case GRAPHICS:
                     for(int i=0;i<cmd_length&&i+graphics_ptr<8192;i++) graphics_buffer[graphics_ptr + i] = data_buffer[i];
-                    graphics_ptr+=i;
+                    graphics_ptr=(cmd_length+graphics_ptr < 8192)?(cmd_length+graphics_ptr):8191;
                     if(graphics_ptr >= 0x27f) status = 8;
                     break;
                 case READ_STATUS:
                     outval = status;
-                    if(status==2 && print_start_time + 10000 < SDL_GetTicks()) outval|=2; //pretend that it takes 10 seconds to print
+                    if(status==2 && print_start_time + 10000 > SDL_GetTicks()) outval|=2; //pretend that it takes 10 seconds to print
                     break;
                 default:
                     break;
@@ -94,13 +123,15 @@ uint8_t printer::send(uint8_t incoming) {
             state = MAGIC1;
             break;
     }
+    printf("Printer ends in state %d, ", state);
+    printf("Printer got %02x, sending %02x.\n", incoming, outval);
     return outval;
 }
 
 void printer::print_buffer() {
     for(int i=0;i<graphics_ptr;i++) {
         printf("%02x ", graphics_buffer[i]);
-        if(i+i % 40 == 0) printf("\n");
+        if(((i+1) % 40) == 0) printf("\n");
     }
     printf("\n");
 }

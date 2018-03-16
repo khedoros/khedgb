@@ -124,13 +124,12 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             //printf("Stubbed out read to gamepad (not implemented yet)\n");
             break;
         case 0xff01:
-            //std::cout<<"Read from link cable: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
-            //printf("Read from serial: 0x%04x (got 0x%02x)\n", addr, link_data);
+            //printf("Read from serial data: 0x%04x (got 0x%02x, and link_in is 0x%02x)\n", addr, link_data, link_in_data);
             *(uint8_t *)val = link_data;
             break;
         case 0xff02:
             *(uint8_t *)val = (serial_transfer * 0x80) | 0x7e | internal_clock;
-            //printf("Read from serial: 0x%04x (got 0x%02x)\n", addr, (serial_transfer * 0x80) | internal_clock);
+            //printf("Read from serial control: 0x%04x (got 0x%02x)\n", addr, (serial_transfer * 0x80) | internal_clock);
             break;
         case 0xff04: //DIV register. 16KHz increment, (1024*1024)/16384=64, and the register overflows every 256 increments
             *(uint8_t *)val = div;
@@ -319,15 +318,16 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff01: //Fake implementation, for serial output from Blarg roms
                 link_data = *((uint8_t *)val);
-                //printf("Write to serial: 0x%04x = 0x%02x\n", addr, *(uint8_t *)val);
+                //printf("Write to serial data: 0x%04x = 0x%02x\n", addr, *(uint8_t *)val);
                 break;
             case 0xff02:
                 {
                     int cmd = *((uint8_t *)val);
                     if(cmd == 0x81) { //Immediate output for Blarg/debug stuff
-                        std::cout<<"Blarg: "<<std::hex<<int(link_data)<<std::endl;
+                        std::cout<<"Blarg: "<<std::hex<<int(link_data)<<" (serial send init'd) ";
                         //link_data = 0xff;
                         link_in_data = p.send(link_data);
+                        //printf(" (printer will send %02x)\n", link_in_data);
                     }
                     serial_transfer = ((cmd & 0x80) == 0x80);
                     internal_clock = ((cmd & 0x01) == 0x01);
@@ -606,19 +606,15 @@ void memmap::update_interrupts(uint64_t cycle) {
         unsigned int bit = (cycle - transfer_start) / 128;
         //std::cout<<"Transfer start: "<<transfer_start<<" "<<cycle<<std::endl;
         //assert(bit < 256);
-        if(bit >= 7) {//Transfer is done, and a new one hasn't started
-            transfer_start = -1;
-            serial_transfer = false;
-            //link_data = link_out_data;
-            bits_transferred = 0;
-        }
-        else if(bit == (bits_transferred + 1)) { //Passed the time to transfer a new bit
+        if(bit == (bits_transferred + 1)) { //Passed the time to transfer a new bit
+            //printf("Serial shift, current values (before shift): out: %02x, in: %02x\n", link_data, link_in_data);
             bits_transferred = bit;
             link_data<<=(1);
             link_data |= ((link_in_data&0x80)==0x80)?1:0;
             link_in_data<<=1;
         }
-        if(bit == 7) { //Bit has completed transfer
+        if(bit == 8) { //Bit has completed transfer
+            //printf("Serial shift should be done, out: %02x, in: %02x\n", link_data, link_in_data);
             //link_data = p.send(link_data);
             bits_transferred = 0;
             serial_transfer = false;
