@@ -13,7 +13,7 @@ const unsigned int memmap::timer_clock_select[4] = {
                             
 
 memmap::memmap(const std::string& rom_filename, const std::string& fw_file) : 
-/*hardware connected to the memmap*/              screen(), sound(), cart(rom_filename, fw_file),
+/*hardware connected to the memmap*/              screen(), sound(), cart(rom_filename, fw_file), p(),
 /*interrupt hardware              */              int_enabled{0,0,0,0,0}, int_requested{0,0,0,0,0}, last_int_cycle(0),  joypad(0xc0),
 /*Super GameBoy values            */              sgb_active(false), sgb_bit_ptr(0), sgb_buffered(false), sgb_cur_joypad(0), sgb_joypad_count(1), sgb_cmd_count(0), sgb_cmd_index(0),
 /*serial/link cable               */              link_data(0), serial_transfer(false), internal_clock(false), transfer_start(-1), bits_transferred(0),
@@ -324,8 +324,9 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 {
                     int cmd = *((uint8_t *)val);
                     if(cmd == 0x81) { //Immediate output for Blarg/debug stuff
-                        std::cout<<"Blarg: "<<link_data<<std::endl;
+                        std::cout<<"Blarg: "<<std::hex<<int(link_data)<<std::endl;
                         //link_data = 0xff;
+                        link_in_data = p.send(link_data);
                     }
                     serial_transfer = ((cmd & 0x80) == 0x80);
                     internal_clock = ((cmd & 0x01) == 0x01);
@@ -605,18 +606,20 @@ void memmap::update_interrupts(uint64_t cycle) {
         unsigned int bit = (cycle - transfer_start) / 128;
         //std::cout<<"Transfer start: "<<transfer_start<<" "<<cycle<<std::endl;
         //assert(bit < 256);
-        if(bit >= 7) {
+        if(bit >= 7) {//Transfer is done, and a new one hasn't started
             transfer_start = -1;
             serial_transfer = false;
-            link_data = 0xff;
+            //link_data = link_out_data;
             bits_transferred = 0;
         }
-        else if(bit == (bits_transferred + 1)) {
+        else if(bit == (bits_transferred + 1)) { //Passed the time to transfer a new bit
             bits_transferred = bit;
             link_data<<=(1);
-            link_data |= 1;
+            link_data |= ((link_in_data&0x80)==0x80)?1:0;
+            link_in_data<<=1;
         }
-        if(bit == 7) {
+        if(bit == 7) { //Bit has completed transfer
+            //link_data = p.send(link_data);
             bits_transferred = 0;
             serial_transfer = false;
             transfer_start = -1;

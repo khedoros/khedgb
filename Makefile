@@ -1,5 +1,5 @@
-KHEDGB_REQ_LIST:=main.o cpu.o cpu.h memmap.o memmap.h lcd.o lcd.h apu.o apu.h rom.o rom.h decode.o util.o util.h
-KHEDGB_OBJ_LIST:=main.o cpu.o memmap.o lcd.o apu.o rom.o decode.o util.o
+KHEDGB_REQ_LIST:=main.o cpu.o cpu.h memmap.o memmap.h lcd.o lcd.h apu.o apu.h rom.o rom.h decode.o util.o util.h printer.o printer.h
+KHEDGB_OBJ_LIST:=main.o cpu.o memmap.o lcd.o apu.o rom.o decode.o util.o printer.o
 LDFLAGS:= $(shell sdl2-config --libs --cflags)
 ifeq "$(BUILD)" "debug"
     CXXFLAGS:=-g -std=c++11 -Wall -DDEBUG

@@ -3,6 +3,7 @@
 #include "rom.h"
 #include "lcd.h"
 #include "apu.h"
+#include "printer.h"
 #include<string>
 #include<SDL2/SDL_scancode.h>
 
@@ -54,6 +55,7 @@ private:
     lcd screen;
     apu sound;
     rom cart;
+    printer p;
     Vect<uint8_t> wram;
     uint8_t wram_bank;
     Vect<uint8_t> hram;
@@ -115,7 +117,9 @@ private:
     uint8_t sgb_cmd_index;
 
     //Serial link registers
-    uint8_t link_data; //0xff01 (serial data register)
+    uint8_t link_data; //0xff01 (serial data register, data when the link is idle)
+    uint8_t link_out_data; //0xff01 (serial data register, data being shifted out)
+    uint8_t link_in_data; //0xff01 (serial data register, data being shifted in)
     bool serial_transfer; //0xff02 bit 7 (serial command register, transfer state)
     bool internal_clock;  //0xff02 bit 0 (serial command register, clock selection)
     uint64_t transfer_start; //cycle when transfer was initiated
