@@ -175,7 +175,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             *((uint8_t *)val) = 0;
             break;
         case 0xff54:
-            printf("Read from CGB HDMA4 (DMA destination, high byte)\n");
+            printf("Read from CGB HDMA4 (DMA destination, low byte)\n");
             *((uint8_t *)val) = 0;
             break;
         case 0xff55:
@@ -360,7 +360,6 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 //        addr, int(*(uint8_t *)val), cycle, timer_control.running, timer_clock_select[timer_control.clock]);
                 break;
             case 0xff0f:
-                assert(size == 1);
                 int_requested.reg = *((uint8_t *)val);
                 //printf("Interrupts requested: %02X\n",int_requested.reg);
                 break;
@@ -461,7 +460,6 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
         memcpy(&(hram[addr - 0xff80]), val, size);
     }
     else if (addr == 0xffff) { //Interrupt enabled register
-        assert(size == 1);
         int_enabled.reg = (0xe0 | *((uint8_t *)val));
         //printf("Interrupts enabled: %02X\n",int_enabled.reg);
         //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
@@ -712,7 +710,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                     case 3: pal1=1; pal2=2; break;
                 }
                 printf(": PAL%d%d    Set palettes %d and %d\n", pal1,pal2,pal1,pal2);
-                Vect<uint16_t> pals(7,0);
+                Arr<uint16_t, 7> pals;
                 for(int col=0;col<14;col+=2) {
                     pals[col/2] = 256*sgb_cmd_data[col+2] + sgb_cmd_data[col+1];
                 }
@@ -721,7 +719,8 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                 break;
             case 0x04: //ATTR_BLK
                 {
-                    Vect<uint8_t> attrs(360,10);
+                    Arr<uint8_t, 360> attrs;
+                    for(auto& i:attrs) i=10;
                     int data_groups = sgb_cmd_data[1] & 0x1f;
                     printf(": ATTR_BLK Apply color palette attributes to %d areas\n", data_groups);
                     for(int group=0;group<data_groups;++group) {
@@ -778,7 +777,8 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
             case 0x05: //ATTR_LIN
                 {
                     printf(": ATTR_LIN Set individual lines of palette attributes:\n");
-                    Vect<uint8_t> attrs(360,10);
+                    Arr<uint8_t, 360> attrs;
+                    for(auto& i:attrs) i=10;
                     int count = sgb_cmd_data[1];
                     for(int line = 0; line < count; line++) {
                         int line_num = (sgb_cmd_data[line+2] & 0x1f);
@@ -794,7 +794,8 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
             case 0x06: //ATTR_DIV
                 {
                     printf(": ATTR_DIV Divide palette attributes by line: ");
-                    Vect<uint8_t> attrs(360,10);
+                    Arr<uint8_t, 360> attrs;
+                    for(auto& i:attrs) i=10;
                     int br = (sgb_cmd_data[1] & 0x03);
                     int tl = ((sgb_cmd_data[1]>>2) & 0x03);
                     int on = ((sgb_cmd_data[1]>>4) & 0x03);
@@ -822,7 +823,8 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
             case 0x07: //ATTRIBUTE_CHR
                 {
                     printf(": ATTR_CHR explicitly specify palette attributes:\n");
-                    Vect<uint8_t> pal_attrs(360,0);
+                    Arr<uint8_t, 360> pal_attrs;
+                    for(auto& i:pal_attrs) i=0;
                     int x0 = sgb_cmd_data[1];
                     int y0 = sgb_cmd_data[2];
                     int items = sgb_cmd_data[4] * 256 + sgb_cmd_data[3];

@@ -12,18 +12,7 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
              cpu_control{.val=0x00}, cpu_status(0), cpu_bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_lyc(0), cpu_dma_addr(0), 
              cpu_bgpal{{0,1,2,3}}, cpu_obj1pal{{0,1,2,3}}, cpu_obj2pal{{0,1,2,3}},             cpu_win_scroll_y(0), cpu_win_scroll_x(0), cpu_active_cycle(0), 
              screen(NULL), renderer(NULL), buffer(NULL), texture(NULL), overlay(NULL), lps(NULL), hps(NULL), bg1(NULL), bg2(NULL), sgb_border(NULL), sgb_texture(NULL),
-             sgb_mode(false), sgb_dump_filename(""), sgb_vram_transfer_type(0), sgb_mask_mode(0), sgb_sys_pals(512), sgb_attrs(SCREEN_TILE_WIDTH*SCREEN_TILE_HEIGHT, 0),
-             sgb_frame_attrs(32*32), sgb_frame_pals(4), sgb_tiles(256*8*8), sgb_attr_files(45), trace(false), vram_bank(0), cpu_vram_bank(0) {
-
-    oam.resize(0xa0);
-    row_cache.resize(384*8, Vect<uint8_t>(8,0));
-    vram.resize(2);
-    cpu_vram.resize(2);
-    for(int i=0;i<2;i++) {
-        vram[i].resize(0x2000, 0);
-        cpu_vram[i].resize(0x2000, 0);
-    }
-    cpu_oam.resize(0xa0);
+             sgb_mode(false), sgb_dump_filename(""), sgb_vram_transfer_type(0), sgb_mask_mode(0), trace(false), vram_bank(0), cpu_vram_bank(0) {
 
     /* Initialize the SDL library */
     cur_x_res=SCREEN_WIDTH;
@@ -59,35 +48,24 @@ lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.v
     SDL_RenderPresent(renderer);
     //printf("lcd::constructor reached end\n");
     
-    //Set default palettes; pal#0 is DMG default, and 0-3 are used for SGB
-    sys_bgpal.resize(4);
-    sys_winpal.resize(4);
-    sys_obj1pal.resize(4);
-    sys_obj2pal.resize(4);
-    for(int i=0;i<4;i++) {
-        sys_bgpal[i].resize(4);
-        sys_winpal[i].resize(4);
-        sys_obj1pal[i].resize(4);
-        sys_obj2pal[i].resize(4);
-    }
+    //Set default palettes; pal#0 is DMG default, 0-3 are used for SGB, 0-7 are used for CGB
+
+    //Semi-colorized default palette
+    //    uint8_t default_palette[] =
+    //         0              1              2              3
+    //*bg*/  {255, 255, 255, 170, 170, 170,  85,  85,  85,   0,   0,   0, //B+W, going from white to black
+    //*win*/  255, 210, 210, 175, 140, 140,  95,  70,  70,  15,   0,   0, //Light pink to deep, dark red
+    //*ob1*/  210, 255, 210, 140, 175, 140,  70,  95,  70,   0,  15,   0, //Seafoam green to Schwarzwald at midnight
+    //*ob2*/  210, 210, 255, 140, 140, 175,  70,  70,  95,   0,   0,  15}; //Powder blue to Mariana trench
 
 
-//Semi-colorized default palette
-//    uint8_t default_palette[] =
-//         0              1              2              3
-//*bg*/  {255, 255, 255, 170, 170, 170,  85,  85,  85,   0,   0,   0, //B+W, going from white to black
-//*win*/  255, 210, 210, 175, 140, 140,  95,  70,  70,  15,   0,   0, //Light pink to deep, dark red
-//*ob1*/  210, 255, 210, 140, 175, 140,  70,  95,  70,   0,  15,   0, //Seafoam green to Schwarzwald at midnight
-//*ob2*/  210, 210, 255, 140, 140, 175,  70,  70,  95,   0,   0,  15}; //Powder blue to Mariana trench
-
-
-//GB Pocket inspired palette
-    uint8_t default_palette[] =
-//         0              1              2              3
-/*bg*/  {224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38, //B+W, going from white to black
-/*win*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38, //Light pink to deep, dark red
-/*ob1*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38, //Seafoam green to Schwarzwald at midnight
-/*ob2*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38}; //Powder blue to Mariana trench
+    //GB Pocket inspired palette
+        uint8_t default_palette[] =
+    //         0              1              2              3
+    /*bg*/  {224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38, //B+W, going from white to black
+    /*win*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38, //Light pink to deep, dark red
+    /*ob1*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38, //Seafoam green to Schwarzwald at midnight
+    /*ob2*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38}; //Powder blue to Mariana trench
 
 
     for(int i=0; buffer && i<4; i++) {
@@ -598,6 +576,7 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff4f:
                 *((uint8_t *)val) = cpu_vram_bank;
+                break;
             default:
                 std::cout<<"PPU: Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
                 *((uint8_t *)val) = 0xff;
@@ -607,7 +586,7 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
     return;
 }
 
-void lcd::get_tile_row(int tilenum, int row, bool reverse, Vect<uint8_t>& pixels) {
+void lcd::get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixels) {
 #ifdef UNCACHED
     assert(tilenum < 384); assert(row < 16); assert(pixels.size() == 8);
     int addr = tilenum * 16 + row * 2;
@@ -665,7 +644,7 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
     bool output_sdl = true;
     uint64_t output_cycle = 0;
 
-    Vect<uint8_t> tile_line(8, 0);
+    Arr<uint8_t, 8> tile_line;
 
     uint32_t * pixels = NULL;
 
@@ -826,11 +805,11 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
         if(output_sdl && render_line == LAST_RENDER_LINE) {
             if(sgb_vram_transfer_type != 0) {
                 //printf("Map:%02x Scroll:(%02x. %02x) AddrMode:%02x pal:(%x,%x,%x,%x)\n", control.bg_map, bg_scroll_x, bg_scroll_y, control.tile_addr_mode, bgpal.pal[0], bgpal.pal[1], bgpal.pal[2], bgpal.pal[3]);
-                uint16_t map_base=0x1800 + 0x400 * control.bg_map;
-                for(int i=0;i<0x400;i++) {
+                //uint16_t map_base=0x1800 + 0x400 * control.bg_map;
+                //for(int i=0;i<0x400;i++) {
                     //printf("%02x ", vram[map_base+i]);
                     //if((i+1)%32==0) printf("\n");
-                }
+                //}
                 do_vram_transfer();
                 sgb_vram_transfer_type = 0;
             }
@@ -1075,14 +1054,14 @@ void lcd::draw_debug_overlay() {
     SDL_RenderPresent(renderer);
 }
 
-void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors) { //SGB commands 00, 01, 02, 03
+void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Arr<uint16_t, 7>& colors) { //SGB commands 00, 01, 02, 03
     /*printf("Setting palettes %d and %d to: ", pal1, pal2);
     for(int i=0;i<7;i++) {
 	    sgb_color col;
 	    col.val=colors[i];
 	    printf("%04x=(%02x,%02x,%02x) ",colors[i],col.red,col.green,col.blue);
     }*/
-    assert(colors.size() == 7);
+    //assert(colors.size() == 7);
     sgb_color col;
     col.val=colors[0];
     uint32_t col0 = SDL_MapRGB(buffer->format, col.red*8, col.green*8, col.blue*8);
@@ -1111,8 +1090,8 @@ void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors) { //S
     }
 }
 
-void lcd::sgb_set_attrs(Vect<uint8_t>& attrs) {
-    assert(attrs.size() == 360);
+void lcd::sgb_set_attrs(Arr<uint8_t,360>& attrs) {
+    //assert(attrs.size() == 360);
     for(int i=0;i<360;i++) {
         if(attrs[i] != 10)
             sgb_attrs[i] = attrs[i];
@@ -1163,7 +1142,7 @@ void lcd::sgb_vram_transfer(uint8_t type) { //SGB commands 0B, 13, 14, 15
 //Transfers the data to the appropriate section of memory
 void lcd::do_vram_transfer() {
     uint8_t type = sgb_vram_transfer_type;
-    Vect<uint8_t> vram_data(4096, 0);
+    Arr<uint8_t, 4096> vram_data;
     if(type > 0) {
         interpret_vram(vram_data);
         /*
@@ -1286,10 +1265,9 @@ void lcd::regen_background() {
 }
 
 //Interprets current rendering state and VRAM and simulates sending it to the SGB
-void lcd::interpret_vram(Vect<uint8_t>& vram_data) {
+void lcd::interpret_vram(Arr<uint8_t, 4096>& vram_data) {
     assert(bg_scroll_x == 0);
     assert(bg_scroll_y == 0);
-    assert(vram_data.size() == 4096);
     int map_base = 0x1800 + 0x400 * control.bg_map;
     bool signed_addr = !control.tile_addr_mode;
     for(int tile=0;tile<256;tile++) {

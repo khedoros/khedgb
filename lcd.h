@@ -59,11 +59,11 @@ public:
     void win_resize(unsigned int new_x, unsigned int new_y);
 
     void sgb_trigger_dump(std::string filename);
-    void sgb_set_pals(uint8_t pal1, uint8_t pal2, Vect<uint16_t>& colors);
+    void sgb_set_pals(uint8_t pal1, uint8_t pal2, Arr<uint16_t, 7>& colors);
     void sgb_vram_transfer(uint8_t type);
     void sgb_set_mask_mode(uint8_t mode);
     void sgb_enable(bool enable);
-    void sgb_set_attrs(Vect<uint8_t>& attrs);
+    void sgb_set_attrs(Arr<uint8_t, 360>& attrs);
     void sgb_set_attrib_from_file(uint8_t attr_file, bool cancel_mask);
     void sgb_pal_transfer(uint16_t pal0, uint16_t pal1, uint16_t pal2, uint16_t pal3, uint8_t attr_file, bool use_attr, bool cancel_mask);
 
@@ -71,14 +71,13 @@ private:
     void update_estimates(uint64_t cycle);
     void apply(int addr, uint8_t val, uint64_t index, uint64_t cycle);
     uint64_t render(int frame, uint64_t start_cycle, uint64_t end_cycle);
-    void get_tile_row(int tilenum, int row, bool reverse, Vect<uint8_t>& pixels);
+    void get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixels);
     uint32_t map_bg_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_win_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_oam1_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_oam2_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
-    Vect<uint8_t> translate_vram();
     void do_vram_transfer();
-    void interpret_vram(Vect<uint8_t>& vram_data);
+    void interpret_vram(Arr<uint8_t, 4096>& vram_data);
     void regen_background();
     std::string lcd_to_string(uint16_t addr, uint8_t val);
     void update_row_cache(uint16_t);
@@ -135,9 +134,9 @@ private:
     //Needed for rendering, so must be mirrored to "catch up" with the CPU's view of the PPU state
     std::list<util::cmd> cmd_queue; //List of commands to catch up PPU with CPU
     std::list<util::cmd> timing_queue; //Abusing the util::cmd type to store line, cycle, and whether the access was a write to oam, vram, or some other control register
-    Vect<Vect<uint8_t>> vram;
-    Vect<uint8_t> oam;
-    Vect<Vect<uint8_t>> row_cache; //pre-calculated cache of tile data
+    Arr<Arr<uint8_t, 0x2000>, 2> vram;
+    Arr<uint8_t, 0xa0> oam;
+    Arr<Arr<uint8_t, 8>, 768*8> row_cache; //pre-calculated cache of tile data
     uint64_t cycle;      //Last cycle executed during previous invocation of "lcd::run()"
     uint64_t next_line; //Next line to render in frame
     control_reg control; //0xff40
@@ -149,10 +148,11 @@ private:
     dmgpal obj2pal;      //0xff49
 
     //First dimension is palette number. Second dimension is color number.
-    Vect<Vect<uint32_t>> sys_bgpal;
-    Vect<Vect<uint32_t>> sys_winpal;
-    Vect<Vect<uint32_t>> sys_obj1pal;
-    Vect<Vect<uint32_t>> sys_obj2pal;
+    //These are useful for both SGB and GBC palettes. Plain GB just uses the first, SGB uses the first 4, CGB can use all 8
+    Arr<Arr<uint32_t, 4>, 8> sys_bgpal;
+    Arr<Arr<uint32_t, 4>, 8> sys_winpal;
+    Arr<Arr<uint32_t, 4>, 8> sys_obj1pal;
+    Arr<Arr<uint32_t, 4>, 8> sys_obj2pal;
     unsigned int pal_index;
 
     uint8_t win_scroll_y;//0xff4a
@@ -181,8 +181,8 @@ private:
 
     //Modes cycle: (2-3-0) 144 times, then to 1, with about 20, 
 
-    Vect<Vect<uint8_t>> cpu_vram;
-    Vect<uint8_t> cpu_oam;
+    Arr<Arr<uint8_t, 0x2000>, 2> cpu_vram;
+    Arr<uint8_t, 0xa0> cpu_oam;
     control_reg cpu_control; //0xff40
     uint8_t cpu_status;      //0xff41 (store interrupt flags, calculate coincidence and mode flags)
     uint8_t cpu_bg_scroll_y; //0xff42
@@ -280,12 +280,12 @@ private:
     std::string sgb_dump_filename;
     uint8_t sgb_vram_transfer_type;
     uint8_t sgb_mask_mode; //0=cancel, 1=freeze, 2=black, 3=color 0
-    Vect<sgb_pal4>  sgb_sys_pals; //set of 512 palettes that can be copied into the visible ones. These will need translated to SDL colors when used.
-    Vect<uint8_t>  sgb_attrs; //palette selections for the main GB display window. These will act as indices into the SDL palette table.
-    Vect<sgb_attr> sgb_frame_attrs; //tilemap, palette selections, priorities, etc for window border
-    Vect<sgb_pal16> sgb_frame_pals;
-    Vect<uint8_t> sgb_tiles; //256 8x8 4-bit tiles
-    Vect<attrib_file> sgb_attr_files; //45 attribute files
+    Arr<sgb_pal4, 512>  sgb_sys_pals; //set of 512 palettes that can be copied into the visible ones. These will need translated to SDL colors when used.
+    Arr<uint8_t, SCREEN_TILE_WIDTH * SCREEN_TILE_HEIGHT>  sgb_attrs; //palette selections for the main GB display window. These will act as indices into the SDL palette table.
+    Arr<sgb_attr, 32*32> sgb_frame_attrs; //tilemap, palette selections, priorities, etc for window border
+    Arr<sgb_pal16, 4> sgb_frame_pals;
+    Arr<uint8_t, 256*8*8> sgb_tiles; //256 8x8 4-bit tiles
+    Arr<attrib_file,45> sgb_attr_files; //45 attribute files
     bool trace; //Enable trace output
 
     uint8_t vram_bank;
