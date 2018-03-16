@@ -61,7 +61,9 @@ int read(const std::string& filename, Vect<uint8_t>& output, size_t min_size, si
 bool reinit_sdl_screen(SDL_Window ** screen, SDL_Renderer ** renderer, SDL_Texture ** texture, unsigned int xres, unsigned int yres);
 int clamp(int low, int val, int high);
 std::string to_hex_string(uint32_t val, int length);
+void output_png(std::string& fn, int h, int w, Vect<uint8_t>& d);
 }
+
 //Sign-extend value from 8-bit to 32-bit
 #define extend(x) ( (x>0x7f) ? 0xffffff00|x : x)
 

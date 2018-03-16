@@ -324,10 +324,12 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 {
                     int cmd = *((uint8_t *)val);
                     if(cmd == 0x81) { //Immediate output for Blarg/debug stuff
-                        std::cout<<"Blarg: "<<std::hex<<int(link_data)<<" (serial send init'd) ";
+                        if(link_data >= 32 && link_data <= 126) {
+                            //NOTE: Turn this on for serial output from the 
+                            //std::cout<<"Blarg: "<<link_data<<std::endl;
+                        }
                         //link_data = 0xff;
                         link_in_data = p.send(link_data);
-                        //printf(" (printer will send %02x)\n", link_in_data);
                     }
                     serial_transfer = ((cmd & 0x80) == 0x80);
                     internal_clock = ((cmd & 0x01) == 0x01);
