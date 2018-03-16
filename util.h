@@ -1,5 +1,6 @@
 #pragma once
 #include<vector>
+#include<array>
 #include<cstdint>
 #include<string>
 
@@ -23,10 +24,26 @@ class RangeCheckVector : public std::vector<T> {
         }
 };
 
+template<typename T, std::size_t N>
+class RangeCheckArray : public std::array<T,N> {
+    public:
+        using std::array<T,N>::array;
+        T& operator[](int i) {
+            return std::array<T,N>::at(i);
+        }
+
+        const T& operator[](int i) const {
+            return std::array<T,N>::at(i);
+        }
+};
+
+
 #ifdef DEBUG
     #define Vect util::RangeCheckVector
+    #define Arr  util::RangeCheckArray
 #else
     #define Vect std::vector
+    #define Arr std::array
 #endif
 
 struct cmd {
