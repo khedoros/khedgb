@@ -15,6 +15,8 @@ You'll need SDL2 development libraries. I've built the emulator on a few version
 
 If you want camera support, you'll need OpenCV development libraries. In slightly older versions of OpenCV (2.4.9, for example), it uses the core, highgui, and imgproc modules. In newer versions (probably starting around 3.x), you also need the videoio module. The necessary linking options change between versions of OpenCV, so the Makefile currently has the correct options for OpenCV 3.2. Since OpenCV and cameras are non-core functionalities and are a pain to set up, linking in camera support is disabled by default.
 
+The printer support requires libpng, and libpng requires libz (again, the development packages for those libraries).
+
 Typing `make` in the root directory of the project is enough to build the emulator. Adding `CAMERA=yes` and/or `BUILD=debug` will enable camera linking and debug mode, and the names imply.
 
 So the version with the most options turned on would currently be built by `make CAMERA=yes BUILD=debug`.
@@ -46,7 +48,7 @@ Command: `khedgb [options] romfile`
 Option | Effect
 ------ | ------
 --sgb | Set Super Gameboy mode, if supported by the ROM
---cgb | Set Color Gameboy mode (not written yet, just planned)
+--cgb | Set Color Gameboy mode (in progress, but in the very early stages)
 --trace | Activate CPU+PPU instruction trace (listing of what the game is doing)
 --headless | Headless mode (disable graphics) (I don't test this often)
 --nosound | NoSound mode (disable audio) (Sound isn't working yet anyhow...)
@@ -56,7 +58,7 @@ Note about the firmware: They aren't strictly necessary. The emulator runs witho
 
 ## Current state
 
-Most games are booting and running (I'll claim 95% booting without issue, and 70% running stably during gameplay and without major visible bugs). Most original Game Boy games are playable. Saving and loading games (not save states) is basically working, including with save files from other emulators (tested with BGB, for example). Timing issues abound. Some games may do things that I haven't tested, and crash for that reason.
+Most games are booting and running (all of the ones I test work nearly-perfectly). Most original Game Boy games are playable. Saving and loading of games (not save states) is basically working, including with save files from other emulators (tested with BGB, for example). Timing issues cause some minor graphical issues in the games that I test (usually split-second flashes and such). Games that I don't test often are a little more "iffy". Some games may do things that I haven't tested, and crash for that reason (although when I find cases like that, I try to fix them by determining where the inaccuracy is in my emulator).
 
 ### CPU
 
@@ -72,11 +74,11 @@ ROMs load, and I added the ability to load them directly from zip files (it just
 
 ### Interrupts
 
-The link cable isn't fully emulated. There's a kludge for Blargg test serial line outputs and basic support for pretending to send data. The LCD interrupts work, with approximately-correct timing (real cycle-accurate emulation relies on details that I'm not taking into account, as rendering a line takes variable amounts of time). VBlank interrupts work. Joypad interrupts work.
+The link cable works, at least at a basic level. The emulator currently pretends that you have a Printer plugged in all the time. There's a kludge for Blargg test serial line outputs, but that's silenced by default, because it usually means a lot of extra noise, if you're doing "real" serial transfers. The LCD interrupts work, with approximately-correct timing (real cycle-accurate emulation relies on details that I'm not taking into account, as rendering a line takes variable amounts of time). VBlank interrupts work. Joypad interrupts work.
 
 ### Display
 
-Display output composites the video roughly correctly, although sprite priority isn't quite right. On real hardware, it's possible to modify certain display registers during rendering. I don't support sub-line rendering changes, right now. The emulator does a partial colorization when possible, kind of like how the Game Boy Color does with non-color games. Sprites are blue and green-tinted (since there are 2 internal sprite palettes), the background is monochrome, and the "window" overlay is red/pink. In Super Game Boy mode, most games provide a themed backdrop, and this emulator supports displaying that.
+Display output composites the video roughly correctly, although sprite priority isn't quite right. On real hardware, it's possible to modify certain display registers during rendering. I don't support sub-line rendering changes, right now. The emulator does a partial colorization when possible (and when the palette is set correctly), kind of like how the Game Boy Color does with non-color games. Sprites are blue and green-tinted (since there are 2 internal sprite palettes), the background is monochrome, and the "window" overlay is red/pink. In Super Game Boy mode, most games provide a themed backdrop, and this emulator supports displaying that.
 
 ### Super GameBoy
 
@@ -85,6 +87,10 @@ There won't ever be full support; full support would mean implementing a full SN
 ### GameBoy Camera
 
 If you specify "CAMERA=yes" when compiling, and have OpenCV dev headers installed, the Camera mapper will try to capture images from the first V4L2 device, emulating the Mitsubishi M64282FP camera used in the Game Boy Camera. It supports the dithering/quantization registers (contrast) and the exposure registers (brightness), which is enough to support the options used by the Game Boy Camera software. There are options that the camera module supports, and that the mapper provides access to, but that the Camera never used. I'm not supporting those options, for the time being.
+
+### GameBoy Printer
+
+Can't have the camera without the printer, right? When the printer receives the appropriate commands, it will output a PNG file that should contain the image that would come out of an actual GameBoy printer (it just numbers the file, but it tells you the number of the file that it output). I haven't added image decompression yet (so games that require it will behave unpredictably), but most games write their pictures as decompressed data anyhow.
 
 ## Far Future
 
