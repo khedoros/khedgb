@@ -75,7 +75,7 @@ private:
     uint64_t dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle);
     uint64_t cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle);
     std::function<uint64_t(int, uint64_t, uint64_t)> render;
-    void get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixels);
+    void get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixels, int bank=0);
     uint32_t map_bg_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_win_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_oam1_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);

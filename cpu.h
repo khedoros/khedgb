@@ -55,6 +55,7 @@ private:
     bool trace;            //Activate CPU trace output
     bool cgb;              //Run in CGB mode
     bool high_speed;       //Run in CGB high-speed mode
+    int speed_mult;
 };
 
 

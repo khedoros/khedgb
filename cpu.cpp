@@ -41,6 +41,7 @@ cpu::cpu(memmap * b, bool cgb_mode, bool has_firmware/*=false*/): bus(b),
     halted = false;
     halt_bug = false;
     stopped = false;
+    speed_mult = 2;
     cycle = 0;//16416; //Start in VBlank
     af.pair=0;
     bc.pair=0;
@@ -69,13 +70,13 @@ cpu::cpu(memmap * b, bool cgb_mode, bool has_firmware/*=false*/): bus(b),
 }
 
 uint64_t cpu::run(uint64_t run_to) {
-    assert(cycle < run_to);
+    assert(cycle/2 < run_to);
     uint32_t opcode=0;
     bool running=true;
     uint64_t cycles=0;
     while(running) {
         bus->read(pc, &opcode, 4, cycle);
-        cycles = dec_and_exe(opcode);
+        cycles = speed_mult * dec_and_exe(opcode);
         if(!cycles) {
             std::cout<<"No idea what to do with opcode "<<std::hex<<int(opcode)<<"."<<std::endl;
             running = false;
@@ -83,8 +84,8 @@ uint64_t cpu::run(uint64_t run_to) {
         }
         cycle+=cycles;
         //114 CPU cycles per line, 154 lines per frame. CPU runs at 1024*1024 Hz, gives a framerate around 59.7Hz.
-        if(cycle >= run_to) {
-            return cycle;
+        if(cycle/2 >= run_to) {
+            return cycle/2;
         }
     }
     return -1; //shouldn't reach this, as currently written
@@ -244,10 +245,12 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                         if(high_speed) {
                             extra_cycles = 32;
                             high_speed = false;
+                            speed_mult = 2;
                         }
                         else {
                             extra_cycles = 16;
                             high_speed = true;
+                            speed_mult = 1;
                         }
                     }
                     else {

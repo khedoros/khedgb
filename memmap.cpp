@@ -74,13 +74,14 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
         for(int i=0;i<size;i++) {
             read(addr+i, (uint8_t *)val + i, 1, cycle + i);
         }
+        return;
     }
+    uint64_t cycle2=(cycle>>1);
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
-    if(addr >= 0 && addr < 0x8000) { //Cartridge 0x0000-0x7fff
+
+    //CARTRIDGE AND RAM
+    if(addr < 0x8000) { //Cartridge 0x0000-0x7fff
         cart.read(addr, val, size, cycle);
-    }
-    else if (addr >= 0x8000 && addr < 0xa000) { //VRAM 0x8000-0x9fff
-        screen.read(addr, val, size, cycle);//memcpy(val, &(vram[addr-0x8000]), size);
     }
     else if (addr >= 0xa000 && addr < 0xc000) { //External RAM 0xa000-0xbfff
         cart.read(addr, val, size, cycle);
@@ -92,8 +93,13 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
     else if ((addr >= 0xd000 && addr < 0xe000) || (addr >= 0xf000 && addr < 0xfe00)) { //28KB of memory in 7 banks, d000-dfff, then a partial mirror of it f000-fdff
         memcpy(val, &(wram[(addr & 0xfff) + wram_bank * 0x1000]), size);
     }
+
+
+    else if (addr >= 0x8000 && addr < 0xa000) { //VRAM 0x8000-0x9fff
+        screen.read(addr, val, size, cycle2);//memcpy(val, &(vram[addr-0x8000]), size);
+    }
     else if (addr >= 0xfe00 && addr < 0xfea0) {
-        screen.read(addr, val, size, cycle);
+        screen.read(addr, val, size, cycle2);
     }
     else if (addr >= 0xfea0 && addr < 0xff00) {
         //"Not useable" RAM area; apparently returns 0 on DMG, 0 and random values on CGB
@@ -154,27 +160,26 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
         case 0xff4d: //CGB KEY1 speed switch register
             //TODO: Implement speed switching (bit 7: current speed, bit 0: request switch)
             *((uint8_t *)val) = (0 | (be_speedy * 0x80));
-            printf("Read from unimplemented KEY1 speed switch register\n");
+            //printf("Read from unimplemented KEY1 speed switch register\n");
             break;
         case 0xff4f: //VBK (CGB VRAM bank)
-            //TODO:CGB
-            printf("Read from CGB VRAM bank register\n");
-            screen.read(addr, val, size, cycle);
+            //printf("Read from CGB VRAM bank register\n");
+            screen.read(addr, val, size, cycle2);
             break;
         case 0xff51: //TODO: Implement the 5 HDMA registers
-            printf("Read from CGB HDMA1 (DMA source, high byte)\n");
+            //printf("Read from CGB HDMA1 (DMA source, high byte)\n");
             *((uint8_t *)val) = hdma_src_hi;
             break;
         case 0xff52:
-            printf("Read from CGB HDMA2 (DMA source, low byte)\n");
+            //printf("Read from CGB HDMA2 (DMA source, low byte)\n");
             *((uint8_t *)val) = hdma_src_lo;
             break;
         case 0xff53:
-            printf("Read from CGB HDMA3 (DMA destination, high byte)\n");
+            //printf("Read from CGB HDMA3 (DMA destination, high byte)\n");
             *((uint8_t *)val) = hdma_dest_hi;
             break;
         case 0xff54:
-            printf("Read from CGB HDMA4 (DMA destination, low byte)\n");
+            //printf("Read from CGB HDMA4 (DMA destination, low byte)\n");
             *((uint8_t *)val) = hdma_dest_lo;
             break;
         case 0xff55:
@@ -189,7 +194,6 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             }
             printf("Read from CGB HDMA5 (DMA length/mode/start): %02x\n", *(uint8_t *)val);
             break;
-
         case 0xff56: //CGB infrared communication port
             //TODO: Write it, after CGB, and probably along with serial support.
             //bit0: write data (RW), bit1: read data (RO), bit6+7 data read enable (3=enable)
@@ -201,23 +205,26 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
                 //BIT0-5 are the byte index. byte 0 is pal0/col0/lsb, byte 63 is pal7/col3/msb (8 pals, 4 colors, 2 bytes = 64 bytes)
                 //BIT7 says whether to increment address on write.
                 printf("Read from CGB BG palette index\n");
-                *(uint8_t *)val = 0;
+                screen.read(addr, val, size, cycle2);
+                //*(uint8_t *)val = 0;
                 break;
         case 0xff69:
                 //Writes data to specified palette byte
                 printf("Read from CGB BG palette data port\n");
-                *(uint8_t *)val = 0;
+                screen.read(addr, val, size, cycle2);
+                //*(uint8_t *)val = 0;
                 break;
         case 0xff6a:
                 //OBJ palettes work the same as BG palettes.
                 printf("Write to CGB OBJ palette index\n");
-                *(uint8_t *)val = 0;
+                screen.read(addr, val, size, cycle2);
+                //*(uint8_t *)val = 0;
                 break;
         case 0xff6b:
                 printf("Read from CGB OBJ palette data port\n");
-                *(uint8_t *)val = 0;
+                screen.read(addr, val, size, cycle2);
+                //*(uint8_t *)val = 0;
                 break;
-
         case 0xff70: //CGB WRAM size switch
             if(!cgb) {
                 *((uint8_t *)val) = 0;
@@ -230,10 +237,10 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
         default:
             if(addr > 0xff0f && addr <= 0xff3f) {
                 //std::cout<<"Read from audio hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
-                *((uint8_t *)val) = sound.read(addr, cycle);
+                *((uint8_t *)val) = sound.read(addr, cycle2);
             }
             else if(addr > 0xff3f && addr < 0xff4c) {
-                screen.read(addr, val, size, cycle);
+                screen.read(addr, val, size, cycle2);
                 //std::cout<<"Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             }
             else if(addr > 0xff4e && addr < 0xff6c) {
@@ -264,14 +271,16 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
         for(int i=0;i<size;i++) {
             write(addr+i, (uint8_t *)val + i, 1, cycle + i);
         }
+        return;
     }
+    uint64_t cycle2 = cycle / 2;
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
     if(addr >= 0 && addr < 0x8000) { //Cartridge ROM
         //std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (mappers not implemented yet)"<<std::endl;
         cart.write(addr,val,size,cycle);
     }
     else if (addr >= 0x8000 && addr < 0xa000) { //Video RAM
-        screen.write(addr, val, size, cycle);
+        screen.write(addr, val, size, cycle2);
         //memcpy(&(vram[addr-0x8000]), val, size);
     }
     else if (addr >= 0xa000 && addr < 0xc000) { //Cartridge RAM
@@ -282,7 +291,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
         memcpy(&(wram[addr&0x1fff]), val, size);
     }
     else if (addr >= 0xfe00 && addr < 0xfea0) { //OAM memory
-        screen.write(addr, val, size, cycle);
+        screen.write(addr, val, size, cycle2);
     }
     else if (addr >= 0xff00 && addr < 0xff80) { //Hardware IO area
         switch(addr) {
@@ -322,7 +331,6 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 else {
                     //printf("\n");
                 }
-
                 break;
             case 0xff01: //Fake implementation, for serial output from Blarg roms
                 link_data = *((uint8_t *)val);
@@ -351,7 +359,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff04:
                 div = 0;
-                printf("Write to div hardware: 0x%04x = 0x%02x, at cycle %ld (DIV set to 0)\n", addr, *(uint8_t *)val, cycle);
+                //printf("Write to div hardware: 0x%04x = 0x%02x, at cycle %ld (DIV set to 0)\n", addr, *(uint8_t *)val, cycle);
                 break;
             case 0xff05:
                 timer = *(uint8_t *)val;
@@ -374,107 +382,114 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 int_requested.reg = *((uint8_t *)val);
                 //printf("Interrupts requested: %02X\n",int_requested.reg);
                 break;
-            case 0xff46: //OAM DMA, decomposed into a set of 
+            case 0xff46: //OAM DMA, decomposed into a set of individual writes
                 {
                     uint16_t src_addr = uint16_t(*((uint8_t *)val)) * 0x100;
                     if(src_addr < 0xf100) {
                         //dat is between 0x00 and 0xf1, so that covers: ROM (00 to 7f), vram (80 to 9f), cram (a0-bf), wram (c0-df), wram_echo (e0-f1)
-                        screen.dma(true, cycle, *((uint8_t *)val));
+                        screen.dma(true, cycle2, *((uint8_t *)val));
                         for(uint16_t dest_index = 0; dest_index < 0xa0; dest_index++) {
                             uint8_t data = 0;
-                            read(src_addr+dest_index, &data, 1, cycle + dest_index);
-                            screen.write(0xfe00 + dest_index, &data, 1, cycle + dest_index);
+                            read(src_addr+dest_index, &data, 1, cycle2 + dest_index);
+                            screen.write(0xfe00 + dest_index, &data, 1, cycle2 + dest_index);
                         }
-                        screen.dma(false, cycle + 0xa0, *((uint8_t *)val));
+                        screen.dma(false, cycle2 + 0xa0, *((uint8_t *)val));
                     }
                 }
                 break;
             case 0xff4d: //KEY1 Prepare speed switch
-                //TODO: CGB Stuff
-                printf("Write to CGB speed-switching register: %02x\n", *(uint8_t *)val);
-                if(*(uint8_t *)val & 0x01) feel_the_need = true;
+                //printf("Write to CGB speed-switching register: %02x\n", *(uint8_t *)val);
+                if(cgb && *(uint8_t *)val & 0x01) feel_the_need = true;
                 break;
             case 0xff4f: //VBK (CGB VRAM bank)
-                //TODO:CGB
-                printf("Write to CGB VRAM bank register: %02x\n", *(uint8_t *)val);
-                screen.write(addr, val, size, cycle);
+                //printf("Write to CGB VRAM bank register: %02x\n", *(uint8_t *)val);
+                screen.write(addr, val, size, cycle2);
                 break;
             case 0xff50: //disables CPU firmware
                 cart.write(addr,val,size,cycle);
                 break;
             case 0xff51: //TODO: Implement the 5 HDMA registers
-                printf("Write to CGB HDMA1 (DMA source, high byte): %02x\n", *(uint8_t *)val);
+                //printf("Write to CGB HDMA1 (DMA source, high byte): %02x\n", *(uint8_t *)val);
                 hdma_src_hi = *(uint8_t *)val;
                 break;
             case 0xff52:
-                printf("Write to CGB HDMA2 (DMA source, low byte): %02x\n", *(uint8_t *)val);
+                //printf("Write to CGB HDMA2 (DMA source, low byte): %02x\n", *(uint8_t *)val);
                 hdma_src_lo = *(uint8_t *)val;
                 break;
             case 0xff53:
-                printf("Write to CGB HDMA3 (DMA destination, high byte): %02x\n", *(uint8_t *)val);
+                //printf("Write to CGB HDMA3 (DMA destination, high byte): %02x\n", *(uint8_t *)val);
                 hdma_dest_hi = *(uint8_t *)val;
                 break;
             case 0xff54:
-                printf("Write to CGB HDMA4 (DMA destination, low byte): %02x\n", *(uint8_t *)val);
+                //printf("Write to CGB HDMA4 (DMA destination, low byte): %02x\n", *(uint8_t *)val);
                 hdma_dest_lo = *(uint8_t *)val;
                 break;
             case 0xff55:
-                printf("Write to CGB HDMA5 (DMA length/mode/start): %02x\n", *(uint8_t *)val);
-                if(hdma_hblank && (0x80 & *(uint8_t *)val) == 0x80) {//Starting new general HDMA
+                if(!cgb) break;
+                printf("Write to CGB HDMA5 (DMA length/mode/start): ");
+                if(hdma_hblank && (0x80 & *(uint8_t *)val) == 0x80) {//Re-start paused HDMA-hb
                     hdma_running = true;
+                    printf("restart paused HDMA-hb\n");
                 }
                 else {
                     if((0x80 & *(uint8_t *)val) == 0x80) {
                         hdma_hblank = true;
-                        hdma_last_mode = 0;
+                        hdma_last_mode = screen.get_mode(cycle2);
+                        printf("start HDMA-hb, ");
                     }
                     else {
                         hdma_general = true;
+                        printf("start HDMA-gen, ");
                     }
                     hdma_running = true;
                     hdma_chunks = ((*(uint8_t *)val) & 0x7f) + 1;
                     hdma_src = ((uint16_t(hdma_src_hi)<<8 | hdma_src_lo) & 0xfff0);
                     hdma_dest = ((uint16_t(hdma_dest_hi)<<8 | hdma_dest_lo) & 0xfff0);
+                    printf("copy %d blocks from %04x to %04x\n", hdma_chunks, hdma_src, hdma_dest);
                 }
                 break;
             case 0xff56: //CGB IR Comm register
+                if(!cgb) break;
                 //bit0: write data (RW), bit1: read data (RO), bit6+7 data read enable (3=enable)
                 printf("Write to CGB IR port: %02x\n", *(uint8_t *)val);
                 break;
             case 0xff68:
-                //TODO: CGB palette stuff.
+                if(!cgb) break;
                 //BIT0-5 are the byte index. byte 0 is pal0/col0/lsb, byte 63 is pal7/col3/msb (8 pals, 4 colors, 2 bytes = 64 bytes)
                 //BIT7 says whether to increment address on write.
-                printf("Write to CGB BG palette index: %02x\n", *(uint8_t *)val);
+                //printf("Write to CGB BG palette index: %02x\n", *(uint8_t *)val);
+                screen.write(addr, val, size, cycle2);
                 break;
             case 0xff69:
+                if(!cgb) break;
                 //Writes data to specified palette byte
-                printf("Write to CGB BG palette data port: %02x\n", *(uint8_t *)val);
+                //printf("Write to CGB BG palette data port: %02x\n", *(uint8_t *)val);
+                screen.write(addr, val, size, cycle2);
                 break;
             case 0xff6a:
+                if(!cgb) break;
                 //OBJ palettes work the same as BG palettes.
-                printf("Write to CGB OBJ palette index: %02x\n", *(uint8_t *)val);
+                //printf("Write to CGB OBJ palette index: %02x\n", *(uint8_t *)val);
+                screen.write(addr, val, size, cycle2);
                 break;
             case 0xff6b:
-                printf("Write to CGB OBJ palette data port: %02x\n", *(uint8_t *)val);
+                if(!cgb) break;
+                //printf("Write to CGB OBJ palette data port: %02x\n", *(uint8_t *)val);
+                screen.write(addr, val, size, cycle2);
                 break;
             case 0xff70: //CGB WRAM page switch
-                //TODO: Implement as part of CGB support
-                if(cgb) {
-                    wram_bank = ((*(uint8_t *)val) & 7);
-                    if(!wram_bank) wram_bank = 1;
-                }
-                else {
-                    printf("Write to CGB WRAM page setting: %02x\n", *(uint8_t *)val);
-                }
+                if(!cgb) break;
+                wram_bank = ((*(uint8_t *)val) & 7);
+                if(!wram_bank) wram_bank = 1;
+                //printf("Write to CGB WRAM page setting: %02x\n", *(uint8_t *)val);
                 break;
             default:
                 if(addr > 0xff0f && addr <= 0xff3f) {
                     //std::cout<<"Write to audio hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
-                    sound.write(addr, *(uint8_t *)val, cycle);
+                    sound.write(addr, *(uint8_t *)val, cycle2);
                 }
                 else if(addr > 0xff3f && addr < 0xff4c) {
-                    screen.write(addr, val, size, cycle);
+                    screen.write(addr, val, size, cycle2);
                     if(addr == 0xff40) screen_status = *(uint8_t *)val;
                     //std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                 }
@@ -597,17 +612,18 @@ INT_TYPE memmap::get_interrupt() {
 //Update any interrupt states that are dependent on time
 void memmap::update_interrupts(uint64_t cycle) {
     uint64_t time_diff = cycle - last_int_check;
+    uint64_t cycle2 = (cycle>>1);
     //uint8_t enabled = 0;
     //screen.read(0xff40, &enabled, 1, cycle);
     //We aren't still in previously-seen vblank, we *are* in vblank, and the screen is enabled
-    if(!int_requested.vblank && cycle > last_int_cycle + 1140 && screen.get_mode(cycle) == 1 && ((screen_status&0x80) > 0)) {
+    if(!int_requested.vblank && cycle > last_int_cycle + 1140 && screen.get_mode(cycle2) == 1 && ((screen_status&0x80) > 0)) {
         int_requested.vblank = 1;
         last_int_cycle = cycle; 
         //printf("INT: vbl set active @ cycle %ld\n", cycle);
     }
 
     //LCDSTAT
-    if(!int_requested.lcdstat && screen.interrupt_triggered(cycle)) {
+    if(!int_requested.lcdstat && screen.interrupt_triggered(cycle2)) {
         int_requested.lcdstat = 1;
         //printf("INT: lcdstat set active @ cycle %ld\n", cycle);
     }
@@ -1014,7 +1030,14 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
 }
 
 void memmap::speed_switch() {
+    if(be_speedy) {
+        printf("Switch from fast to slow\n");
+    }
+    else {
+        printf("Switch from slow to fast\n");
+    }
     be_speedy = !be_speedy;
+    feel_the_need = false; //Don't feel the need for speed
 }
 
 bool memmap::needs_color() {
@@ -1034,13 +1057,15 @@ bool memmap::set_color() {
 }
 
 uint64_t memmap::handle_hdma(uint64_t cycle) {
+    uint64_t cycle2 = (cycle>>1);
     if(!hdma_running) return 0;
     uint8_t val = 0;
     if(hdma_general) {
+        printf("\t HDMA-gen: transfer %d from %04x to %04x @ %ld\n", hdma_chunks, hdma_src, hdma_dest, cycle);
         for(int c = 0; c <= hdma_chunks; c++) {
             for(int byte=0;byte<16;byte++) {
-                read(hdma_src + byte + c * 16, &val, 1, cycle + byte/2 + c*8);
-                write(hdma_dest + byte + c * 16, &val, 1, cycle + byte/2 + c*8);
+                read(hdma_src + c * 16 + byte, &val, 1, cycle + byte/2 + c*8);
+                write(hdma_dest + c * 16 + byte, &val, 1, cycle2 + byte/2 + c*8);
             }
         }
         hdma_general = false;
@@ -1048,20 +1073,21 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
         hdma_src_hi = 0xff;
         hdma_src_lo = 0xff;
         hdma_dest_hi = 0xff;
+        hdma_dest_lo = 0xff;
         if(be_speedy) {
             return 16 * hdma_chunks;
         }
         else {
             return 8 * hdma_chunks;
         }
-       hdma_dest_lo = 0xff;
     }
     else if(hdma_hblank) {
-        uint8_t mode = screen.get_mode(cycle);
+        printf("\t HDMA-hb: transfer 16 from %04x to %04x @ %ld\n", hdma_src, hdma_dest, cycle);
+        uint8_t mode = screen.get_mode(cycle2);
         if(hdma_last_mode != 0 && mode == 0) {
              for(int byte=0;byte<16;byte++) {
                 read(hdma_src + byte, &val, 1, cycle + byte/2);
-                write(hdma_dest + byte, &val, 1, cycle + byte/2);
+                write(hdma_dest + byte, &val, 1, cycle2 + byte/2);
             }
             hdma_src += 0x10;
             hdma_dest += 0x10;
@@ -1073,8 +1099,8 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
                 hdma_src_lo = 0xff;
                 hdma_dest_hi = 0xff;
             }
+            hdma_last_mode = mode;
         }
-        hdma_last_mode = mode;
         if(be_speedy) {
             return 16 * hdma_chunks;
         }

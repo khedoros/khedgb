@@ -188,7 +188,7 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
     if(addr >= 0x8000 && addr < 0xa000) {
         uint8_t prev = vram[vram_bank][addr&0x1fff];
         vram[vram_bank][addr & 0x1fff] = val;
-        if(addr < 0x9800 && vram_bank == 0 && prev != val) {
+        if(addr < 0x9800 && prev != val) {
             update_row_cache(addr);
         }
     }
@@ -263,10 +263,10 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                     else {
                         cgb_bgpal[pal][col].high = val;
                     }
-                    sys_bgpal[pal][col] = SDL_MapRGB(buffer->format, cgb_bgpal[pal][col].red * 8, cgb_bgpal[pal][col].green, cgb_bgpal[pal][col].blue);
+                    sys_bgpal[pal][col] = SDL_MapRGB(buffer->format, cgb_bgpal[pal][col].red * 8, cgb_bgpal[pal][col].green * 8, cgb_bgpal[pal][col].blue * 8);
                     if(cgb_bgpal_advance) {
                         cgb_bgpal_index++;
-                        cgb_bgpal_index %= 0x3f;
+                        cgb_bgpal_index &= 0x3f;
                     }
                 }
                 break;
@@ -285,10 +285,10 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                     else {
                         cgb_objpal[pal][col].high = val;
                     }
-                    sys_obj1pal[pal][col] = SDL_MapRGB(buffer->format, cgb_objpal[pal][col].red * 8, cgb_objpal[pal][col].green, cgb_objpal[pal][col].blue);
+                    sys_obj1pal[pal][col] = SDL_MapRGB(buffer->format, cgb_objpal[pal][col].red * 8, cgb_objpal[pal][col].green * 8, cgb_objpal[pal][col].blue * 8);
                     if(cgb_objpal_advance) {
                         cgb_objpal_index++;
-                        cgb_objpal_index %= 0x3f;
+                        cgb_objpal_index &= 0x3f;
                     }
                 }
                 break;
@@ -306,7 +306,7 @@ void lcd::update_row_cache(uint16_t addr) {
     addr -= 0x8000;
     int tilenum = addr / 16;
     int row = (addr / 2) % 8;
-    int index = tilenum * 8 + row;
+    int index = vram_bank * 3072 + tilenum * 8 + row;
     int data_base = tilenum * 16 + row * 2;
     int b1 = vram[vram_bank][data_base];
     int b2 = vram[vram_bank][data_base + 1];
@@ -338,12 +338,6 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
             timing_queue.emplace_back(util::cmd{line,line_cycle,0,0});
         }
-        if(addr >= 0x9800) {
-            //printf("PPU BGMAP %04x = %02x @ %d\n", addr, *(uint8_t *)val, cycle);
-        }
-        //else {
-        //    printf("PPU: Cycle %010ld Denied write during mode   3: 0x%04x = 0x%02x\n", cycle, addr, *((uint8_t *)val));
-        //}
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
         if(get_mode(cycle) < 2 || !cpu_control.display_enable || cpu_during_dma) {
@@ -670,7 +664,7 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
     return;
 }
 
-void lcd::get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixels) {
+void lcd::get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixels, int bank/*=0*/) {
 #ifdef UNCACHED
     assert(tilenum < 384); assert(row < 16); assert(pixels.size() == 8);
     int addr = tilenum * 16 + row * 2;
@@ -684,7 +678,7 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixe
     }
     return;
 #else
-    int index = tilenum * 8 + row;
+    int index = vram_bank * 3072 + tilenum * 8 + row;
     if(reverse) {
         std::copy(row_cache[index].begin(), row_cache[index].end(), pixels.rbegin());
     } else {
@@ -1036,7 +1030,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     if(!control.tile_addr_mode) {
                         tile_num = 256 + int8_t(tile_num);
                     }
-                    get_tile_row(tile_num, y_tile_pix, a.xflip, tile_line);
+                    get_tile_row(tile_num, y_tile_pix, a.xflip, tile_line, a.char_bank);
                     unloaded = false;
                 }
 
@@ -1056,21 +1050,19 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 int tile_y = win_y / 8;
                 int y_tile_pix = win_y % 8;
                 for(int tile_x = 0; tile_x * 8 + win_scroll_x - 7 < SCREEN_WIDTH; tile_x++) {
-                    int tile_num = vram[vram_bank][winbase+tile_y*32+tile_x];
+                    int tile_num = vram[0][winbase+tile_y*32+tile_x];
+                    bg_attrib a{.val = vram[1][winbase+tile_y*32+tile_x]};
+                    pal_index = a.palette;
                     if(!control.tile_addr_mode) {
                         tile_num = 256+int8_t(tile_num);
                     }
-                    get_tile_row(tile_num, y_tile_pix, false, tile_line);
+                    get_tile_row(tile_num, y_tile_pix, a.xflip, tile_line, a.char_bank);
                     for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 - 7 < SCREEN_WIDTH; x_tile_pix++) {
                         int ycoord = tile_y * 8 + y_tile_pix + win_scroll_y;
                         int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
 
-                        if(xcoord >= 0 && xcoord < SCREEN_WIDTH) {
-                            pal_index = sgb_attrs[(ycoord/8)*SCREEN_TILE_WIDTH+xcoord/8];
-                        }
-
                         if(output_sdl && xcoord >= 0) {
-                            pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_winpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
+                            pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_winpal[pal_index][tile_line[x_tile_pix]];
                             bgmap[xcoord] = tile_line[x_tile_pix];
                         }
                     }
@@ -1086,6 +1078,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 int sprite_y = sprite_dat.ypos - 16;
                 int sprite_x = sprite_dat.xpos - 8;
                 uint8_t tile = oam[spr*4+2];
+                pal_index = sprite_dat.palnum_cgb;
 
                 int sprite_size = 8 + (control.sprite_size * 8);
 
@@ -1102,11 +1095,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 if(sprite_dat.yflip == 1) {
                     y_i = sprite_size - (y_i + 1);
                 }
-                get_tile_row(tile, y_i, sprite_dat.xflip, tile_line);
-
-                if(sprite_x >=0 && sprite_x < SCREEN_WIDTH) {
-                    pal_index = sgb_attrs[(render_line/8)*SCREEN_TILE_WIDTH+sprite_x/8];
-                }
+                get_tile_row(tile, y_i, sprite_dat.xflip, tile_line, sprite_dat.tilebank);
 
                 for(int x=0;x!=8;x++) {
                     uint8_t col = tile_line[x];
@@ -1120,12 +1109,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                         pal_index = sgb_attrs[(render_line/8)*SCREEN_TILE_WIDTH+sprite_x/8];
                     }
 
-                    if(sprite_dat.palnum_dmg) {
-                        color = sys_obj2pal[pal_index][obj2pal.pal[col]];
-                    }
-                    else {
-                        color = sys_obj1pal[pal_index][obj1pal.pal[col]];
-                    }
+                    color = sys_obj1pal[pal_index][col];
 
                     if(xcoord > 159 || xcoord < 0) continue;
 
@@ -1700,5 +1684,17 @@ std::string lcd::lcd_to_string(uint16_t addr, uint8_t val) {
 
 void lcd::cgb_enable() {
     cgb_mode = true;
+    cgb_bgpal_index = 0;  //ff68 bits 0-6
+    cgb_bgpal_advance = false;   //ff68 bit 7
+    cgb_objpal_index = 0; //ff6a bits 0-6
+    cgb_objpal_advance = false;  //ff6a bit 7
+
+    cpu_cgb_bgpal_index = 0;  //ff68 bits 0-6
+    cpu_cgb_bgpal_advance = false;  //ff6a bit 7
+    cpu_cgb_objpal_index = 0; //ff6a bits 0-6
+    cpu_cgb_objpal_advance = false;  //ff6a bit 7
+
+
+
     render = std::bind(&lcd::cgb_render, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 }
