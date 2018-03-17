@@ -5,6 +5,7 @@
 #include "util.h"
 #include<list>
 #include<string>
+#include<functional>
 
 /*
  * ff40: LCD control R/W (various settings)
@@ -43,7 +44,7 @@ const static int MODE_1_LENGTH = CYCLES_PER_LINE * (LINES_PER_FRAME - SCREEN_HEI
 
 class lcd {
 public:
-    lcd(bool cgb = false);
+    lcd();
     ~lcd();
     void write(int addr, void * val, int size, uint64_t cycle);
     void read(int addr, void * val, int size, uint64_t cycle);
@@ -63,6 +64,7 @@ public:
     void sgb_vram_transfer(uint8_t type);
     void sgb_set_mask_mode(uint8_t mode);
     void sgb_enable(bool enable);
+    void cgb_enable();
     void sgb_set_attrs(Arr<uint8_t, 360>& attrs);
     void sgb_set_attrib_from_file(uint8_t attr_file, bool cancel_mask);
     void sgb_pal_transfer(uint16_t pal0, uint16_t pal1, uint16_t pal2, uint16_t pal3, uint8_t attr_file, bool use_attr, bool cancel_mask);
@@ -70,7 +72,9 @@ public:
 private:
     void update_estimates(uint64_t cycle);
     void apply(int addr, uint8_t val, uint64_t index, uint64_t cycle);
-    uint64_t render(int frame, uint64_t start_cycle, uint64_t end_cycle);
+    uint64_t dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle);
+    uint64_t cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle);
+    std::function<uint64_t(int, uint64_t, uint64_t)> render;
     void get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixels);
     uint32_t map_bg_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
     uint32_t map_win_rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
@@ -151,9 +155,9 @@ private:
     //First dimension is palette number. Second dimension is color number.
     //These are useful for both SGB and GBC palettes. Plain GB just uses the first, SGB uses the first 4, CGB can use all 8
     Arr<Arr<uint32_t, 4>, 8> sys_bgpal;
-    Arr<Arr<uint32_t, 4>, 8> sys_winpal;
+    Arr<Arr<uint32_t, 4>, 4> sys_winpal; //only for DMG/SGB
     Arr<Arr<uint32_t, 4>, 8> sys_obj1pal;
-    Arr<Arr<uint32_t, 4>, 8> sys_obj2pal;
+    Arr<Arr<uint32_t, 4>, 4> sys_obj2pal; //only for CGB
     unsigned int pal_index;
 
     uint8_t win_scroll_y;//0xff4a
@@ -291,4 +295,31 @@ private:
 
     uint8_t vram_bank;
     uint8_t cpu_vram_bank;
+
+    union bg_attrib {
+        struct {
+            unsigned palette:3;
+            unsigned char_bank:1;
+            unsigned unused:1;
+            unsigned xflip:1;
+            unsigned yflip:1;
+            unsigned priority:1;
+        };
+        uint8_t val;
+    };
+
+    uint8_t cgb_bgpal_index;  //ff68 bits 0-6
+    bool cgb_bgpal_advance;   //ff68 bit 7
+    uint8_t cgb_objpal_index; //ff6a bits 0-6
+    bool cgb_objpal_advance;  //ff6a bit 7
+
+    uint8_t cpu_cgb_bgpal_index;  //ff68 bits 0-6
+    bool cpu_cgb_bgpal_advance;  //ff6a bit 7
+    uint8_t cpu_cgb_objpal_index; //ff6a bits 0-6
+    bool cpu_cgb_objpal_advance;  //ff6a bit 7
+    Arr<uint8_t,64> cpu_cgb_bgpal; //ff69-accessed cpu mirror
+    Arr<uint8_t,64> cpu_cgb_objpal; //ff6b-accessed cpu mirror
+
+    Arr<Arr<sgb_color,4>,8> cgb_bgpal; //accessed from ff69
+    Arr<Arr<sgb_color,4>,8> cgb_objpal; //accessed from ff6b
 };

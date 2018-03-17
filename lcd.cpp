@@ -5,8 +5,8 @@
 #include<fstream>
 #include<string>
 
-lcd::lcd(bool cgb/*=false*/) : debug(false), during_dma(false), cycle(0), next_line(0), control{.val=0x00}, bg_scroll_y(0), bg_scroll_x(0), 
-             cgb_mode(cgb), bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, pal_index(0), 
+lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.val=0x00}, bg_scroll_y(0), bg_scroll_x(0), 
+             cgb_mode(false), bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, pal_index(0), 
              win_scroll_y(0), win_scroll_x(0), active_cycle(0), frame(0), 
              lyc_next_cycle(0), m0_next_cycle(0), m1_next_cycle(0), m2_next_cycle(0), 
              cpu_control{.val=0x00}, cpu_status(0), cpu_bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_lyc(0), cpu_dma_addr(0), 
@@ -25,6 +25,8 @@ lcd::lcd(bool cgb/*=false*/) : debug(false), during_dma(false), cycle(0), next_l
         fprintf(stderr, "Something failed while init'ing video.\n");
         return;
     }
+
+    render = std::bind(&lcd::dmg_render, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 
     buffer = SDL_CreateRGBSurface(0,SCREEN_WIDTH,SCREEN_HEIGHT,32,0,0,0,0);
 
@@ -186,7 +188,7 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
     if(addr >= 0x8000 && addr < 0xa000) {
         uint8_t prev = vram[vram_bank][addr&0x1fff];
         vram[vram_bank][addr & 0x1fff] = val;
-        if(addr < 0x9800 && prev != val) {
+        if(addr < 0x9800 && vram_bank == 0 && prev != val) {
             update_row_cache(addr);
         }
     }
@@ -245,6 +247,50 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                 break;
             case 0xff4f:
                 vram_bank = val;
+                break;
+            case 0xff68:
+                cgb_bgpal_index = (val & 0x3f);
+                cgb_bgpal_advance = ((val & 0x80) == 0x80);
+                break;
+            case 0xff69:
+                {
+                    uint8_t hilo = (cgb_bgpal_index & 1);
+                    uint8_t col = ((cgb_bgpal_index>>1) & 3);
+                    uint8_t pal = (cgb_bgpal_index >> 3);
+                    if(!hilo) { //low byte
+                        cgb_bgpal[pal][col].low = val;
+                    }
+                    else {
+                        cgb_bgpal[pal][col].high = val;
+                    }
+                    sys_bgpal[pal][col] = SDL_MapRGB(buffer->format, cgb_bgpal[pal][col].red * 8, cgb_bgpal[pal][col].green, cgb_bgpal[pal][col].blue);
+                    if(cgb_bgpal_advance) {
+                        cgb_bgpal_index++;
+                        cgb_bgpal_index %= 0x3f;
+                    }
+                }
+                break;
+            case 0xff6a:
+                cgb_objpal_index = (val & 0x3f);
+                cgb_objpal_advance = ((val & 0x80) == 0x80);
+                break;
+            case 0xff6b:
+                {
+                    uint8_t hilo = (cgb_objpal_index & 1);
+                    uint8_t col = ((cgb_objpal_index>>1) & 3);
+                    uint8_t pal = (cgb_objpal_index >> 3);
+                    if(!hilo) { //low byte
+                        cgb_objpal[pal][col].low = val;
+                    }
+                    else {
+                        cgb_objpal[pal][col].high = val;
+                    }
+                    sys_obj1pal[pal][col] = SDL_MapRGB(buffer->format, cgb_objpal[pal][col].red * 8, cgb_objpal[pal][col].green, cgb_objpal[pal][col].blue);
+                    if(cgb_objpal_advance) {
+                        cgb_objpal_index++;
+                        cgb_objpal_index %= 0x3f;
+                    }
+                }
                 break;
             default:
                 printf("Ignoring 0x%04x = %02x @ %ld\n", addr, val, cycle);
@@ -454,6 +500,32 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_vram_bank = *((uint8_t *)val);
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
+            case 0xff68:
+                cpu_cgb_bgpal_index = (*((uint8_t *)val) & 0x3f);
+                cpu_cgb_bgpal_advance = ((*((uint8_t *)val) & 0x80) == 0x80);
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                break;
+            case 0xff69:
+                cpu_cgb_bgpal[cpu_cgb_bgpal_index] = *(uint8_t *)val;
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                if(cpu_cgb_bgpal_advance) {
+                    cpu_cgb_bgpal_index++;
+                    cpu_cgb_bgpal_index %= 0x3f;
+                }
+                break;
+            case 0xff6a:
+                cpu_cgb_objpal_index = (*((uint8_t *)val) & 0x3f);
+                cpu_cgb_objpal_advance = ((*((uint8_t *)val) & 0x80) == 0x80);
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                break;
+            case 0xff6b:
+                cpu_cgb_objpal[cpu_cgb_objpal_index] = *(uint8_t *)val;
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                if(cpu_cgb_objpal_advance) {
+                    cpu_cgb_objpal_index++;
+                    cpu_cgb_objpal_index %= 0x3f;
+                }
+                break;
             default:
                 std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         }
@@ -577,6 +649,18 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
             case 0xff4f:
                 *((uint8_t *)val) = cpu_vram_bank;
                 break;
+            case 0xff68:
+                *(uint8_t *)val = cpu_cgb_bgpal_index;
+                break;
+            case 0xff69:
+                *(uint8_t *)val = cpu_cgb_bgpal[cpu_cgb_bgpal_index];
+                break;
+            case 0xff6a:
+                *(uint8_t *)val = cpu_cgb_objpal_index;
+                break;
+            case 0xff6b:
+                *(uint8_t *)val = cpu_cgb_objpal[cpu_cgb_objpal_index];
+                break;
             default:
                 std::cout<<"PPU: Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
                 *((uint8_t *)val) = 0xff;
@@ -609,7 +693,7 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixe
 #endif
 }
 
-uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
+uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
     if(!control.display_enable) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
@@ -866,6 +950,219 @@ uint64_t lcd::render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
     }
 
+    return output_cycle;
+}
+
+uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
+    if(!control.display_enable) {
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderClear(renderer);
+        return 0;
+    }
+
+    //printf("Raw: start cycle: %lld end: %lld\n", start_cycle, end_cycle);
+
+    uint64_t start_frame_cycle = (start_cycle - active_cycle) % 17556;
+    uint64_t start_frame_line = start_frame_cycle / CYCLES_PER_LINE;
+    if(get_mode(start_cycle, true) == 0) { //output from that line has gone to the screen already
+        start_frame_line++;
+    }
+
+    uint64_t end_frame_cycle = (end_cycle - active_cycle) % 17556;
+    uint64_t end_frame_line = end_frame_cycle / CYCLES_PER_LINE;
+    if(get_mode(end_cycle, true) >= 2) { //output from that line *hasn't* gone to the screen yet
+        end_frame_line--;
+    }
+
+    if(end_frame_line > 153) return 0;
+    if(end_frame_line < start_frame_line && end_frame_cycle - start_frame_cycle >= CYCLES_PER_LINE) {
+        end_frame_line+=LINES_PER_FRAME;
+    }
+
+    bool output_sdl = true;
+    uint64_t output_cycle = 0;
+
+    Arr<uint8_t, 8> tile_line;
+
+    uint32_t * pixels = NULL;
+
+    Vect<uint8_t> bgmap(SCREEN_WIDTH, 0);
+
+    if(!screen||!texture||!renderer) {
+        printf("PPU: problem!\n");
+        output_sdl = false;
+    }
+    else {
+        pixels = ((uint32_t *)buffer->pixels);
+    }
+
+    //printf("Render starting conditions: startline: %lld endline: %lld\n", start_frame_line, end_frame_line);
+    for(unsigned int line=start_frame_line;line <= end_frame_line; line++) {
+        //printf("Running line: %d\n", line);
+        int render_line = line % LINES_PER_FRAME;
+        if(debug && render_line == 153 && output_sdl) {
+            draw_debug_overlay();
+            continue;
+        }
+        else if(render_line > LAST_RENDER_LINE) continue;
+
+        //Draw the background
+        if(control.priority) { //cpu_controls whether the background displays, in regular DMG mode
+            if(output_sdl && start_frame_line == 0) { //Draw the background color
+                SDL_SetRenderDrawColor(renderer, cgb_bgpal[0][0].red * 8, cgb_bgpal[0][0].green, cgb_bgpal[0][0].blue, 255);
+                SDL_RenderClear(renderer);
+            }
+
+            uint32_t bgbase = 0x1800 + 0x400 * control.bg_map;
+
+            int y_in_pix = (render_line + bg_scroll_y) & 0xff;
+            int y_tile = y_in_pix / 8;
+            int y_tile_pix = y_in_pix % 8;
+
+            bool unloaded = true;
+            int tile_num = 0;
+
+            for(int x_out_pix = 0; x_out_pix < SCREEN_WIDTH; x_out_pix++) {
+                int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
+                int x_tile = x_in_pix / 8;
+                int x_tile_pix = x_in_pix % 8;
+
+                bg_attrib a{.val = vram[1][bgbase+y_tile*32+x_tile]};
+
+                pal_index = a.palette;
+
+                if(x_tile_pix == 0 || unloaded) {
+                    tile_num = vram[0][bgbase+y_tile*32+x_tile];
+                    if(!control.tile_addr_mode) {
+                        tile_num = 256 + int8_t(tile_num);
+                    }
+                    get_tile_row(tile_num, y_tile_pix, a.xflip, tile_line);
+                    unloaded = false;
+                }
+
+                if(output_sdl /*&& c != 0*/) {
+                    pixels[render_line * SCREEN_WIDTH + x_out_pix] = sys_bgpal[pal_index][tile_line[x_tile_pix]];
+                    bgmap[x_out_pix] = tile_line[x_tile_pix];
+                }
+            }
+        }
+
+        //Draw the window
+        if(control.window_enable) {
+            uint32_t winbase = 0x1800 + 0x400 * control.window_map;
+
+            int win_y = (render_line - win_scroll_y);
+            if(win_y >= 0) {
+                int tile_y = win_y / 8;
+                int y_tile_pix = win_y % 8;
+                for(int tile_x = 0; tile_x * 8 + win_scroll_x - 7 < SCREEN_WIDTH; tile_x++) {
+                    int tile_num = vram[vram_bank][winbase+tile_y*32+tile_x];
+                    if(!control.tile_addr_mode) {
+                        tile_num = 256+int8_t(tile_num);
+                    }
+                    get_tile_row(tile_num, y_tile_pix, false, tile_line);
+                    for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 - 7 < SCREEN_WIDTH; x_tile_pix++) {
+                        int ycoord = tile_y * 8 + y_tile_pix + win_scroll_y;
+                        int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
+
+                        if(xcoord >= 0 && xcoord < SCREEN_WIDTH) {
+                            pal_index = sgb_attrs[(ycoord/8)*SCREEN_TILE_WIDTH+xcoord/8];
+                        }
+
+                        if(output_sdl && xcoord >= 0) {
+                            pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_winpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
+                            bgmap[xcoord] = tile_line[x_tile_pix];
+                        }
+                    }
+                }
+            }
+        }
+
+        //Draw the sprites
+        if(control.sprite_enable && !during_dma) {
+            for(int spr = 0; spr < 40; spr++) {
+                oam_data sprite_dat;
+                memcpy(&sprite_dat, &oam[spr*4], 4);
+                int sprite_y = sprite_dat.ypos - 16;
+                int sprite_x = sprite_dat.xpos - 8;
+                uint8_t tile = oam[spr*4+2];
+
+                int sprite_size = 8 + (control.sprite_size * 8);
+
+                //If sprite isn't displayed on this line...
+                if(sprite_y > render_line || sprite_y + sprite_size <= render_line) {
+                    continue;
+                }
+
+                if(control.sprite_size) {
+                    tile &= 0xfe;
+                }
+
+                int y_i = render_line - sprite_y;
+                if(sprite_dat.yflip == 1) {
+                    y_i = sprite_size - (y_i + 1);
+                }
+                get_tile_row(tile, y_i, sprite_dat.xflip, tile_line);
+
+                if(sprite_x >=0 && sprite_x < SCREEN_WIDTH) {
+                    pal_index = sgb_attrs[(render_line/8)*SCREEN_TILE_WIDTH+sprite_x/8];
+                }
+
+                for(int x=0;x!=8;x++) {
+                    uint8_t col = tile_line[x];
+                    uint32_t color = 0;
+                    if(!col) continue;
+
+                    int xcoord = sprite_x + x;
+                    int ycoord = render_line;
+
+                    if(xcoord % 8 == 0 && xcoord >= 0 && xcoord < SCREEN_WIDTH) {
+                        pal_index = sgb_attrs[(render_line/8)*SCREEN_TILE_WIDTH+sprite_x/8];
+                    }
+
+                    if(sprite_dat.palnum_dmg) {
+                        color = sys_obj2pal[pal_index][obj2pal.pal[col]];
+                    }
+                    else {
+                        color = sys_obj1pal[pal_index][obj1pal.pal[col]];
+                    }
+
+                    if(xcoord > 159 || xcoord < 0) continue;
+
+                    if(xcoord >= 0 && xcoord < SCREEN_WIDTH && (bgmap[xcoord] == 0 || !sprite_dat.priority)) {
+                        pixels[ycoord * SCREEN_WIDTH + xcoord] = color;
+                    }
+                }
+            }
+
+        }
+
+        if(output_sdl && render_line == LAST_RENDER_LINE) {
+            if(prev_texture) {
+                SDL_DestroyTexture(prev_texture);
+                prev_texture = NULL;
+            }
+
+            if(texture) {
+                prev_texture = texture;
+            }
+
+            texture = SDL_CreateTextureFromSurface(renderer, buffer);
+
+            if(debug) {
+                SDL_Rect debug_space{CYCLES_PER_LINE,0,SCREEN_WIDTH,SCREEN_HEIGHT};
+                SDL_RenderCopy(renderer, texture, NULL, &debug_space);
+            }
+            else {
+                SDL_RenderCopy(renderer,texture,NULL,NULL);
+                SDL_RenderPresent(renderer);
+            }
+        }
+        if(render_line == LAST_RENDER_LINE) {
+            output_cycle = start_cycle - start_frame_cycle + (LAST_RENDER_LINE*CYCLES_PER_LINE) + MODE_2_LENGTH + MODE_3_LENGTH;
+            //printf("Outputting at cycle: %lld\n", output_cycle);
+        }
+    }
     return output_cycle;
 }
 
@@ -1399,4 +1696,9 @@ std::string lcd::lcd_to_string(uint16_t addr, uint8_t val) {
         }
     }
     return out;
+}
+
+void lcd::cgb_enable() {
+    cgb_mode = true;
+    render = std::bind(&lcd::cgb_render, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 }

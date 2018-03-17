@@ -1025,6 +1025,7 @@ bool memmap::set_color() {
     if(cart.color_firmware || !cart.firmware) {
         cgb = true;
         wram.resize(8 * 0x1000);
+        screen.cgb_enable();
         return true;
     }
 
