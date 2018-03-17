@@ -43,7 +43,7 @@ const static int MODE_1_LENGTH = CYCLES_PER_LINE * (LINES_PER_FRAME - SCREEN_HEI
 
 class lcd {
 public:
-    lcd();
+    lcd(bool cgb = false);
     ~lcd();
     void write(int addr, void * val, int size, uint64_t cycle);
     void read(int addr, void * val, int size, uint64_t cycle);
@@ -84,6 +84,7 @@ private:
 
     void draw_debug_overlay();
 
+    bool cgb_mode;
     bool debug;
     bool during_dma;
     bool cpu_during_dma;

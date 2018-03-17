@@ -51,6 +51,8 @@ public:
     bool needs_color();
     bool set_color();
     bool feel_the_need; //the need for speed (speed mode pending)
+
+    uint64_t handle_hdma(uint64_t cycle);
 private:
     lcd screen;
     apu sound;
@@ -138,8 +140,22 @@ private:
 
     uint8_t screen_status; //Cached copy of lcd control register, for interrupt checks
 
+    //Game Boy Color registers
     bool be_speedy; //Pretend CPU is in high-speed mode
     bool cgb;       //Is the emulated hardware a CGB?
+
+    uint8_t hdma_src_hi; //0xff51
+    uint8_t hdma_src_lo; //0xff52
+    uint8_t hdma_dest_hi; //0xff53
+    uint8_t hdma_dest_lo; //0xff54
+    bool hdma_hblank;  //hdma is selected, and is the HBlank variant (but it might be paused)
+    bool hdma_general; //hdma is running, and is the general-transfer variant
+    bool hdma_running;      //useful for differentiating between running+paused
+    uint8_t hdma_chunks;    //chunks remaining for the transfer
+    uint16_t hdma_src; //hmda source address
+    uint16_t hdma_dest; //hdma destination address
+    uint64_t hdma_last_mode; //last cycle that an HDMA-h transfer was started
+
 };
 /*
  * 0x0000-0x3FFF: Permanently-mapped ROM bank.

@@ -92,12 +92,12 @@ uint64_t cpu::run(uint64_t run_to) {
 
 uint64_t cpu::dec_and_exe(uint32_t opcode) {
     //"cycles" is the time that the CPU spent running this operation
+    //"retval" represents cycles too, but means that the function should return before executing any opcodes
     uint64_t cycles = 0;
-
+    uint64_t retval = 0;
     //Poll interrupts
     uint8_t int_flag = 0;
     uint8_t int_enable = 0;
-    uint64_t retval = 0;
     bus->update_interrupts(cycle);
     bus->read(0xff0f, &int_flag, 1, cycle);
     bus->read(0xffff, &int_enable, 1, cycle);
@@ -110,13 +110,12 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         }
         bool called = call_interrupts();
         if(called) {
-            cycles += 5;
+            retval += 5;
             if(was_halted) {
                 was_halted = false;
-                cycles++;
+                retval++;
                 //printf("YO: Exited halt due to interrupt call, expect to execute: %04x\n", pc);
             }
-            return cycles;
         }
     }
     //Interrupts disabled, interrupts are *pending*, but HALT was activated
@@ -154,8 +153,11 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     }
 
     if(retval) {
-        return retval;
+        return retval+cycles;
     }
+    
+    //Sleep for necessary time, if HDMA is in progress
+    cycles+=bus->handle_hdma(cycle);
 
     int bytes = 0;
     int prefix = 0;

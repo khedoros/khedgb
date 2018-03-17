@@ -163,23 +163,31 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             break;
         case 0xff51: //TODO: Implement the 5 HDMA registers
             printf("Read from CGB HDMA1 (DMA source, high byte)\n");
-            *((uint8_t *)val) = 0;
+            *((uint8_t *)val) = hdma_src_hi;
             break;
         case 0xff52:
             printf("Read from CGB HDMA2 (DMA source, low byte)\n");
-            *((uint8_t *)val) = 0;
+            *((uint8_t *)val) = hdma_src_lo;
             break;
         case 0xff53:
             printf("Read from CGB HDMA3 (DMA destination, high byte)\n");
-            *((uint8_t *)val) = 0;
+            *((uint8_t *)val) = hdma_dest_hi;
             break;
         case 0xff54:
             printf("Read from CGB HDMA4 (DMA destination, low byte)\n");
-            *((uint8_t *)val) = 0;
+            *((uint8_t *)val) = hdma_dest_lo;
             break;
         case 0xff55:
+            if(!hdma_running && !hdma_hblank) {
+                *((uint8_t *)val) = 0xff;
+            }
+            else if(!hdma_running && hdma_hblank) {
+                *((uint8_t *)val) = (0x80 | (hdma_chunks - 1));
+            }
+            else {
+                *((uint8_t *)val) = hdma_chunks - 1;
+            }
             printf("Read from CGB HDMA5 (DMA length/mode/start): %02x\n", *(uint8_t *)val);
-            *((uint8_t *)val) = 0;
             break;
 
         case 0xff56: //CGB infrared communication port
@@ -396,18 +404,38 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff51: //TODO: Implement the 5 HDMA registers
                 printf("Write to CGB HDMA1 (DMA source, high byte): %02x\n", *(uint8_t *)val);
+                hdma_src_hi = *(uint8_t *)val;
                 break;
             case 0xff52:
                 printf("Write to CGB HDMA2 (DMA source, low byte): %02x\n", *(uint8_t *)val);
+                hdma_src_lo = *(uint8_t *)val;
                 break;
             case 0xff53:
                 printf("Write to CGB HDMA3 (DMA destination, high byte): %02x\n", *(uint8_t *)val);
+                hdma_dest_hi = *(uint8_t *)val;
                 break;
             case 0xff54:
-                printf("Write to CGB HDMA4 (DMA destination, high byte): %02x\n", *(uint8_t *)val);
+                printf("Write to CGB HDMA4 (DMA destination, low byte): %02x\n", *(uint8_t *)val);
+                hdma_dest_lo = *(uint8_t *)val;
                 break;
             case 0xff55:
                 printf("Write to CGB HDMA5 (DMA length/mode/start): %02x\n", *(uint8_t *)val);
+                if(hdma_hblank && (0x80 & *(uint8_t *)val) == 0x80) {//Starting new general HDMA
+                    hdma_running = true;
+                }
+                else {
+                    if((0x80 & *(uint8_t *)val) == 0x80) {
+                        hdma_hblank = true;
+                        hdma_last_mode = 0;
+                    }
+                    else {
+                        hdma_general = true;
+                    }
+                    hdma_running = true;
+                    hdma_chunks = ((*(uint8_t *)val) & 0x7f) + 1;
+                    hdma_src = ((uint16_t(hdma_src_hi)<<8 | hdma_src_lo) & 0xfff0);
+                    hdma_dest = ((uint16_t(hdma_dest_hi)<<8 | hdma_dest_lo) & 0xfff0);
+                }
                 break;
             case 0xff56: //CGB IR Comm register
                 //bit0: write data (RW), bit1: read data (RO), bit6+7 data read enable (3=enable)
@@ -1002,6 +1030,58 @@ bool memmap::set_color() {
 
     //Return false if a DMG or SGB firmware was supplied
     return false;
+}
+
+uint64_t memmap::handle_hdma(uint64_t cycle) {
+    if(!hdma_running) return 0;
+    uint8_t val = 0;
+    if(hdma_general) {
+        for(int c = 0; c <= hdma_chunks; c++) {
+            for(int byte=0;byte<16;byte++) {
+                read(hdma_src + byte + c * 16, &val, 1, cycle + byte/2 + c*8);
+                write(hdma_dest + byte + c * 16, &val, 1, cycle + byte/2 + c*8);
+            }
+        }
+        hdma_general = false;
+        hdma_running = false;
+        hdma_src_hi = 0xff;
+        hdma_src_lo = 0xff;
+        hdma_dest_hi = 0xff;
+        if(be_speedy) {
+            return 16 * hdma_chunks;
+        }
+        else {
+            return 8 * hdma_chunks;
+        }
+       hdma_dest_lo = 0xff;
+    }
+    else if(hdma_hblank) {
+        uint8_t mode = screen.get_mode(cycle);
+        if(hdma_last_mode != 0 && mode == 0) {
+             for(int byte=0;byte<16;byte++) {
+                read(hdma_src + byte, &val, 1, cycle + byte/2);
+                write(hdma_dest + byte, &val, 1, cycle + byte/2);
+            }
+            hdma_src += 0x10;
+            hdma_dest += 0x10;
+            hdma_chunks--;
+            if(hdma_chunks == 0) {
+                hdma_hblank = false;
+                hdma_running = false;
+                hdma_src_hi = 0xff;
+                hdma_src_lo = 0xff;
+                hdma_dest_hi = 0xff;
+            }
+        }
+        hdma_last_mode = mode;
+        if(be_speedy) {
+            return 16 * hdma_chunks;
+        }
+        else {
+            return 8 * hdma_chunks;
+        }
+    }
+    return 0;
 }
 
 /*
