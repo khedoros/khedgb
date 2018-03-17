@@ -668,8 +668,8 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixe
 #ifdef UNCACHED
     assert(tilenum < 384); assert(row < 16); assert(pixels.size() == 8);
     int addr = tilenum * 16 + row * 2;
-    int b1 = vram[vram_bank][addr];
-    int b2 = vram[vram_bank][addr + 1];
+    int b1 = vram[bank][addr];
+    int b2 = vram[bank][addr + 1];
     for(int x = 0; x < 8; x++) {
         int x_i = x;
         if(reverse) x_i = 7 - x;
@@ -678,7 +678,7 @@ void lcd::get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixe
     }
     return;
 #else
-    int index = vram_bank * 3072 + tilenum * 8 + row;
+    int index = bank * 3072 + tilenum * 8 + row;
     if(reverse) {
         std::copy(row_cache[index].begin(), row_cache[index].end(), pixels.rbegin());
     } else {
@@ -1077,7 +1077,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 memcpy(&sprite_dat, &oam[spr*4], 4);
                 int sprite_y = sprite_dat.ypos - 16;
                 int sprite_x = sprite_dat.xpos - 8;
-                uint8_t tile = oam[spr*4+2];
+                uint8_t tile = sprite_dat.tile;
                 pal_index = sprite_dat.palnum_cgb;
 
                 int sprite_size = 8 + (control.sprite_size * 8);
@@ -1105,16 +1105,10 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     int xcoord = sprite_x + x;
                     int ycoord = render_line;
 
-                    if(xcoord % 8 == 0 && xcoord >= 0 && xcoord < SCREEN_WIDTH) {
-                        pal_index = sgb_attrs[(render_line/8)*SCREEN_TILE_WIDTH+sprite_x/8];
-                    }
-
-                    color = sys_obj1pal[pal_index][col];
-
                     if(xcoord > 159 || xcoord < 0) continue;
 
-                    if(xcoord >= 0 && xcoord < SCREEN_WIDTH && (bgmap[xcoord] == 0 || !sprite_dat.priority)) {
-                        pixels[ycoord * SCREEN_WIDTH + xcoord] = color;
+                    if(bgmap[xcoord] == 0 || !sprite_dat.priority) {
+                        pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_obj1pal[pal_index][col];
                     }
                 }
             }

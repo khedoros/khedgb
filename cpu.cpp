@@ -63,9 +63,9 @@ cpu::cpu(memmap * b, bool cgb_mode, bool has_firmware/*=false*/): bus(b),
         pc = 0x100;
         sp = 0xfffe;
         af.pair = 0x11b0;
-        bc.pair = 0x0013;
-        de.pair = 0x00d8;
-        hl.pair = 0x014d;
+        bc.pair = 0x0000;
+        de.pair = 0xff56;
+        hl.pair = 0x000d;
     }
 }
 
@@ -158,7 +158,12 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     }
     
     //Sleep for necessary time, if HDMA is in progress
+    uint64_t prev = cycles;
     cycles+=bus->handle_hdma(cycle);
+    if(cycles - prev > 0) {
+        printf("Reported sleeping for %d cycles\n", cycles - prev);
+        return cycles;
+    }
 
     int bytes = 0;
     int prefix = 0;

@@ -91,7 +91,8 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
         memcpy(val, &(wram[addr & 0xfff]), size);
     }
     else if ((addr >= 0xd000 && addr < 0xe000) || (addr >= 0xf000 && addr < 0xfe00)) { //28KB of memory in 7 banks, d000-dfff, then a partial mirror of it f000-fdff
-        memcpy(val, &(wram[(addr & 0xfff) + wram_bank * 0x1000]), size);
+        int tmpbank = wram_bank; if(!tmpbank) tmpbank = 1;
+        memcpy(val, &(wram[(addr & 0xfff) + tmpbank * 0x1000]), size);
     }
 
 
@@ -154,12 +155,12 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             //std::cout<<"Read from timer hardware (control): 0x"<<std::hex<<addr<<"= 0x"<<timer_control.val<<std::endl;
             break;
         case 0xff0f:
-            *((uint8_t *)val) = 0xe0 | int_requested.reg;
+            *((uint8_t *)val) = int_requested.reg;
             //std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(int_requested.reg)<<" at cycle "<<std::dec<<cycle<<std::endl;
             break;
         case 0xff4d: //CGB KEY1 speed switch register
             //TODO: Implement speed switching (bit 7: current speed, bit 0: request switch)
-            *((uint8_t *)val) = (0 | (be_speedy * 0x80));
+            *((uint8_t *)val) = (0x7f | (be_speedy * 0x80));
             //printf("Read from unimplemented KEY1 speed switch register\n");
             break;
         case 0xff4f: //VBK (CGB VRAM bank)
@@ -227,7 +228,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
                 break;
         case 0xff70: //CGB WRAM size switch
             if(!cgb) {
-                *((uint8_t *)val) = 0;
+                *((uint8_t *)val) = 0xff;
             }
             else {
                 *((uint8_t *)val) = wram_bank;
@@ -427,7 +428,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff55:
                 if(!cgb) break;
                 printf("Write to CGB HDMA5 (DMA length/mode/start): ");
-                if(hdma_hblank && (0x80 & *(uint8_t *)val) == 0x80) {//Re-start paused HDMA-hb
+                if(hdma_hblank && !hdma_running && (0x80 & *(uint8_t *)val) == 0x80) {//Re-start paused HDMA-hb
                     hdma_running = true;
                     printf("restart paused HDMA-hb\n");
                 }
@@ -443,9 +444,9 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                     }
                     hdma_running = true;
                     hdma_chunks = ((*(uint8_t *)val) & 0x7f) + 1;
-                    hdma_src = ((uint16_t(hdma_src_hi)<<8 | hdma_src_lo) & 0xfff0);
-                    hdma_dest = ((uint16_t(hdma_dest_hi)<<8 | hdma_dest_lo) & 0xfff0);
-                    printf("copy %d blocks from %04x to %04x\n", hdma_chunks, hdma_src, hdma_dest);
+                    hdma_src = ((256 * hdma_src_hi + hdma_src_lo) & 0xfff0);
+                    hdma_dest = (((256 * hdma_dest_hi + hdma_dest_lo) & 0x9ff0)|0x8000);
+                    printf("copy %d blocks from %04x to %04x (wrote %02x)\n", hdma_chunks, hdma_src, hdma_dest, *(uint8_t *)val);
                 }
                 break;
             case 0xff56: //CGB IR Comm register
@@ -480,7 +481,6 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff70: //CGB WRAM page switch
                 if(!cgb) break;
                 wram_bank = ((*(uint8_t *)val) & 7);
-                if(!wram_bank) wram_bank = 1;
                 //printf("Write to CGB WRAM page setting: %02x\n", *(uint8_t *)val);
                 break;
             default:
@@ -616,9 +616,9 @@ void memmap::update_interrupts(uint64_t cycle) {
     //uint8_t enabled = 0;
     //screen.read(0xff40, &enabled, 1, cycle);
     //We aren't still in previously-seen vblank, we *are* in vblank, and the screen is enabled
-    if(!int_requested.vblank && cycle > last_int_cycle + 1140 && screen.get_mode(cycle2) == 1 && ((screen_status&0x80) > 0)) {
+    if(!int_requested.vblank && cycle2 > last_int_cycle + 1140 && screen.get_mode(cycle2) == 1 && ((screen_status&0x80) > 0)) {
         int_requested.vblank = 1;
-        last_int_cycle = cycle; 
+        last_int_cycle = cycle2; 
         //printf("INT: vbl set active @ cycle %ld\n", cycle);
     }
 
@@ -1057,15 +1057,17 @@ bool memmap::set_color() {
 }
 
 uint64_t memmap::handle_hdma(uint64_t cycle) {
-    uint64_t cycle2 = (cycle>>1);
     if(!hdma_running) return 0;
+    uint64_t cycle2 = (cycle>>1);
     uint8_t val = 0;
     if(hdma_general) {
         printf("\t HDMA-gen: transfer %d from %04x to %04x @ %ld\n", hdma_chunks, hdma_src, hdma_dest, cycle);
         for(int c = 0; c <= hdma_chunks; c++) {
             for(int byte=0;byte<16;byte++) {
-                read(hdma_src + c * 16 + byte, &val, 1, cycle + byte/2 + c*8);
-                write(hdma_dest + c * 16 + byte, &val, 1, cycle2 + byte/2 + c*8);
+                read(hdma_src, &val, 1, cycle + byte + c*16);
+                write(hdma_dest, &val, 1, cycle2 + byte/2 + c*8);
+                hdma_src++;
+                hdma_dest++;
             }
         }
         hdma_general = false;
@@ -1074,19 +1076,14 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
         hdma_src_lo = 0xff;
         hdma_dest_hi = 0xff;
         hdma_dest_lo = 0xff;
-        if(be_speedy) {
-            return 16 * hdma_chunks;
-        }
-        else {
-            return 8 * hdma_chunks;
-        }
+        return 16 * hdma_chunks;
     }
     else if(hdma_hblank) {
-        printf("\t HDMA-hb: transfer 16 from %04x to %04x @ %ld\n", hdma_src, hdma_dest, cycle);
         uint8_t mode = screen.get_mode(cycle2);
         if(hdma_last_mode != 0 && mode == 0) {
-             for(int byte=0;byte<16;byte++) {
-                read(hdma_src + byte, &val, 1, cycle + byte/2);
+            printf("\t HDMA-hb: transfer 16 from %04x to %04x @ %ld\n", hdma_src, hdma_dest, cycle);
+            for(int byte=0;byte<16;byte++) {
+                read(hdma_src + byte, &val, 1, cycle + byte);
                 write(hdma_dest + byte, &val, 1, cycle2 + byte/2);
             }
             hdma_src += 0x10;
@@ -1099,14 +1096,9 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
                 hdma_src_lo = 0xff;
                 hdma_dest_hi = 0xff;
             }
-            hdma_last_mode = mode;
         }
-        if(be_speedy) {
-            return 16 * hdma_chunks;
-        }
-        else {
-            return 8 * hdma_chunks;
-        }
+        hdma_last_mode = mode;
+        return 16;
     }
     return 0;
 }
