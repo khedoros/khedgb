@@ -169,28 +169,30 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             break;
         case 0xff51: //TODO: Implement the 5 HDMA registers
             //printf("Read from CGB HDMA1 (DMA source, high byte)\n");
-            *((uint8_t *)val) = hdma_src_hi;
+            *((uint8_t *)val) = 0xff;
             break;
         case 0xff52:
             //printf("Read from CGB HDMA2 (DMA source, low byte)\n");
-            *((uint8_t *)val) = hdma_src_lo;
+            *((uint8_t *)val) = 0xff;
             break;
         case 0xff53:
             //printf("Read from CGB HDMA3 (DMA destination, high byte)\n");
-            *((uint8_t *)val) = hdma_dest_hi;
+            *((uint8_t *)val) = 0xff;
             break;
         case 0xff54:
             //printf("Read from CGB HDMA4 (DMA destination, low byte)\n");
-            *((uint8_t *)val) = hdma_dest_lo;
+            *((uint8_t *)val) = 0xff;
             break;
         case 0xff55:
-            if(!hdma_running && !hdma_hblank) {
-                *((uint8_t *)val) = 0xff;
+            if(!cgb) *((uint8_t *)val) = 0xff;
+
+            if(!hdma_running && !hdma_hblank) { //HDMA is stopped, not paused
+                *((uint8_t *)val) = 0x80;
             }
-            else if(!hdma_running && hdma_hblank) {
+            else if(!hdma_running && hdma_hblank) { //HDMA is paused in HBlank mode
                 *((uint8_t *)val) = (0x80 | (hdma_chunks - 1));
             }
-            else {
+            else { //HDMA is currently running every HBlank
                 *((uint8_t *)val) = hdma_chunks - 1;
             }
             printf("Read from CGB HDMA5 (DMA length/mode/start): %02x\n", *(uint8_t *)val);
@@ -1073,12 +1075,12 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
         }
         hdma_general = false;
         hdma_running = false;
-        //hdma_src_hi = 0xff;
-        //hdma_src_lo = 0xff;
-        //hdma_dest_hi = 0xff;
-        //hdma_dest_lo = 0xff;
+        hdma_src_hi = (hdma_src>>8);
+        hdma_src_lo = (hdma_src&0xff);
+        hdma_dest_hi = (hdma_dest>>8);
+        hdma_dest_lo = (hdma_dest&0xff);
         //screen.dma(false, cycle2 + 8 * hdma_chunks, val);
-        return 16 * hdma_chunks;
+        return 16 * hdma_chunks * ((be_speedy)?2:1);
     }
     else if(hdma_hblank) {
         uint8_t mode = screen.get_mode(cycle2);
@@ -1096,12 +1098,12 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
             if(hdma_chunks == 0) {
                 hdma_hblank = false;
                 hdma_running = false;
-                //hdma_src_hi = 0xff;
-                //hdma_src_lo = 0xff;
-                //hdma_dest_hi = 0xff;
-                //hdma_dest_lo = 0xff;
+                hdma_src_hi = (hdma_src>>8);
+                hdma_src_lo = (hdma_src&0xff);
+                hdma_dest_hi = (hdma_dest>>8);
+                hdma_dest_lo = (hdma_dest&0xff);
             }
-            return 16;
+            return 16 * ((be_speedy)?2:1);
         }
         hdma_last_mode = mode;
     }

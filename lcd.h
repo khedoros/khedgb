@@ -155,9 +155,9 @@ private:
     //First dimension is palette number. Second dimension is color number.
     //These are useful for both SGB and GBC palettes. Plain GB just uses the first, SGB uses the first 4, CGB can use all 8
     Arr<Arr<uint32_t, 4>, 8> sys_bgpal;
-    Arr<Arr<uint32_t, 4>, 4> sys_winpal; //only for DMG/SGB
+    Arr<Arr<uint32_t, 4>, 8> sys_winpal;
     Arr<Arr<uint32_t, 4>, 8> sys_obj1pal;
-    Arr<Arr<uint32_t, 4>, 4> sys_obj2pal; //only for CGB
+    Arr<Arr<uint32_t, 4>, 4> sys_obj2pal;
 
     uint8_t win_scroll_y;//0xff4a
     uint8_t win_scroll_x;//0xff4b

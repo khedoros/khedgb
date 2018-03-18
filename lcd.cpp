@@ -491,9 +491,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 }
                 break;
             case 0xff4f: //CGB VRAM bank
-                *((uint8_t *)val) &= 1;
-                cpu_vram_bank = *((uint8_t *)val);
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                cpu_vram_bank = ((*(uint8_t *)val) & 1);
+                cmd_queue.emplace_back(util::cmd{cycle, addr, ((*(uint8_t *)val) & 1), 0});
                 break;
             case 0xff68:
                 cpu_cgb_bgpal_index = (*((uint8_t *)val) & 0x3f);
@@ -642,7 +641,7 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
                 *((uint8_t *)val) = cpu_win_scroll_x;
                 break;
             case 0xff4f:
-                *((uint8_t *)val) = cpu_vram_bank;
+                *((uint8_t *)val) = (0xfe | cpu_vram_bank);
                 break;
             case 0xff68:
                 *(uint8_t *)val = cpu_cgb_bgpal_index;
