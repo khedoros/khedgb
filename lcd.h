@@ -158,7 +158,6 @@ private:
     Arr<Arr<uint32_t, 4>, 4> sys_winpal; //only for DMG/SGB
     Arr<Arr<uint32_t, 4>, 8> sys_obj1pal;
     Arr<Arr<uint32_t, 4>, 4> sys_obj2pal; //only for CGB
-    unsigned int pal_index;
 
     uint8_t win_scroll_y;//0xff4a
     uint8_t win_scroll_x;//0xff4b

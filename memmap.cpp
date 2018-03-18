@@ -410,24 +410,24 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 cart.write(addr,val,size,cycle);
                 break;
             case 0xff51: //TODO: Implement the 5 HDMA registers
-                //printf("Write to CGB HDMA1 (DMA source, high byte): %02x\n", *(uint8_t *)val);
+                printf("HDMA1 (DMA source, high byte): %02x\n", *(uint8_t *)val);
                 hdma_src_hi = *(uint8_t *)val;
                 break;
             case 0xff52:
-                //printf("Write to CGB HDMA2 (DMA source, low byte): %02x\n", *(uint8_t *)val);
+                printf("HDMA2 (DMA source, low byte): %02x\n", *(uint8_t *)val);
                 hdma_src_lo = *(uint8_t *)val;
                 break;
             case 0xff53:
-                //printf("Write to CGB HDMA3 (DMA destination, high byte): %02x\n", *(uint8_t *)val);
+                printf("HDMA3 (DMA destination, high byte): %02x\n", *(uint8_t *)val);
                 hdma_dest_hi = *(uint8_t *)val;
                 break;
             case 0xff54:
-                //printf("Write to CGB HDMA4 (DMA destination, low byte): %02x\n", *(uint8_t *)val);
+                printf("HDMA4 (DMA destination, low byte): %02x\n", *(uint8_t *)val);
                 hdma_dest_lo = *(uint8_t *)val;
                 break;
             case 0xff55:
                 if(!cgb) break;
-                printf("Write to CGB HDMA5 (DMA length/mode/start): ");
+                printf("HDMA5 (DMA length/mode/start): ");
                 if(hdma_hblank && !hdma_running && (0x80 & *(uint8_t *)val) == 0x80) {//Re-start paused HDMA-hb
                     hdma_running = true;
                     printf("restart paused HDMA-hb\n");
@@ -445,7 +445,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                     hdma_running = true;
                     hdma_chunks = ((*(uint8_t *)val) & 0x7f) + 1;
                     hdma_src = ((256 * hdma_src_hi + hdma_src_lo) & 0xfff0);
-                    hdma_dest = (((256 * hdma_dest_hi + hdma_dest_lo) & 0x9ff0)|0x8000);
+                    hdma_dest = ((256 * hdma_dest_hi + hdma_dest_lo) & 0x1ff0)+0x8000;
                     printf("copy %d blocks from %04x to %04x (wrote %02x)\n", hdma_chunks, hdma_src, hdma_dest, *(uint8_t *)val);
                 }
                 break;
@@ -1062,7 +1062,8 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
     uint8_t val = 0;
     if(hdma_general) {
         printf("\t HDMA-gen: transfer %d from %04x to %04x @ %ld\n", hdma_chunks, hdma_src, hdma_dest, cycle);
-        for(int c = 0; c <= hdma_chunks; c++) {
+        //screen.dma(true, cycle2, val);
+        for(int c = 0; c < hdma_chunks; c++) {
             for(int byte=0;byte<16;byte++) {
                 read(hdma_src, &val, 1, cycle + byte + c*16);
                 write(hdma_dest, &val, 1, cycle2 + byte/2 + c*8);
@@ -1072,33 +1073,37 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
         }
         hdma_general = false;
         hdma_running = false;
-        hdma_src_hi = 0xff;
-        hdma_src_lo = 0xff;
-        hdma_dest_hi = 0xff;
-        hdma_dest_lo = 0xff;
+        //hdma_src_hi = 0xff;
+        //hdma_src_lo = 0xff;
+        //hdma_dest_hi = 0xff;
+        //hdma_dest_lo = 0xff;
+        //screen.dma(false, cycle2 + 8 * hdma_chunks, val);
         return 16 * hdma_chunks;
     }
     else if(hdma_hblank) {
         uint8_t mode = screen.get_mode(cycle2);
         if(hdma_last_mode != 0 && mode == 0) {
-            printf("\t HDMA-hb: transfer 16 from %04x to %04x @ %ld\n", hdma_src, hdma_dest, cycle);
+            printf("\t HDMA-hb: transfer 16 from %04x to %04x @ %ld (%d chunks left)\n", hdma_src, hdma_dest, cycle, hdma_chunks-1);
+            //screen.dma(true, cycle2, val);
             for(int byte=0;byte<16;byte++) {
                 read(hdma_src + byte, &val, 1, cycle + byte);
                 write(hdma_dest + byte, &val, 1, cycle2 + byte/2);
             }
+            //screen.dma(false, cycle2 + 8, val);
             hdma_src += 0x10;
             hdma_dest += 0x10;
             hdma_chunks--;
             if(hdma_chunks == 0) {
                 hdma_hblank = false;
                 hdma_running = false;
-                hdma_src_hi = 0xff;
-                hdma_src_lo = 0xff;
-                hdma_dest_hi = 0xff;
+                //hdma_src_hi = 0xff;
+                //hdma_src_lo = 0xff;
+                //hdma_dest_hi = 0xff;
+                //hdma_dest_lo = 0xff;
             }
+            return 16;
         }
         hdma_last_mode = mode;
-        return 16;
     }
     return 0;
 }

@@ -6,7 +6,7 @@
 #include<string>
 
 lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.val=0x00}, bg_scroll_y(0), bg_scroll_x(0), 
-             cgb_mode(false), bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, pal_index(0), 
+             cgb_mode(false), bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, 
              win_scroll_y(0), win_scroll_x(0), active_cycle(0), frame(0), 
              lyc_next_cycle(0), m0_next_cycle(0), m1_next_cycle(0), m2_next_cycle(0), 
              cpu_control{.val=0x00}, cpu_status(0), cpu_bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_lyc(0), cpu_dma_addr(0), 
@@ -308,6 +308,7 @@ void lcd::update_row_cache(uint16_t addr) {
     int row = (addr / 2) % 8;
     int index = vram_bank * 3072 + tilenum * 8 + row;
     int data_base = tilenum * 16 + row * 2;
+    assert(data_base == (addr-(addr%2)));
     int b1 = vram[vram_bank][data_base];
     int b2 = vram[vram_bank][data_base + 1];
     for(int x = 0; x < 8; x++) {
@@ -761,6 +762,7 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
             bool unloaded = true;
             int tile_num = 0;
+            int pal_index = 0;
 
             for(int x_out_pix = 0; x_out_pix < SCREEN_WIDTH; x_out_pix++) {
                 if(x_out_pix % 8 == 0) {
@@ -806,6 +808,7 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                         int ycoord = tile_y * 8 + y_tile_pix + win_scroll_y;
                         int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
 
+                        int pal_index = 0;
                         if(xcoord >= 0 && xcoord < SCREEN_WIDTH) {
                             pal_index = sgb_attrs[(ycoord/8)*SCREEN_TILE_WIDTH+xcoord/8];
                         }
@@ -847,6 +850,7 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 }
                 get_tile_row(tile, y_i, sprite_dat.xflip, tile_line);
 
+                int pal_index = 0;
                 if(sprite_x >=0 && sprite_x < SCREEN_WIDTH) {
                     pal_index = sgb_attrs[(render_line/8)*SCREEN_TILE_WIDTH+sprite_x/8];
                 }
@@ -954,6 +958,14 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
         return 0;
     }
 
+    if(sgb_dump_filename != "") {
+        std::ofstream chr_out(sgb_dump_filename.c_str());
+        chr_out.write(reinterpret_cast<char *>(&vram[0][0x0]), 0x2000);
+        chr_out.write(reinterpret_cast<char *>(&vram[1][0x0]), 0x2000);
+        chr_out.close();
+        sgb_dump_filename = "";
+    }
+
     //printf("Raw: start cycle: %lld end: %lld\n", start_cycle, end_cycle);
 
     uint64_t start_frame_cycle = (start_cycle - active_cycle) % 17556;
@@ -1001,11 +1013,8 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
         else if(render_line > LAST_RENDER_LINE) continue;
 
         //Draw the background
-        if(control.priority) { //cpu_controls whether the background displays, in regular DMG mode
-            if(output_sdl && start_frame_line == 0) { //Draw the background color
-                SDL_SetRenderDrawColor(renderer, cgb_bgpal[0][0].red * 8, cgb_bgpal[0][0].green, cgb_bgpal[0][0].blue, 255);
-                SDL_RenderClear(renderer);
-            }
+        //if(control.priority) { //cpu_controls whether the background displays, in regular DMG mode
+        if(true) { //cpu_controls whether the background displays, in regular DMG mode
 
             uint32_t bgbase = 0x1800 + 0x400 * control.bg_map;
 
@@ -1015,27 +1024,27 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
             bool unloaded = true;
             int tile_num = 0;
+            bg_attrib a{.val=0};
 
             for(int x_out_pix = 0; x_out_pix < SCREEN_WIDTH; x_out_pix++) {
                 int x_in_pix = (x_out_pix + bg_scroll_x) & 0xff;
                 int x_tile = x_in_pix / 8;
                 int x_tile_pix = x_in_pix % 8;
 
-                bg_attrib a{.val = vram[1][bgbase+y_tile*32+x_tile]};
-
-                pal_index = a.palette;
-
                 if(x_tile_pix == 0 || unloaded) {
                     tile_num = vram[0][bgbase+y_tile*32+x_tile];
+                    a.val =    vram[1][bgbase+y_tile*32+x_tile];
                     if(!control.tile_addr_mode) {
                         tile_num = 256 + int8_t(tile_num);
                     }
-                    get_tile_row(tile_num, y_tile_pix, a.xflip, tile_line, a.char_bank);
+                    int y_i = y_tile_pix;
+                    if(a.yflip) y_i = 7 - y_tile_pix;
+                    get_tile_row(tile_num, y_i, a.xflip, tile_line, a.char_bank);
                     unloaded = false;
                 }
 
                 if(output_sdl /*&& c != 0*/) {
-                    pixels[render_line * SCREEN_WIDTH + x_out_pix] = sys_bgpal[pal_index][tile_line[x_tile_pix]];
+                    pixels[render_line * SCREEN_WIDTH + x_out_pix] = sys_bgpal[a.palette][tile_line[x_tile_pix]];
                     bgmap[x_out_pix] = tile_line[x_tile_pix];
                 }
             }
@@ -1052,11 +1061,15 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 for(int tile_x = 0; tile_x * 8 + win_scroll_x - 7 < SCREEN_WIDTH; tile_x++) {
                     int tile_num = vram[0][winbase+tile_y*32+tile_x];
                     bg_attrib a{.val = vram[1][winbase+tile_y*32+tile_x]};
-                    pal_index = a.palette;
+                    int pal_index = a.palette;
                     if(!control.tile_addr_mode) {
                         tile_num = 256+int8_t(tile_num);
                     }
-                    get_tile_row(tile_num, y_tile_pix, a.xflip, tile_line, a.char_bank);
+
+                    int y_i = y_tile_pix;
+                    if(a.yflip) y_i = 7 - y_tile_pix;
+
+                    get_tile_row(tile_num, y_i, a.xflip, tile_line, a.char_bank);
                     for(int x_tile_pix = 0; x_tile_pix < 8 && x_tile_pix + win_scroll_x + tile_x * 8 - 7 < SCREEN_WIDTH; x_tile_pix++) {
                         int ycoord = tile_y * 8 + y_tile_pix + win_scroll_y;
                         int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
@@ -1078,7 +1091,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 int sprite_y = sprite_dat.ypos - 16;
                 int sprite_x = sprite_dat.xpos - 8;
                 uint8_t tile = sprite_dat.tile;
-                pal_index = sprite_dat.palnum_cgb;
+                int pal_index = sprite_dat.palnum_cgb;
 
                 int sprite_size = 8 + (control.sprite_size * 8);
 
