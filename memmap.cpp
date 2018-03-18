@@ -18,7 +18,8 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
 /*Super GameBoy values            */              sgb_active(false), sgb_bit_ptr(0), sgb_buffered(false), sgb_cur_joypad(0), sgb_joypad_count(1), sgb_cmd_count(0), sgb_cmd_index(0),
 /*serial/link cable               */              link_data(0), serial_transfer(false), internal_clock(false), transfer_start(-1), bits_transferred(0),
 /*div register + timer            */              div(0), div_period(0),last_int_check(0), timer(0), timer_modulus(0), timer_control{.val=0},
-/*                                */              clock_divisor_reset(timer_clock_select[0]), clock_divisor(0), screen_status(0), be_speedy(false) {
+/*                                */              clock_divisor_reset(timer_clock_select[0]), clock_divisor(0), screen_status(0), be_speedy(false),
+                                                  hdma_hblank(false), hdma_general(false), hdma_running(false), hdma_src_hi(0), hdma_src_lo(0), hdma_dest_hi(0), hdma_dest_lo(0) {
 
     valid = cart.valid;
     if(!valid) return;
@@ -89,13 +90,13 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
     }
     else if ((addr >= 0xc000 && addr < 0xd000) || (addr >= 0xe000 && addr < 0xf000)) { //4KB of memory, c000-cfff, then a mirror of it e000-efff
         memcpy(val, &(wram[addr & 0xfff]), size);
+        //printf("read wram0:%04x (%02x)\n", addr, wram[addr & 0xfff]);
     }
     else if ((addr >= 0xd000 && addr < 0xe000) || (addr >= 0xf000 && addr < 0xfe00)) { //28KB of memory in 7 banks, d000-dfff, then a partial mirror of it f000-fdff
         int tmpbank = wram_bank; if(!tmpbank) tmpbank = 1;
         memcpy(val, &(wram[(addr & 0xfff) + tmpbank * 0x1000]), size);
+        //printf("read wram%d:%04x (%02x)\n", tmpbank, addr, wram[(addr & 0xfff) + tmpbank * 0x1000]);
     }
-
-
     else if (addr >= 0x8000 && addr < 0xa000) { //VRAM 0x8000-0x9fff
         screen.read(addr, val, size, cycle2);//memcpy(val, &(vram[addr-0x8000]), size);
     }
@@ -187,7 +188,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             if(!cgb) *((uint8_t *)val) = 0xff;
 
             if(!hdma_running && !hdma_hblank) { //HDMA is stopped, not paused
-                *((uint8_t *)val) = 0x80;
+                *((uint8_t *)val) = 0xff;
             }
             else if(!hdma_running && hdma_hblank) { //HDMA is paused in HBlank mode
                 *((uint8_t *)val) = (0x80 | (hdma_chunks - 1));
@@ -290,8 +291,14 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
         //std::cout<<"Write to external RAM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
         cart.write(addr, val, size, cycle);
     }
-    else if (addr >= 0xc000 && addr < 0xfe00) { //8KB Work RAM (0xc000-0xdfff) and mirrored area (0xe000-0xfe00)
-        memcpy(&(wram[addr&0x1fff]), val, size);
+    else if ((addr >= 0xc000 && addr < 0xd000) || (addr >= 0xe000 && addr < 0xf000)) { //4KB of memory, c000-cfff, then a mirror of it e000-efff
+        memcpy(&(wram[addr&0x0fff]), val, size);
+        //printf("write wram%d:%04x = %02x\n", 0, addr, wram[(addr & 0xfff)]);
+    }
+    else if ((addr >= 0xd000 && addr < 0xe000) || (addr >= 0xf000 && addr < 0xfe00)) { //28KB of memory in 7 banks, d000-dfff, then a partial mirror of it f000-fdff
+        int tmpbank = wram_bank; if(!tmpbank) tmpbank = 1;
+        memcpy(&(wram[(addr&0x0fff) + tmpbank * 0x1000]), val, size);
+        //printf("write wram%d:%04x = %02x\n", tmpbank, addr, wram[(addr & 0xfff) + tmpbank * 0x1000]);
     }
     else if (addr >= 0xfe00 && addr < 0xfea0) { //OAM memory
         screen.write(addr, val, size, cycle2);
@@ -430,9 +437,13 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff55:
                 if(!cgb) break;
                 printf("HDMA5 (DMA length/mode/start): ");
-                if(hdma_hblank && !hdma_running && (0x80 & *(uint8_t *)val) == 0x80) {//Re-start paused HDMA-hb
-                    hdma_running = true;
-                    printf("restart paused HDMA-hb\n");
+                if(hdma_hblank && (*(uint8_t *)val & 0x80) == 0) {
+                    hdma_running = false;
+                    hdma_src_hi = (hdma_src>>8);
+                    hdma_src_lo = (hdma_src&0xff);
+                    hdma_dest_hi = (hdma_dest>>8);
+                    hdma_dest_lo = (hdma_dest&0xff);
+                    printf("Pause HDMA\n");
                 }
                 else {
                     if((0x80 & *(uint8_t *)val) == 0x80) {
@@ -442,6 +453,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                     }
                     else {
                         hdma_general = true;
+                        hdma_hblank = false;
                         printf("start HDMA-gen, ");
                     }
                     hdma_running = true;
@@ -1061,10 +1073,11 @@ bool memmap::set_color() {
 uint64_t memmap::handle_hdma(uint64_t cycle) {
     if(!hdma_running) return 0;
     uint64_t cycle2 = (cycle>>1);
+    uint8_t mode = screen.get_mode(cycle2);
+    uint64_t scrline = ((cycle2 - screen.get_active_cycle()) % 17556) / 114;
     uint8_t val = 0;
     if(hdma_general) {
-        printf("\t HDMA-gen: transfer %d from %04x to %04x @ %ld\n", hdma_chunks, hdma_src, hdma_dest, cycle);
-        //screen.dma(true, cycle2, val);
+        //printf("\t HDMA-gen: transfer %d from %04x to %04x @ %ld (mode %d, line %d)\n", hdma_chunks, hdma_src, hdma_dest, cycle, mode, scrline);
         for(int c = 0; c < hdma_chunks; c++) {
             for(int byte=0;byte<16;byte++) {
                 read(hdma_src, &val, 1, cycle + byte + c*16);
@@ -1072,6 +1085,9 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
                 hdma_src++;
                 hdma_dest++;
             }
+            mode = screen.get_mode(cycle2);
+            scrline = ((cycle2 - screen.get_active_cycle()) % 17556) / 114;
+            //printf("\t\tChunk %d, mode %d, line %d @ %ld\n", c, mode, scrline, cycle + c*16);
         }
         hdma_general = false;
         hdma_running = false;
@@ -1079,19 +1095,16 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
         hdma_src_lo = (hdma_src&0xff);
         hdma_dest_hi = (hdma_dest>>8);
         hdma_dest_lo = (hdma_dest&0xff);
-        //screen.dma(false, cycle2 + 8 * hdma_chunks, val);
-        return 16 * hdma_chunks * ((be_speedy)?2:1);
+        return 8 * hdma_chunks * ((be_speedy)?2:1);
     }
     else if(hdma_hblank) {
-        uint8_t mode = screen.get_mode(cycle2);
+        bool transferred = false;
         if(hdma_last_mode != 0 && mode == 0) {
-            printf("\t HDMA-hb: transfer 16 from %04x to %04x @ %ld (%d chunks left)\n", hdma_src, hdma_dest, cycle, hdma_chunks-1);
-            //screen.dma(true, cycle2, val);
+            //printf("\t HDMA-hb: transfer 16 from %04x to %04x @ %ld (%d chunks left), mode %d, line %d\n", hdma_src, hdma_dest, cycle, hdma_chunks-1, mode, scrline);
             for(int byte=0;byte<16;byte++) {
                 read(hdma_src + byte, &val, 1, cycle + byte);
                 write(hdma_dest + byte, &val, 1, cycle2 + byte/2);
             }
-            //screen.dma(false, cycle2 + 8, val);
             hdma_src += 0x10;
             hdma_dest += 0x10;
             hdma_chunks--;
@@ -1103,9 +1116,13 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
                 hdma_dest_hi = (hdma_dest>>8);
                 hdma_dest_lo = (hdma_dest&0xff);
             }
-            return 16 * ((be_speedy)?2:1);
+            transferred = true;
         }
+        //printf("Setting last mode from %d to %d\n", hdma_last_mode, mode);
         hdma_last_mode = mode;
+        if(transferred) {
+            return 8 * ((be_speedy)?2:1);
+        }
     }
     return 0;
 }

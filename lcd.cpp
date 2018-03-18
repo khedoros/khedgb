@@ -268,6 +268,8 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                         cgb_bgpal_index++;
                         cgb_bgpal_index &= 0x3f;
                     }
+                    //if(hilo)
+                        //printf("BG pal %d col %d is now (%d, %d, %d)\n", pal, col, cgb_bgpal[pal][col].red * 8, cgb_bgpal[pal][col].green * 8, cgb_bgpal[pal][col].blue * 8);
                 }
                 break;
             case 0xff6a:
@@ -290,6 +292,8 @@ void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
                         cgb_objpal_index++;
                         cgb_objpal_index &= 0x3f;
                     }
+                    //if(hilo)
+                        //printf("Obj pal %d col %d is now (%d, %d, %d)\n", pal, col, cgb_objpal[pal][col].red * 8, cgb_objpal[pal][col].green * 8, cgb_objpal[pal][col].blue * 8);
                 }
                 break;
             default:
@@ -500,11 +504,13 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
             case 0xff69:
-                cpu_cgb_bgpal[cpu_cgb_bgpal_index] = *(uint8_t *)val;
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
-                if(cpu_cgb_bgpal_advance) {
-                    cpu_cgb_bgpal_index++;
-                    cpu_cgb_bgpal_index %= 0x3f;
+                if(get_mode(cycle) != 3 || !cpu_control.display_enable) {
+                    cpu_cgb_bgpal[cpu_cgb_bgpal_index] = *(uint8_t *)val;
+                    cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                    if(cpu_cgb_bgpal_advance) {
+                        cpu_cgb_bgpal_index++;
+                        cpu_cgb_bgpal_index %= 0x3f;
+                    }
                 }
                 break;
             case 0xff6a:
@@ -513,11 +519,13 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
                 break;
             case 0xff6b:
-                cpu_cgb_objpal[cpu_cgb_objpal_index] = *(uint8_t *)val;
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
-                if(cpu_cgb_objpal_advance) {
-                    cpu_cgb_objpal_index++;
-                    cpu_cgb_objpal_index %= 0x3f;
+                if(get_mode(cycle) != 3 || !cpu_control.display_enable) {
+                    cpu_cgb_objpal[cpu_cgb_objpal_index] = *(uint8_t *)val;
+                    cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                    if(cpu_cgb_objpal_advance) {
+                        cpu_cgb_objpal_index++;
+                        cpu_cgb_objpal_index %= 0x3f;
+                    }
                 }
                 break;
             default:
@@ -1060,7 +1068,6 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 for(int tile_x = 0; tile_x * 8 + win_scroll_x - 7 < SCREEN_WIDTH; tile_x++) {
                     int tile_num = vram[0][winbase+tile_y*32+tile_x];
                     bg_attrib a{.val = vram[1][winbase+tile_y*32+tile_x]};
-                    int pal_index = a.palette;
                     if(!control.tile_addr_mode) {
                         tile_num = 256+int8_t(tile_num);
                     }
@@ -1074,7 +1081,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                         int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
 
                         if(output_sdl && xcoord >= 0) {
-                            pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_winpal[pal_index][tile_line[x_tile_pix]];
+                            pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_bgpal[a.palette][tile_line[x_tile_pix]];
                             bgmap[xcoord] = tile_line[x_tile_pix];
                         }
                     }
@@ -1699,8 +1706,6 @@ void lcd::cgb_enable() {
     cpu_cgb_bgpal_advance = false;  //ff6a bit 7
     cpu_cgb_objpal_index = 0; //ff6a bits 0-6
     cpu_cgb_objpal_advance = false;  //ff6a bit 7
-
-
 
     render = std::bind(&lcd::cgb_render, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 }
