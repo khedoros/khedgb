@@ -3,11 +3,13 @@ Adventures in Game Boy emulation (Or, What Khedoros Likes To Do In His Not-so-ab
 
 ## Plan
 
-This starts as a DMG (original GameBoy) emulator and expand to CGB either when I feel like the core emulator is solid, or I start getting bored. The color hardware is mostly a direct extension of the Game Boy system and is backwards compatible with its software. I'll also branch into peripheral support, as the mood strikes.
+This started as a DMG (original GameBoy) emulator, has expanded to cover some accessories, and is in the process of having CGB (GameBoy Color) support added in. Sound is turning out to be the last thing to add; it'll probably follow sometime after I've got the Color support working properly.
 
 ## Usage
 
 ### Building
+
+If you're hoping for decent, step-by-step instructions: Sorry, I haven't written them. The following is mostly a high-level description of the requirements to compile the program; I expect that it would be good enough for most developers to get the idea. Then again, I also expect that I'm the only one reading this; it's not like I've been advertising.
 
 I've built this emulator on several versions of Linux and in Cygwin on Windows. The Cygwin builds will work on any Windows machine, as long as you distribute the appropriate dll files with it. However, the Cygwin version of OpenCV seems not to like talking to webcams under Windows, so I'm afraid the camera won't work (although it's almost trivial to fake it, but giving OpenCV a video file to open, instead of a camera). I haven't done a Mac build, although I expect it would work fine, as long as you provided the libraries (i.e. it would be a bit more of a manual process; I don't have a Mac to do the dev work on).
 
@@ -15,7 +17,7 @@ You'll need SDL2 development libraries. I've built the emulator on a few version
 
 If you want camera support, you'll need OpenCV development libraries. In slightly older versions of OpenCV (2.4.9, for example), it uses the core, highgui, and imgproc modules. In newer versions (probably starting around 3.x), you also need the videoio module. The necessary linking options change between versions of OpenCV, so the Makefile currently has the correct options for OpenCV 3.2. Since OpenCV and cameras are non-core functionalities and are a pain to set up, linking in camera support is disabled by default.
 
-The printer support requires libpng, and libpng requires libz (again, the development packages for those libraries).
+The printer support requires libpng, and libpng requires libz (again, the development packages for those libraries). It would be pretty easy to modify the emulator's code to not actually output images, but I haven't bothered, because libpng and libz are much more likely to already be installed than opencv is.
 
 Typing `make` in the root directory of the project is enough to build the emulator. Adding `CAMERA=yes` and/or `BUILD=debug` will enable camera linking and debug mode, and the names imply.
 
@@ -48,7 +50,7 @@ Command: `khedgb [options] romfile`
 Option | Effect
 ------ | ------
 --sgb | Set Super Gameboy mode, if supported by the ROM
---cgb | Set Color Gameboy mode (in progress, but in the very early stages)
+--cgb | Set Color Gameboy mode (in progress, and functional-ish, but still needs a lot of work)
 --trace | Activate CPU+PPU instruction trace (listing of what the game is doing)
 --headless | Headless mode (disable graphics) (I don't test this often)
 --nosound | NoSound mode (disable audio) (Sound isn't working yet anyhow...)
@@ -58,19 +60,19 @@ Note about the firmware: They aren't strictly necessary. The emulator runs witho
 
 ## Current state
 
-Most games are booting and running (all of the ones I test work nearly-perfectly). Most original Game Boy games are playable. Saving and loading of games (not save states) is basically working, including with save files from other emulators (tested with BGB, for example). Timing issues cause some minor graphical issues in the games that I test (usually split-second flashes and such). Games that I don't test often are a little more "iffy". Some games may do things that I haven't tested, and crash for that reason (although when I find cases like that, I try to fix them by determining where the inaccuracy is in my emulator).
+Most original GameBoy games are booting and running (all of the ones I test work nearly-perfectly). Color games have a small chance of working, but mostly come out quirkily corrupted. Saving and loading of games (not save states) is basically working, including with save files from other emulators (tested with BGB, for example). Timing issues cause some minor graphical issues in the games that I test (usually split-second flashes and such). Games that I don't test often are a little more "iffy" (and that applies doubly to color games, since I've only recently added any support). Some games may do things that I haven't tested, and crash for that reason (although when I find cases like that, I try to fix them by determining where the inaccuracy is in my emulator).
 
 ### CPU
 
-The CPU seems stable, although there might be timing issues (like the 0xCBxx instruction timing that I just fixed). Blargg cpu_inst tests pass, and so do a lot of the ones related to timing.
+The CPU seems stable, although there might be timing issues (like the 0xCBxx instruction timing that I just fixed). Blargg cpu_inst tests pass, and so do a lot of the ones related to timing. Speed switching (for CGB) "works", but I'm not convinced yet that it's very reliable.
 
 ### Memory Map
 
-The Memory Map is fairly fleshed-out, but not complete, and some of the peripheral hardware isn't being emulated yet (sound is mostly absent, the timer is new code, serial is only partially implemented). Undocumented registers may or may not react as on a real system. I've implemented some of them, but not all.
+The Memory Map is fairly fleshed-out, but not complete, and some of the peripheral hardware isn't being emulated yet (sound is mostly absent, serial is only partially implemented (e.g. printer works, multiplayer doesn't)). Undocumented registers may or may not react as on a real system. I've implemented some of them, but not all. Some differences between DMG and CGB probably aren't written properly.
 
 ### ROM mapping
 
-ROMs load, and I added the ability to load them directly from zip files (it just finds the first file in the archive, and loads it if it's between 32KB and 8MB). Onboard ROM+RAM work, and I've got the mappers I consider important written (null, mbc1, mbc2, mbc3, mbc5, camera). Null covers the simpler 32KB games, MBC1+2 cover a lot of early ones, MBC3 covers most of them that need to keep time (like the Pokemon games), and MBC5 covers later GameBoy games, and especially almost all of the Color games. MBC3 doesn't correctly support the clock chip, or saving and loading the time in save games. The Camera mapper correctly boots the game and provides access to the camera (if you specify the option to support the camera).
+ROMs load, and I added the ability to load them directly from zip files (it just finds the first file in the archive, and loads it if it's between 32KB and 8MB). Onboard ROM+RAM work, and I've got the mappers I consider important written (null, mbc1, mbc2, mbc3, mbc5, camera). Null covers the simpler 32KB games, MBC1+2 cover a lot of early ones, MBC3 covers most of them that need to keep time (like the Pokemon games), and MBC5 covers later GameBoy games, and especially almost all of the Color games. MBC3 doesn't correctly support the clock chip, or saving and loading the time in save games. The Camera mapper correctly boots the game and provides access to the camera (if you specify the option to support the camera, when compiling).
 
 ### Interrupts
 
@@ -78,7 +80,7 @@ The link cable works, at least at a basic level. The emulator currently pretends
 
 ### Display
 
-Display output composites the video roughly correctly, although sprite priority isn't quite right. On real hardware, it's possible to modify certain display registers during rendering. I don't support sub-line rendering changes, right now. The emulator does a partial colorization when possible (and when the palette is set correctly), kind of like how the Game Boy Color does with non-color games. Sprites are blue and green-tinted (since there are 2 internal sprite palettes), the background is monochrome, and the "window" overlay is red/pink. In Super Game Boy mode, most games provide a themed backdrop, and this emulator supports displaying that.
+Display output composites the video roughly correctly, although sprite priority isn't quite right. On real hardware, it's possible to modify certain display registers during rendering. I don't support sub-line rendering changes, right now. The emulator does a partial colorization when possible (and when the palette is set correctly), kind of like how the Game Boy Color does with non-color games. Sprites are blue and green-tinted (since there are 2 internal sprite palettes), the background is monochrome, and the "window" overlay is red/pink. In Super Game Boy mode, most games provide a themed backdrop, and this emulator supports displaying that. CGB and DMG rendering is separated, and so can behave quite differently.
 
 ### Super GameBoy
 
