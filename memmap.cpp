@@ -160,7 +160,6 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             //std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(int_requested.reg)<<" at cycle "<<std::dec<<cycle<<std::endl;
             break;
         case 0xff4d: //CGB KEY1 speed switch register
-            //TODO: Implement speed switching (bit 7: current speed, bit 0: request switch)
             *((uint8_t *)val) = (0x7f | (be_speedy * 0x80));
             //printf("Read from unimplemented KEY1 speed switch register\n");
             break;
@@ -168,7 +167,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             //printf("Read from CGB VRAM bank register\n");
             screen.read(addr, val, size, cycle2);
             break;
-        case 0xff51: //TODO: Implement the 5 HDMA registers
+        case 0xff51:
             //printf("Read from CGB HDMA1 (DMA source, high byte)\n");
             *((uint8_t *)val) = 0xff;
             break;
@@ -205,27 +204,26 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             printf("Read from unimplemented IR communication register\n");
             break;
         case 0xff68:
-                //TODO: CGB palette stuff.
                 //BIT0-5 are the byte index. byte 0 is pal0/col0/lsb, byte 63 is pal7/col3/msb (8 pals, 4 colors, 2 bytes = 64 bytes)
                 //BIT7 says whether to increment address on write.
-                printf("Read from CGB BG palette index\n");
+                //printf("Read from CGB BG palette index\n");
                 screen.read(addr, val, size, cycle2);
                 //*(uint8_t *)val = 0;
                 break;
         case 0xff69:
                 //Writes data to specified palette byte
-                printf("Read from CGB BG palette data port\n");
+                //printf("Read from CGB BG palette data port\n");
                 screen.read(addr, val, size, cycle2);
                 //*(uint8_t *)val = 0;
                 break;
         case 0xff6a:
                 //OBJ palettes work the same as BG palettes.
-                printf("Write to CGB OBJ palette index\n");
+                //printf("Write to CGB OBJ palette index\n");
                 screen.read(addr, val, size, cycle2);
                 //*(uint8_t *)val = 0;
                 break;
         case 0xff6b:
-                printf("Read from CGB OBJ palette data port\n");
+                //printf("Read from CGB OBJ palette data port\n");
                 screen.read(addr, val, size, cycle2);
                 //*(uint8_t *)val = 0;
                 break;
@@ -248,11 +246,11 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
                 //std::cout<<"Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             }
             else if(addr > 0xff4e && addr < 0xff6c) {
-                std::cout<<"Read from CGB DMA/RAM: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+                //std::cout<<"Read from CGB DMA/RAM: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             }
             else {
                 memset(val, 0xff, size);
-                std::cout<<"Read from unknown mem-mapped hardware: 0x"<<std::hex<<addr<<" (assuming it would read 0xff)"<<std::endl;
+                //std::cout<<"Read from unknown mem-mapped hardware: 0x"<<std::hex<<addr<<" (assuming it would read 0xff)"<<std::endl;
             }
         }
     }
@@ -418,7 +416,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff50: //disables CPU firmware
                 cart.write(addr,val,size,cycle);
                 break;
-            case 0xff51: //TODO: Implement the 5 HDMA registers
+            case 0xff51:
                 printf("HDMA1 (DMA source, high byte): %02x\n", *(uint8_t *)val);
                 hdma_src_hi = *(uint8_t *)val;
                 break;

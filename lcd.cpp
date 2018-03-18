@@ -529,7 +529,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 }
                 break;
             default:
-                std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                //std::cout<<"Write to video hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                break;
         }
     }
     if(trace) printf("PPU write (post): %s\n", lcd_to_string(addr, *((uint8_t *)val)).c_str());
@@ -664,8 +665,9 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
                 *(uint8_t *)val = cpu_cgb_objpal[cpu_cgb_objpal_index];
                 break;
             default:
-                std::cout<<"PPU: Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
+                //std::cout<<"PPU: Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
                 *((uint8_t *)val) = 0xff;
+                break;
         }
     }
     if(trace) printf("PPU read: %s\n", lcd_to_string(addr, *((uint8_t *)val)).c_str());

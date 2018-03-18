@@ -44,13 +44,12 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
     int height = image.size().height;
     int width = image.size().width;
     cv::cvtColor(image, gray_image, CV_BGR2GRAY);
-    cv::getRectSubPix(gray_image, cv::Size{(2*height)/3, (2*height)/3}, cv::Point2f{float(height)/float(2),float(width)/float(2)}, sub_image);
+    cv::getRectSubPix(gray_image, cv::Size{(2*height)/3, (2*height)/3}, cv::Point2f{float(width)/float(2),float(height)/float(2)}, sub_image);
     cv::Mat shrunk_image;
     cv::resize(sub_image, shrunk_image, cv::Size{128,128}, 0, 0);
 
     height = shrunk_image.size().height;
     width = shrunk_image.size().width;
-    //printf("CAMERA: h: %d w: %d\n", height, width);
     assert(height == 128 && width == 128);
     assert(shrunk_image.rows == 128 && shrunk_image.cols == 128);
 
