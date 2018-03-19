@@ -19,7 +19,7 @@ memmap::memmap(const std::string& rom_filename, const std::string& fw_file) :
 /*serial/link cable               */              link_data(0), serial_transfer(false), internal_clock(false), transfer_start(-1), bits_transferred(0),
 /*div register + timer            */              div(0), div_period(0),last_int_check(0), timer(0), timer_modulus(0), timer_control{.val=0},
 /*                                */              clock_divisor_reset(timer_clock_select[0]), clock_divisor(0), screen_status(0), be_speedy(false),
-                                                  hdma_hblank(false), hdma_general(false), hdma_running(false), hdma_src_hi(0), hdma_src_lo(0), hdma_dest_hi(0), hdma_dest_lo(0) {
+                                                  hdma_hblank(false), hdma_general(false), hdma_running(false), hdma_first(false) {
 
     valid = cart.valid;
     if(!valid) return;
@@ -195,7 +195,7 @@ void memmap::read(int addr, void * val, int size, uint64_t cycle) {
             else { //HDMA is currently running every HBlank
                 *((uint8_t *)val) = hdma_chunks - 1;
             }
-            printf("Read from CGB HDMA5 (DMA length/mode/start): %02x\n", *(uint8_t *)val);
+            //printf("Read from CGB HDMA5 (DMA length/mode/start): %02x\n", *(uint8_t *)val);
             break;
         case 0xff56: //CGB infrared communication port
             //TODO: Write it, after CGB, and probably along with serial support.
@@ -416,49 +416,51 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff50: //disables CPU firmware
                 cart.write(addr,val,size,cycle);
                 break;
-            case 0xff51:
-                printf("HDMA1 (DMA source, high byte): %02x\n", *(uint8_t *)val);
-                hdma_src_hi = *(uint8_t *)val;
+            case 0xff51: //Allowable sources: 0-7fff, a000-bfff, c000-dfff. e000-ffff reads from a000-bfff, 8000-9fff reads incorrect crap
+                //printf("HDMA1 (DMA source, high byte): %02x\n", *(uint8_t *)val);
+                hdma_src = (256 * (*(uint8_t *)val)) | (hdma_src & 0xff);
                 break;
             case 0xff52:
-                printf("HDMA2 (DMA source, low byte): %02x\n", *(uint8_t *)val);
-                hdma_src_lo = *(uint8_t *)val;
+                //printf("HDMA2 (DMA source, low byte): %02x\n", *(uint8_t *)val);
+                hdma_src = (hdma_src & 0xff00) | ((*(uint8_t *)val) & 0xf0);
                 break;
             case 0xff53:
-                printf("HDMA3 (DMA destination, high byte): %02x\n", *(uint8_t *)val);
-                hdma_dest_hi = *(uint8_t *)val;
+                //printf("HDMA3 (DMA destination, high byte): %02x\n", *(uint8_t *)val);
+                hdma_dest = (256 * (*(uint8_t *)val & 0x1f)) | (hdma_dest & 0xff) + 0x8000;
                 break;
             case 0xff54:
-                printf("HDMA4 (DMA destination, low byte): %02x\n", *(uint8_t *)val);
-                hdma_dest_lo = *(uint8_t *)val;
+                //printf("HDMA4 (DMA destination, low byte): %02x\n", *(uint8_t *)val);
+                hdma_dest = (hdma_dest & 0xff00) | (*(uint8_t *)val & 0xf0);
                 break;
             case 0xff55:
                 if(!cgb) break;
-                printf("HDMA5 (DMA length/mode/start): ");
-                if(hdma_hblank && (*(uint8_t *)val & 0x80) == 0) {
+                //printf("HDMA5 (DMA length/mode/start): ");
+                if(hdma_hblank && hdma_running && (*(uint8_t *)val & 0x80) == 0) { //Stop HDMA copy
                     hdma_running = false;
-                    hdma_src_hi = (hdma_src>>8);
-                    hdma_src_lo = (hdma_src&0xff);
-                    hdma_dest_hi = (hdma_dest>>8);
-                    hdma_dest_lo = (hdma_dest&0xff);
-                    printf("Pause HDMA\n");
+                    hdma_chunks = (0x7f & *(uint8_t *)val) + 1;
+                    //printf("Pause HDMA\n");
+                }
+                else if(hdma_hblank && (*(uint8_t *)val & 0x80) == 0x80) { //Restart HDMA copy
+                    hdma_running = true;
+                    hdma_chunks = ((*(uint8_t *)val & 0x7f) + 1);
+                    //hdma_first = true;
+                    //printf("Restart HDMA\n");
                 }
                 else {
                     if((0x80 & *(uint8_t *)val) == 0x80) {
                         hdma_hblank = true;
-                        hdma_last_mode = screen.get_mode(cycle2);
-                        printf("start HDMA-hb, ");
+                        //hdma_first = true;
+                        hdma_last_mode = 1;//screen.get_mode(cycle2); (just need a non-zero value, so the copy will start if begun in HBlank
+                        //printf("start HDMA, ");
                     }
                     else {
                         hdma_general = true;
                         hdma_hblank = false;
-                        printf("start HDMA-gen, ");
+                        //printf("start GDMA, ");
                     }
                     hdma_running = true;
                     hdma_chunks = ((*(uint8_t *)val) & 0x7f) + 1;
-                    hdma_src = ((256 * hdma_src_hi + hdma_src_lo) & 0xfff0);
-                    hdma_dest = ((256 * hdma_dest_hi + hdma_dest_lo) & 0x1ff0)+0x8000;
-                    printf("copy %d blocks from %04x to %04x (wrote %02x)\n", hdma_chunks, hdma_src, hdma_dest, *(uint8_t *)val);
+                    //printf("copy %d blocks from %04x to %04x (wrote %02x)\n", hdma_chunks, hdma_src, hdma_dest, *(uint8_t *)val);
                 }
                 break;
             case 0xff56: //CGB IR Comm register
@@ -1075,11 +1077,11 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
     uint64_t scrline = ((cycle2 - screen.get_active_cycle()) % 17556) / 114;
     uint8_t val = 0;
     if(hdma_general) {
-        printf("\t HDMA-gen: transfer %d from %04x to %04x @ %ld (mode %d, line %d)\n", hdma_chunks, hdma_src, hdma_dest, cycle2, mode, scrline);
+        //printf("\t GDMA: transfer %d from %04x to %04x @ %ld (mode %d, line %d)\n", hdma_chunks, hdma_src, hdma_dest, cycle2, mode, scrline);
         for(int c = 0; c < hdma_chunks; c++) {
             for(int byte=0;byte<16;byte++) {
                 read(hdma_src, &val, 1, cycle + byte + c*16);
-                write(hdma_dest, &val, 1, (cycle + byte + c*16)/2);
+                write(hdma_dest, &val, 1, cycle + byte + c*16);
                 hdma_src++;
                 hdma_dest++;
             }
@@ -1089,19 +1091,15 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
         }
         hdma_general = false;
         hdma_running = false;
-        hdma_src_hi = (hdma_src>>8);
-        hdma_src_lo = (hdma_src&0xff);
-        hdma_dest_hi = (hdma_dest>>8);
-        hdma_dest_lo = (hdma_dest&0xff);
-        return 16 * hdma_chunks;// * ((be_speedy)?2:1);
+        return 16 * hdma_chunks;
     }
     else if(hdma_hblank) {
         bool transferred = false;
-        if(hdma_last_mode != 0 && mode == 0) {
-            printf("\t HDMA-hb: transfer 16 from %04x to %04x @ %ld (%d chunks left), mode %d, line %d\n", hdma_src, hdma_dest, cycle2, hdma_chunks-1, mode, scrline);
+        if(hdma_first || (hdma_last_mode != 0 && mode == 0)) {
+            //printf("\t HDMA: transfer 16 from %04x to %04x @ %ld (%d chunks left), mode %d, line %d\n", hdma_src, hdma_dest, cycle2, hdma_chunks-1, mode, scrline);
             for(int byte=0;byte<16;byte++) {
                 read(hdma_src + byte, &val, 1, cycle + byte);
-                write(hdma_dest + byte, &val, 1, cycle2 + byte/2);
+                write(hdma_dest + byte, &val, 1, cycle + byte);
             }
             hdma_src += 0x10;
             hdma_dest += 0x10;
@@ -1109,17 +1107,14 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
             if(hdma_chunks == 0) {
                 hdma_hblank = false;
                 hdma_running = false;
-                hdma_src_hi = (hdma_src>>8);
-                hdma_src_lo = (hdma_src&0xff);
-                hdma_dest_hi = (hdma_dest>>8);
-                hdma_dest_lo = (hdma_dest&0xff);
             }
             transferred = true;
+            hdma_first = false;
         }
         //printf("Setting last mode from %d to %d\n", hdma_last_mode, mode);
         hdma_last_mode = mode;
         if(transferred) {
-            return 16;// * ((be_speedy)?2:1);
+            return 16;
         }
     }
     return 0;

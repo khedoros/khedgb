@@ -144,17 +144,14 @@ private:
     bool be_speedy; //Pretend CPU is in high-speed mode
     bool cgb;       //Is the emulated hardware a CGB?
 
-    uint8_t hdma_src_hi; //0xff51
-    uint8_t hdma_src_lo; //0xff52
-    uint8_t hdma_dest_hi; //0xff53
-    uint8_t hdma_dest_lo; //0xff54
-    bool hdma_hblank;  //hdma is selected, and is the HBlank variant (but it might be paused)
-    bool hdma_general; //hdma is running, and is the general-transfer variant
-    bool hdma_running;      //useful for differentiating between running+paused
+    bool hdma_hblank;  //hdma is selected (but it might be paused)
+    bool hdma_general; //gdma is running
+    bool hdma_running; //useful for differentiating between running+paused
+    bool hdma_first;   //HDMA was just initiated. TCAGBD indicates that there are cases where starting HDMA first off a transfer immediately.
     uint8_t hdma_chunks;    //chunks remaining for the transfer
-    uint16_t hdma_src; //hmda source address
-    uint16_t hdma_dest; //hdma destination address
-    uint64_t hdma_last_mode; //last cycle that an HDMA-h transfer was started
+    uint16_t hdma_src; //hmda source address, 0xff51+0xff52
+    uint16_t hdma_dest; //hdma destination address, 0xff53+0xff54
+    uint64_t hdma_last_mode; //last mode the PPU was seen in (used to determine if I've done an HDMA transfer for this scanline)
 
 };
 /*

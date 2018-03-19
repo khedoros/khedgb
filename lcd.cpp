@@ -323,7 +323,7 @@ void lcd::update_row_cache(uint16_t addr) {
 }
 
 void lcd::write(int addr, void * val, int size, uint64_t cycle) {
-    if(trace) {printf("PPU write (pre ): %s\n", lcd_to_string(addr, *((uint8_t *)val)).c_str());}
+    if(trace) {printf("PPU write : %s @ %ld\n", lcd_to_string(addr, *((uint8_t *)val)).c_str(), cycle);}
     if(size > 1) {
         printf("addr: %04x = ", addr);
         for(int i=0;i<size;i++) {
@@ -533,7 +533,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
         }
     }
-    if(trace) printf("PPU write (post): %s\n", lcd_to_string(addr, *((uint8_t *)val)).c_str());
+    //if(trace) printf("PPU write (post): %s\n", lcd_to_string(addr, *((uint8_t *)val)).c_str());
     return;
 }
 
