@@ -59,6 +59,7 @@ void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
 }
 
 uint8_t apu::read(uint16_t addr, uint64_t cycle) {
+    if(addr == 0xff26) return (written_values[addr - 0xff10] & 0x80);
     return written_values[addr - 0xff10] | or_values[addr - 0xff10];
     //TODO: Calculate status for NR52
     //TODO: Block reads from wave RAM when it's in use (or, rather, return current wave value)
