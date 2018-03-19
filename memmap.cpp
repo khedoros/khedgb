@@ -380,7 +380,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff07: 
                 {
                     timer_control.low = ((*(uint8_t *)val) & 0x07);
-                    clock_divisor_reset = timer_clock_select[timer_control.clock];
+                    clock_divisor_reset = ((be_speedy)?1:2) * timer_clock_select[timer_control.clock];
                     clock_divisor = 0;
                 }
                 //printf("Write to timer hardware (control): 0x%04x = 0x%02x, at cycle %lld, running: %d, divisor: %d\n",
@@ -1075,11 +1075,11 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
     uint64_t scrline = ((cycle2 - screen.get_active_cycle()) % 17556) / 114;
     uint8_t val = 0;
     if(hdma_general) {
-        //printf("\t HDMA-gen: transfer %d from %04x to %04x @ %ld (mode %d, line %d)\n", hdma_chunks, hdma_src, hdma_dest, cycle, mode, scrline);
+        printf("\t HDMA-gen: transfer %d from %04x to %04x @ %ld (mode %d, line %d)\n", hdma_chunks, hdma_src, hdma_dest, cycle2, mode, scrline);
         for(int c = 0; c < hdma_chunks; c++) {
             for(int byte=0;byte<16;byte++) {
                 read(hdma_src, &val, 1, cycle + byte + c*16);
-                write(hdma_dest, &val, 1, cycle2 + byte/2 + c*8);
+                write(hdma_dest, &val, 1, (cycle + byte + c*16)/2);
                 hdma_src++;
                 hdma_dest++;
             }
@@ -1093,12 +1093,12 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
         hdma_src_lo = (hdma_src&0xff);
         hdma_dest_hi = (hdma_dest>>8);
         hdma_dest_lo = (hdma_dest&0xff);
-        return 8 * hdma_chunks * ((be_speedy)?2:1);
+        return 16 * hdma_chunks;// * ((be_speedy)?2:1);
     }
     else if(hdma_hblank) {
         bool transferred = false;
         if(hdma_last_mode != 0 && mode == 0) {
-            //printf("\t HDMA-hb: transfer 16 from %04x to %04x @ %ld (%d chunks left), mode %d, line %d\n", hdma_src, hdma_dest, cycle, hdma_chunks-1, mode, scrline);
+            printf("\t HDMA-hb: transfer 16 from %04x to %04x @ %ld (%d chunks left), mode %d, line %d\n", hdma_src, hdma_dest, cycle2, hdma_chunks-1, mode, scrline);
             for(int byte=0;byte<16;byte++) {
                 read(hdma_src + byte, &val, 1, cycle + byte);
                 write(hdma_dest + byte, &val, 1, cycle2 + byte/2);
@@ -1119,7 +1119,7 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
         //printf("Setting last mode from %d to %d\n", hdma_last_mode, mode);
         hdma_last_mode = mode;
         if(transferred) {
-            return 8 * ((be_speedy)?2:1);
+            return 16;// * ((be_speedy)?2:1);
         }
     }
     return 0;

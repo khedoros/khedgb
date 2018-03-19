@@ -88,7 +88,7 @@ uint64_t cpu::run(uint64_t run_to) {
             return cycle/2;
         }
     }
-    return -1; //shouldn't reach this, as currently written
+    return 0; //shouldn't reach this, as currently written
 }
 
 uint64_t cpu::dec_and_exe(uint32_t opcode) {

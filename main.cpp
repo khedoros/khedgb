@@ -118,6 +118,7 @@ int main(int argc, char *argv[]) {
     uint64_t last_output_cycle = 0; //Last cycle that the ppu output a frame
     //uint64_t last_output_tick = 0;  //Last millisecond that the ppu output a frame
     while(continue_running) {
+        //printf("Running CPU and PPU until cycle %ld (%ld for CPU)\n", cycle+tick_size, 2*(cycle+tick_size));
         uint64_t start = SDL_GetTicks();
         continue_running = util::process_events(&proc, &bus);
         uint64_t count = proc.run(cycle + tick_size);
