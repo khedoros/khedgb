@@ -1697,7 +1697,7 @@ std::string lcd::lcd_to_string(uint16_t addr, uint8_t val) {
     return out;
 }
 
-void lcd::cgb_enable() {
+void lcd::cgb_enable(bool cgb_render) {
     cgb_mode = true;
     cgb_bgpal_index = 0;  //ff68 bits 0-6
     cgb_bgpal_advance = false;   //ff68 bit 7
@@ -1709,5 +1709,7 @@ void lcd::cgb_enable() {
     cpu_cgb_objpal_index = 0; //ff6a bits 0-6
     cpu_cgb_objpal_advance = false;  //ff6a bit 7
 
-    render = std::bind(&lcd::cgb_render, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+    if(cgb_render) {
+        render = std::bind(&lcd::cgb_render, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+    }
 }

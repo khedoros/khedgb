@@ -415,6 +415,9 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff50: //disables CPU firmware
                 cart.write(addr,val,size,cycle);
+                if(cart.color_firmware && !cart.supports_color()) {
+                    screen.cgb_enable(false);
+                }
                 break;
             case 0xff51: //Allowable sources: 0-7fff, a000-bfff, c000-dfff. e000-ffff reads from a000-bfff, 8000-9fff reads incorrect crap
                 //printf("HDMA1 (DMA source, high byte): %02x\n", *(uint8_t *)val);
@@ -1062,7 +1065,12 @@ bool memmap::set_color() {
     if(cart.color_firmware || !cart.firmware) {
         cgb = true;
         wram.resize(8 * 0x1000);
-        screen.cgb_enable();
+        if(cart.color_firmware) {
+            screen.cgb_enable(true);
+        }
+        else {
+            screen.cgb_enable(cart.supports_color());
+        }
         return true;
     }
 
