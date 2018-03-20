@@ -199,7 +199,7 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
 
     std::cout<<"Filename: "<<rom_filename<<" Internal name: "<<h.title<<std::endl;
     std::cout<<"ROM size: "<<h.rom_size<<" bytes RAM size: "<<((h.mapper==MAP_MBC2)?256:h.ram_size)<<" bytes Mapper name: "<<mapper_names[h.mapper]<<std::endl;
-    std::cout<<"Features: "<<((h.has_ram)?"[RAM] ":"")<<((h.has_bat)?"[BATTERY] ":"")<<((h.has_rtc)?"[TIMER] ":"")<<((h.has_rumble)?"[RUMBLE] ":"")<<((h.has_sensor)?"[TILT/LIGHT] ":"")<<((h.support_sgb)?"[SGB] ":"")<<std::endl;
+    std::cout<<"Features: "<<((h.has_ram)?"[RAM] ":"")<<((h.has_bat)?"[BATTERY] ":"")<<((h.has_rtc)?"[TIMER] ":"")<<((h.has_rumble)?"[RUMBLE] ":"")<<((h.has_sensor)?"[TILT/LIGHT] ":"")<<((h.support_sgb)?"[SGB] ":"")<<((h.cgb_flag >= 0x80)?"[COLOR]":"")<<std::endl;
 
     switch(h.mapper) {
         case MAP_NONE:

@@ -1,3 +1,4 @@
+#include<SDL2/SDL.h>
 #include "apu.h"
 #include<cstdio>
 
@@ -30,9 +31,64 @@ void apu::init() {
     chan3_duty_phase = 0;
 }
 
+void null_callback(void * userdata, Uint8* stream, int len) {}
+
 apu::apu() : writes_enabled(false), cycle(0), devid(0), cur_chunk(0), audio_open(false)
 {
     clear();
+    int num_drivers = SDL_GetNumAudioDrivers();
+    int num_playback_devices = SDL_GetNumAudioDevices(0);
+    int num_capture_devices = SDL_GetNumAudioDevices(1);
+    int chosen_driver = 255;
+    int driver_desirability = 255;
+    Arr<Arr<const char, 20>, 6> desired_drivers = {"directsound", "winmm", "pulse", "pulseaudio", "alsa", "dummy"};
+    printf("Audio Drivers: \n");
+    for(int i=0; i<num_drivers;i++) {
+        printf("\tDriver %d: \"%s\"\n", i, SDL_GetAudioDriver(i));
+        for(int j=0;j<desired_drivers.size();j++) {
+            if(strncmp((desired_drivers[j].data()), SDL_GetAudioDriver(i), 20) == 0 && j < driver_desirability) {
+                chosen_driver = i;
+                driver_desirability = j;
+            }
+        }
+    }
+
+    if(chosen_driver != 255) {
+        printf("Chose driver: #%d (%s)\n", chosen_driver, SDL_GetAudioDriver(chosen_driver));
+
+        int failure_code = SDL_AudioInit(SDL_GetAudioDriver(chosen_driver));
+        if(failure_code) {
+            fprintf(stderr, "Error init'ing driver: %s", SDL_GetError());
+        }
+
+        printf("Audio Devices: \n\tPlayback:\n");
+        for(int i=0; i<num_playback_devices;i++) {
+            printf("\t\tDevice %d: %s\n", i, SDL_GetAudioDeviceName(i,0));
+            if(!devid) {
+                SDL_AudioSpec want;
+                    want.freq=44100;
+                    want.format=AUDIO_U8;
+                    want.channels=CHANNELS;
+                    want.silence=0;
+                    want.samples=8192;
+                    want.size=0;
+                    want.callback=null_callback;
+                    want.userdata=NULL;
+
+                SDL_AudioSpec got;
+                devid = SDL_OpenAudioDevice(SDL_GetAudioDeviceName(i,0), 0, &want, &got, 0);
+                if(!devid) {
+                    fprintf(stderr, "Error opening device %s: %s\n", SDL_GetAudioDeviceName(i,0), SDL_GetError());
+                }
+            }
+        }
+        if(!devid) {
+            fprintf(stderr, "No audio device opened.\n");
+        }
+        else {
+            SDL_PauseAudioDevice(devid, 1);
+        }
+    }
 }
 
 apu::~apu() {
@@ -124,6 +180,8 @@ void apu::run(uint64_t run_to) {
 }
 
 void apu::render(apu::samples& s) {
+    s.l = 32 * square_wave[chan1_patlen.duty_cycle][chan1_duty_phase];
+    s.r = 32 * square_wave[chan2_patlen.duty_cycle][chan2_duty_phase];
     //printf("APU Render cycle %ld to %ld\n", cycle, render_to);
     return;
 }

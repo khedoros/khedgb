@@ -305,3 +305,4 @@ private:
 
 };
 
+void null_callback(void * userdata, Uint8* stream, int len);
