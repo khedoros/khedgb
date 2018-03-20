@@ -99,6 +99,7 @@ private:
     void init(); //When audio power is turned on
     void render(apu::samples&); //Generate next audio samples
     void clock_sequencer(); //Clock the sequencer by one step
+    void clock_freqs();     //Clock the frequency counters
     bool sweep_check(); //Check if next sweep iteration should disable the channel due to overflow
     std::list<util::cmd> cmd_queue;
 
@@ -280,7 +281,9 @@ private:
     envelope_reg  chan4_env;    //0xFF21 NR42
     noise_freq   chan4_freq;   //0xFF22 NR43
     noise_count_init chan4_counter; //0xFF23 NR44 Enables use of length counter, and inits playback
+    static const uint8_t noise_divisors[8];
     bool chan4_active;
+    uint16_t chan4_freq_counter; //How many steps until lfsr is clocked
     uint16_t chan4_lfsr;         //Linear Feedback Shift Register for noise output
     uint8_t lfsr_value;          //Current output value of LFSR
 

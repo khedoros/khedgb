@@ -15,6 +15,7 @@ const uint8_t apu::square_wave[4][8] = {{0,0,0,0,0,0,0,1},
                                         {1,0,0,0,0,0,0,1},
                                         {1,0,0,0,0,1,1,1},
                                         {0,1,1,1,1,1,1,0}};
+const uint8_t apu::noise_divisors[] = {8, 16, 32, 48, 64, 80, 96, 112};
 
 void apu::clear() {
     for(int i=0; i<0x30;i++) {
@@ -83,9 +84,16 @@ void apu::run(uint64_t run_to) {
         sample_count++;
     }
     for(;cycle < run_to; cycle++) {
+
+        //Clock the frame sequencer at 512Hz
         if(cycle%2048 == 0) {
             clock_sequencer();
         }
+
+        //Clock the frequency counters for each channel
+        clock_freqs();
+
+        //If it's time, apply the current command, and grab the next one, if it exists
         if(cmd_queue.size() > 0 && cycle == cur_cmd.cycle) {
             apply(cur_cmd);
             cmd_queue.pop_front();
@@ -93,6 +101,8 @@ void apu::run(uint64_t run_to) {
                 cur_cmd = cmd_queue.front();
             }
         }
+
+        //Figure out if it's time to generate a new sample, and put it into the output buffer if it is
         int sample = int(float(sample_count) * (float(cycle & 0x3fff) / float(run_to & 0x3fff)));
         if(sample > cur_sample) {
             apu::samples s;
@@ -103,9 +113,12 @@ void apu::run(uint64_t run_to) {
         }
     }
 
+    //Push the sample to the output device.
     if(audio_open) {
         //SDL_QueueAudio(devid, out_buffer.data(), sample_count * CHANNELS * SAMPLE_SIZE);
     }
+
+    //Every 16 chunks, we need to generate 690 samples, instead of 689.
     cur_chunk++;
     cur_chunk &= 0x0f; //mod by 16
 }
@@ -140,6 +153,46 @@ void apu::clock_sequencer() {
     }
     if(sequencer_phase == 7) {
         //clock volume for 1, 2, and 4? I think chan3 has level, but not envelope.
+    }
+}
+
+void apu::clock_freqs() {
+    if(chan1_active) {
+        chan1_freq_counter--;
+        if(!chan1_freq_counter) {
+            chan1_freq_counter = chan1_freq_shadow;
+            chan1_duty_phase++;
+            chan1_duty_phase %= square_wave_length;
+        }
+    }
+    if(chan2_active) {
+        chan2_freq_counter--;
+        if(!chan2_freq_counter) {
+            chan2_freq_counter = chan2_freq.freq;
+            chan2_duty_phase++;
+            chan2_duty_phase %= square_wave_length;
+        }
+    }
+    if(chan3_active) {
+        chan3_freq_counter--;
+        if(!chan3_freq_counter) {
+            chan3_freq_counter = chan3_freq.freq;
+            chan3_duty_phase++;
+            chan3_duty_phase %= wave_length;
+        }
+    }
+    if(chan4_active) {
+        chan4_freq_counter--;
+        if(!chan4_freq_counter) {
+            chan4_freq_counter = noise_divisors[chan4_freq.div_ratio]<<(chan4_freq.shift_clock);
+            uint16_t next = (chan4_lfsr & BIT0) ^ (chan4_lfsr & BIT1);
+            chan4_lfsr>>=1;
+            chan4_lfsr |= (next<<14);
+            if(chan4_freq.noise_type) {
+                chan4_lfsr |= (next<<6);
+            }
+            lfsr_value = ((next)?0:1);
+        }
     }
 }
 
