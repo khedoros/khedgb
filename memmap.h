@@ -153,6 +153,7 @@ private:
     uint16_t hdma_dest; //hdma destination address, 0xff53+0xff54
     uint64_t hdma_last_mode; //last mode the PPU was seen in (used to determine if I've done an HDMA transfer for this scanline)
 
+    uint64_t next_apu_cycle; //Next cycle to clock the APU during
 };
 /*
  * 0x0000-0x3FFF: Permanently-mapped ROM bank.

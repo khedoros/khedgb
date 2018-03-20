@@ -139,9 +139,11 @@ int main(int argc, char *argv[]) {
             cur_output_cycle = ppu->run(cycle + tick_size);
             //printf("Main got report of output at: %lld\n", cur_output_cycle);
         }
-        if(audio && continue_running) {
-            sound->run(cycle + tick_size); //TODO: Add audio support
-        }
+
+        //Going to clock this during interrupt check, actually.
+        //if(audio && continue_running) {
+        //    sound->run(cycle + tick_size); //TODO: Add audio support
+        //}
 
         //Frame delay
         if(cur_output_cycle != 0) {

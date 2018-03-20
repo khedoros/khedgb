@@ -29,7 +29,7 @@ void apu::init() {
     chan3_duty_phase = 0;
 }
 
-apu::apu() : writes_enabled(false), cycle(0)
+apu::apu() : writes_enabled(false), cycle(0), devid(0), cur_chunk(0), audio_open(false)
 {
     clear();
 }
@@ -66,42 +66,53 @@ uint8_t apu::read(uint16_t addr, uint64_t cycle) {
     //TODO: Block reads from most registers when power is off
 }
 
+//Gets called at 64Hz, every 16384 1MHz-cycles
 void apu::run(uint64_t run_to) {
     //printf("apu:: %ld->%ld\n", cycle, run_to);
 
-    uint64_t next_fs_time = cycle; //just to declare it outside of the loop
     //Generate audio between cycle and cmd.cycle
     util::cmd cur_cmd;
-    while((cmd_queue.size() > 0 || next_fs_time <= run_to) && cycle < run_to) {
-        //Find the next cycle that is either a command or the end of the current batch of work
-        uint64_t next_cmd_cycle = run_to;
-        if(cmd_queue.size() > 0) {
-            cur_cmd = cmd_queue.front();
-            next_cmd_cycle = cur_cmd.cycle;
-        }
+    if(cmd_queue.size() > 0) {
+        cur_cmd = cmd_queue.front();
+    }
+    int cur_sample = 0;
 
-        //Find next time the frame sequencer is clocked
-        next_fs_time = cycle + (2048 - cycle % 2048);
-
-        //Take the next action (render, then clock the frame sequencer, apply a register change, or both)
-        if(next_fs_time <= next_cmd_cycle) {
-            render(next_fs_time); //(Generate audio between cycle and next_fs_time)
-            cycle = next_fs_time;
+    std::array<uint8_t, 690*2> out_buffer;
+    int sample_count = 689;
+    if(cur_chunk == 15) {
+        sample_count++;
+    }
+    for(;cycle < run_to; cycle++) {
+        if(cycle%2048 == 0) {
             clock_sequencer();
-        } 
-        if(next_cmd_cycle <= next_fs_time) {
-            render(next_cmd_cycle); //(Generate audio between cycle and cmd_queue.cycle)
-            cycle = next_cmd_cycle;
+        }
+        if(cmd_queue.size() > 0 && cycle == cur_cmd.cycle) {
+            apply(cur_cmd);
+            cmd_queue.pop_front();
             if(cmd_queue.size() > 0) {
-                apply(cur_cmd);
-                cmd_queue.pop_front();
+                cur_cmd = cmd_queue.front();
             }
         }
+        int sample = int(float(sample_count) * (float(cycle & 0x3fff) / float(run_to & 0x3fff)));
+        if(sample > cur_sample) {
+            apu::samples s;
+            render(s);
+            out_buffer[cur_sample*2] = s.l;
+            out_buffer[cur_sample*2+1] = s.r;
+            cur_sample++;
+        }
     }
+
+    if(audio_open) {
+        //SDL_QueueAudio(devid, out_buffer.data(), sample_count * CHANNELS * SAMPLE_SIZE);
+    }
+    cur_chunk++;
+    cur_chunk &= 0x0f; //mod by 16
 }
 
-void apu::render(uint64_t render_to) {
+void apu::render(apu::samples& s) {
     //printf("APU Render cycle %ld to %ld\n", cycle, render_to);
+    return;
 }
 
 bool apu::sweep_check() {

@@ -1,6 +1,7 @@
 #pragma once
 #include<cstdint>
 #include<list>
+#include<SDL2/SDL_audio.h>
 #include "util.h"
 
 /* 512 Hz frame sequencer, with 8 phases (2048 cycles between phases)
@@ -88,10 +89,15 @@ public:
     uint8_t read(uint16_t addr, uint64_t cycle);
     void run(uint64_t run_to);
 private:
+    struct samples {
+        uint8_t l;
+        uint8_t r;
+    };
+
     void apply(util::cmd& c);
     void clear(); //When class is constructed or audio power is turned off
     void init(); //When audio power is turned on
-    void render(uint64_t run_to); //Generate audio up to "run_to"
+    void render(apu::samples&); //Generate next audio samples
     void clock_sequencer(); //Clock the sequencer by one step
     bool sweep_check(); //Check if next sweep iteration should disable the channel due to overflow
     std::list<util::cmd> cmd_queue;
@@ -288,6 +294,11 @@ private:
     //Values to OR onto the written values when read
     static const uint8_t or_values[0x30];
 
+    SDL_AudioDeviceID devid; //Device ID that SDL assigned our output device
+    bool audio_open;         //Whether we successfully opened an audio device
+    const static int CHANNELS = 2;
+    const static int SAMPLE_SIZE = 1;
+    int cur_chunk; //Number between 0 and 15 to help track how many samples must be provided for this "frame" of audio
 
 };
 
