@@ -311,8 +311,7 @@ void lcd::update_row_cache(uint16_t addr) {
     int tilenum = addr / 16;
     int row = (addr / 2) % 8;
     int index = vram_bank * 3072 + tilenum * 8 + row;
-    int data_base = tilenum * 16 + row * 2;
-    assert(data_base == (addr-(addr%2)));
+    int data_base = addr & 0xfffe;
     int b1 = vram[vram_bank][data_base];
     int b2 = vram[vram_bank][data_base + 1];
     for(int x = 0; x < 8; x++) {
@@ -1024,7 +1023,6 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
         //Draw the background
         //if(control.priority) { //cpu_controls whether the background displays, in regular DMG mode
         if(true) { //cpu_controls whether the background displays, in regular DMG mode
-
             uint32_t bgbase = 0x1800 + 0x400 * control.bg_map;
 
             int y_in_pix = (render_line + bg_scroll_y) & 0xff;
