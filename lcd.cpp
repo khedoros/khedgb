@@ -150,7 +150,7 @@ uint64_t lcd::run(uint64_t run_to) {
     //printf("PPU: Start: %ld run_to: %ld\n", cycle, run_to);
 
     uint64_t render_cycle = 0;
-    while(cmd_queue.size() > 0) {
+    while(!cmd_queue.empty()) {
         util::cmd current = cmd_queue.front();
         if(current.cycle >= cycle) {
             if(!render_cycle) {

@@ -3,6 +3,8 @@ KHEDGB_OBJ_LIST:=main.o cpu.o memmap.o lcd.o apu.o rom.o decode.o util.o printer
 LDFLAGS:= $(shell sdl2-config --libs --cflags) -lpng -lm
 ifeq "$(BUILD)" "debug"
     CXXFLAGS:=-g -std=c++11 -Wall -DDEBUG
+else ifeq "$(BUILD)" "profile"
+    CXXFLAGS:=-g -pg -std=c++11
 else
     CXXFLAGS:=-std=c++11 -O3
 endif

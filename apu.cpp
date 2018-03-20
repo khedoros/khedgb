@@ -41,7 +41,7 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), cur_chunk(0), audio_open
     int num_capture_devices = SDL_GetNumAudioDevices(1);
     int chosen_driver = 255;
     int driver_desirability = 255;
-    Arr<Arr<const char, 20>, 6> desired_drivers = {"directsound", "winmm", "pulse", "pulseaudio", "alsa", "dummy"};
+    std::array<std::array<const char, 20>, 6> desired_drivers = {"directsound", "winmm", "pulse", "pulseaudio", "alsa", "dummy"};
     printf("Audio Drivers: \n");
     for(int i=0; i<num_drivers;i++) {
         printf("\tDriver %d: \"%s\"\n", i, SDL_GetAudioDriver(i));
@@ -72,7 +72,7 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), cur_chunk(0), audio_open
                     want.silence=0;
                     want.samples=8192;
                     want.size=0;
-                    want.callback=null_callback;
+                    want.callback=NULL;//null_callback;
                     want.userdata=NULL;
 
                 SDL_AudioSpec got;
@@ -129,7 +129,7 @@ void apu::run(uint64_t run_to) {
 
     //Generate audio between cycle and cmd.cycle
     util::cmd cur_cmd;
-    if(cmd_queue.size() > 0) {
+    if(!cmd_queue.empty()) {
         cur_cmd = cmd_queue.front();
     }
     int cur_sample = 0;
@@ -150,10 +150,10 @@ void apu::run(uint64_t run_to) {
         clock_freqs();
 
         //If it's time, apply the current command, and grab the next one, if it exists
-        if(cmd_queue.size() > 0 && cycle == cur_cmd.cycle) {
+        if(!cmd_queue.empty() && cycle == cur_cmd.cycle) {
             apply(cur_cmd);
             cmd_queue.pop_front();
-            if(cmd_queue.size() > 0) {
+            if(!cmd_queue.empty()) {
                 cur_cmd = cmd_queue.front();
             }
         }
@@ -171,7 +171,7 @@ void apu::run(uint64_t run_to) {
 
     //Push the sample to the output device.
     if(audio_open) {
-        //SDL_QueueAudio(devid, out_buffer.data(), sample_count * CHANNELS * SAMPLE_SIZE);
+        SDL_QueueAudio(devid, out_buffer.data(), sample_count * CHANNELS * SAMPLE_SIZE);
     }
 
     //Every 16 chunks, we need to generate 690 samples, instead of 689.
@@ -216,16 +216,16 @@ void apu::clock_sequencer() {
 
 void apu::clock_freqs() {
     if(chan1_active) {
-        chan1_freq_counter--;
-        if(!chan1_freq_counter) {
+        chan1_freq_counter-=4;
+        if(!chan1_freq_counter||chan1_freq_counter > 2047) {
             chan1_freq_counter = chan1_freq_shadow;
             chan1_duty_phase++;
             chan1_duty_phase %= square_wave_length;
         }
     }
     if(chan2_active) {
-        chan2_freq_counter--;
-        if(!chan2_freq_counter) {
+        chan2_freq_counter-=4;
+        if(!chan2_freq_counter||chan1_freq_counter > 2047) {
             chan2_freq_counter = chan2_freq.freq;
             chan2_duty_phase++;
             chan2_duty_phase %= square_wave_length;
