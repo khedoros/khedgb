@@ -302,6 +302,10 @@ bool rom::needs_color() {
     return h.cgb_flag == 0xc0;
 }
 
+bool rom::supports_color() {
+    return h.cgb_flag >= 0x80;
+}
+
 std::string rom::mapper_names[7] = {"None", "MBC1", "MBC2", "MBC3", "MBC5", "GameBoy Camera", "Unsupported"};
 uint32_t rom::rom_sizes[9] = {32*1024, 64*1024, 128*1024, 256*1024, 512*1024, 1024*1024, 2048*1024, 4096*1024, 8192*1024};
 uint32_t rom::ram_sizes[6] = {0, 2048, 8192, 32768, 131072, 65536};

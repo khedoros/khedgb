@@ -99,6 +99,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     //Poll interrupts
     uint8_t int_flag = 0;
     uint8_t int_enable = 0;
+
     bus->update_interrupts(cycle);
     bus->read(0xff0f, &int_flag, 1, cycle);
     bus->read(0xffff, &int_enable, 1, cycle);
@@ -156,15 +157,15 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     if(retval) {
         return retval+cycles;
     }
-    
+ 
     //Sleep for necessary time, if HDMA is in progress
     uint64_t prev = cycles;
     cycles+=bus->handle_hdma(cycle);
     if(cycles - prev > 0) {
-        printf("Reported sleeping for %d cycles\n", cycles - prev);
+        //printf("Reported sleeping for %d cycles\n", cycles - prev);
         return cycles;
     }
-
+   
     int bytes = 0;
     int prefix = 0;
     int data = 0;

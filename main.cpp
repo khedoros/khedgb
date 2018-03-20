@@ -103,6 +103,11 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    if(cgb && sgb) {
+        printf("SGB and GBC/CGB art mutually exclusive.\n");
+        return 1;
+    }
+
     cpu    proc(&bus, cgb, bus.has_firmware());
     lcd *  ppu = bus.get_lcd();
     apu *  sound = bus.get_apu();

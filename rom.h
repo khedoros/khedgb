@@ -41,6 +41,7 @@ class rom {
         virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
         bool supports_sgb();
         bool needs_color();
+        bool supports_color();
 
         struct header {
             uint8_t title[17]; //16 chars and null, just in case 0134-0143
