@@ -3,7 +3,7 @@ Adventures in Game Boy emulation (Or, What Khedoros Likes To Do In His Not-so-ab
 
 ## Plan
 
-This started as a DMG (original GameBoy) emulator, has expanded to cover some accessories, and is in the process of having CGB (GameBoy Color) support added in. Sound is turning out to be the last thing to add; it'll probably follow sometime after I've got the Color support working properly.
+This started as a DMG (original GameBoy) emulator, has expanded to cover some accessories, and now support CGB (GameBoy Color) games. Sound is turning out to be the last thing to add; it's next on the list.
 
 ## Usage
 
@@ -50,7 +50,7 @@ Command: `khedgb [options] romfile`
 Option | Effect
 ------ | ------
 --sgb | Set Super Gameboy mode, if supported by the ROM
---cgb | Set Color Gameboy mode (in progress, and functional-ish, but still needs a lot of work)
+--cgb | Set Color Gameboy mode
 --trace | Activate CPU+PPU instruction trace (listing of what the game is doing)
 --headless | Headless mode (disable graphics) (I don't test this often)
 --nosound | NoSound mode (disable audio) (Sound isn't working yet anyhow...)
@@ -60,7 +60,7 @@ Note about the firmware: They aren't strictly necessary. The emulator runs witho
 
 ## Current state
 
-Most original GameBoy games are booting and running (all of the ones I test work nearly-perfectly). Color games have a small chance of working, but mostly come out quirkily corrupted. Saving and loading of games (not save states) is basically working, including with save files from other emulators (tested with BGB, for example). Timing issues cause some minor graphical issues in the games that I test (usually split-second flashes and such). Games that I don't test often are a little more "iffy" (and that applies doubly to color games, since I've only recently added any support). Some games may do things that I haven't tested, and crash for that reason (although when I find cases like that, I try to fix them by determining where the inaccuracy is in my emulator).
+Most GameBoy and Color games are booting and running (all of the ones I test work nearly-perfectly). Saving and loading of games (not save states) is basically working, including with save files from other emulators (tested with BGB, for example). Timing issues cause some minor graphical issues in the games that I test (usually split-second flashes and such). Games that I don't test often are a little more "iffy" (and that applies doubly to color games, since I've only recently added any support). Some games may do things that I haven't tested, and crash for that reason (although when I find cases like that, I try to fix them by determining where the inaccuracy is in my emulator).
 
 ### CPU
 
@@ -80,7 +80,7 @@ The link cable works, at least at a basic level. The emulator currently pretends
 
 ### Display
 
-Display output composites the video roughly correctly, although sprite priority isn't quite right. On real hardware, it's possible to modify certain display registers during rendering. I don't support sub-line rendering changes, right now. The emulator does a partial colorization when possible (and when the palette is set correctly), kind of like how the Game Boy Color does with non-color games. Sprites are blue and green-tinted (since there are 2 internal sprite palettes), the background is monochrome, and the "window" overlay is red/pink. In Super Game Boy mode, most games provide a themed backdrop, and this emulator supports displaying that. CGB and DMG rendering is separated, and so can behave quite differently.
+Display output composites the video roughly correctly, although sprite priority isn't quite right. The rendering for color games needs a lot of work though. On real hardware, it's possible to modify certain display registers during rendering. I don't support sub-line rendering changes, right now. The emulator does a partial colorization when possible (and when the palette is set correctly), kind of like how the Game Boy Color does with non-color games. Sprites are blue and green-tinted (since there are 2 internal sprite palettes), the background is monochrome, and the "window" overlay is red/pink. In Super Game Boy mode, most games provide a themed backdrop, and this emulator supports displaying that. CGB and DMG rendering is separated, and so can behave quite differently.
 
 ### Super GameBoy
 
