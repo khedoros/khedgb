@@ -245,7 +245,7 @@ private:
     bool chan1_active;
     bool chan1_sweep_active;
     uint16_t chan1_length_counter; //Counts how many steps until channel is silenced
-    uint16_t chan1_freq_counter;   //Counts how many steps until waveform is clocked
+    int16_t chan1_freq_counter;   //Counts how many steps until waveform is clocked
     uint16_t chan1_env_counter;    //Counts how many steps until envelope is clocked
     uint16_t chan1_sweep_counter;  //Counts how many steps until sweep is clocked
     uint16_t chan1_freq_shadow;    //Frequency shadow register used by sweep
@@ -258,7 +258,7 @@ private:
     freq_reg chan2_freq;      //0xFF18+FF19 NR23+NR24
     bool chan2_active;
     uint16_t chan2_length_counter; //Counts how many steps until channel is silenced
-    uint16_t chan2_freq_counter;   //Counts how many steps until waveform is clocked
+    int16_t chan2_freq_counter;   //Counts how many steps until waveform is clocked
     uint16_t chan2_env_counter;    //Counts how many steps until envelope is clocked
     uint16_t chan2_freq_shadow;    //Frequency shadow register used by sweep
     uint8_t chan2_level;           //Current output level
@@ -273,7 +273,7 @@ private:
     static const uint8_t wave_length = 32; //Number of elements in the wave registers
     bool chan3_active;
     uint16_t chan3_length_counter;
-    uint16_t chan3_freq_counter;
+    int16_t chan3_freq_counter;
     uint8_t     chan3_duty_phase;   //Which sample is the current one
 
     //Channel 4 noise
@@ -283,9 +283,12 @@ private:
     noise_count_init chan4_counter; //0xFF23 NR44 Enables use of length counter, and inits playback
     static const uint8_t noise_divisors[8];
     bool chan4_active;
-    uint16_t chan4_freq_counter; //How many steps until lfsr is clocked
+    int16_t chan4_freq_counter; //How many steps until lfsr is clocked
+    uint16_t chan4_env_counter;
+    uint8_t chan4_level;
     uint16_t chan4_lfsr;         //Linear Feedback Shift Register for noise output
     uint8_t lfsr_value;          //Current output value of LFSR
+    uint16_t chan4_length_counter; //Length to play
 
     //Sound control registers
     output_levels levels;      //0xFF24 NR50
@@ -302,7 +305,6 @@ private:
     const static int CHANNELS = 2;
     const static int SAMPLE_SIZE = 1;
     int cur_chunk; //Number between 0 and 15 to help track how many samples must be provided for this "frame" of audio
-
 };
 
 void null_callback(void * userdata, Uint8* stream, int len);

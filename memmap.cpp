@@ -429,7 +429,7 @@ void memmap::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff53:
                 //printf("HDMA3 (DMA destination, high byte): %02x\n", *(uint8_t *)val);
-                hdma_dest = (256 * (*(uint8_t *)val & 0x1f)) | (hdma_dest & 0xff) + 0x8000;
+                hdma_dest = ((256 * (*(uint8_t *)val & 0x1f)) | (hdma_dest & 0xff)) + 0x8000;
                 break;
             case 0xff54:
                 //printf("HDMA4 (DMA destination, low byte): %02x\n", *(uint8_t *)val);
@@ -947,17 +947,17 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
                 break;
             case 0x0e: //ICON_EN
                 {
-                    bool palette  = ((sgb_cmd_data[1] & 1) == 1);
-                    bool settings = ((sgb_cmd_data[1] & 2) == 2);
-                    bool reg_file = ((sgb_cmd_data[1] & 4) == 4);
+                    //bool palette  = ((sgb_cmd_data[1] & 1) == 1);
+                    //bool settings = ((sgb_cmd_data[1] & 2) == 2);
+                    //bool reg_file = ((sgb_cmd_data[1] & 4) == 4);
                     //printf(": ICON_EN  palette: %d settings: %d reg file transfer: %d\n", palette,settings,reg_file);
                 }
                 break;
             case 0x0f: //DATA_SND
                 {
-                    uint16_t addr = (sgb_cmd_data[2]<<8) + sgb_cmd_data[1];
-                    uint8_t bank = sgb_cmd_data[3];
-                    uint8_t count = sgb_cmd_data[4];
+                    //uint16_t addr = (sgb_cmd_data[2]<<8) + sgb_cmd_data[1];
+                    //uint8_t bank = sgb_cmd_data[3];
+                    //uint8_t count = sgb_cmd_data[4];
                     //printf(": DATA_SND Send %d bytes to SNES WRAM %02x:%04x (not supported)\n", count, bank, addr);
                 }
                 break;
@@ -1077,7 +1077,7 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
     if(!hdma_running) return 0;
     uint64_t cycle2 = (cycle>>1);
     uint8_t mode = screen.get_mode(cycle2);
-    uint64_t scrline = ((cycle2 - screen.get_active_cycle()) % 17556) / 114;
+    //uint64_t scrline = ((cycle2 - screen.get_active_cycle()) % 17556) / 114;
     uint8_t val = 0;
     if(hdma_general) {
         //printf("\t GDMA: transfer %d from %04x to %04x @ %ld (mode %d, line %d)\n", hdma_chunks, hdma_src, hdma_dest, cycle2, mode, scrline);
@@ -1089,7 +1089,7 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
                 hdma_dest++;
             }
             mode = screen.get_mode(cycle2);
-            scrline = ((cycle2 - screen.get_active_cycle()) % 17556) / 114;
+            //scrline = ((cycle2 - screen.get_active_cycle()) % 17556) / 114;
             //printf("\t\tChunk %d, mode %d, line %d @ %ld\n", c, mode, scrline, cycle + c*16);
         }
         hdma_general = false;
