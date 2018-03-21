@@ -157,7 +157,7 @@ int main(int argc, char *argv[]) {
                 delay = delay - (now - start);
                 if(delay < 1000) {
                     //printf("Delaying for %ld ms\n", delay/2);
-                    SDL_Delay(delay/2);
+                    SDL_Delay(delay*2/3);
                 }
                 uint64_t actual_delay = SDL_GetTicks() - now;
                 if(actual_delay > delay) {

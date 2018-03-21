@@ -100,7 +100,7 @@ private:
     void render(apu::samples&); //Generate next audio samples
     void clock_sequencer(); //Clock the sequencer by one step
     void clock_freqs();     //Clock the frequency counters
-    bool sweep_check(); //Check if next sweep iteration should disable the channel due to overflow
+    bool sweep_overflow(); //Check if next sweep iteration should disable the channel due to overflow
     std::list<util::cmd> cmd_queue;
 
     union sweep_reg { //NR10
@@ -275,6 +275,7 @@ private:
     uint16_t chan3_length_counter;
     int16_t chan3_freq_counter;
     uint8_t     chan3_duty_phase;   //Which sample is the current one
+    uint8_t chan3_cur_sample;
 
     //Channel 4 noise
     noise_length chan4_length; //0xFF20 NR41

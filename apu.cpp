@@ -207,11 +207,22 @@ void apu::render(apu::samples& s) {
     if(chan2_active) {
         s.r += chan2_level * square_wave[chan2_patlen.duty_cycle][chan2_duty_phase];
     }
+    if(chan3_active) {
+        s.l += chan3_cur_sample;
+    }
+    if(chan4_active) {
+        s.r += chan4_level * lfsr_value;
+    }
     //printf("APU Render cycle %ld to %ld\n", cycle, render_to);
     return;
 }
 
-bool apu::sweep_check() {
+bool apu::sweep_overflow() {
+    int16_t freq = chan1_freq_shadow;
+    int16_t delta = (freq>>chan1_sweep.shift);
+    if(chan1_sweep.direction) delta *=-1;
+    freq+=delta;
+    if(freq>=2048) return true;
     return false;
 }
 
@@ -243,7 +254,27 @@ void apu::clock_sequencer() {
     }
     if((sequencer_phase == 2 || sequencer_phase == 6) && chan1_sweep_active) {
         //clock sweep for channel 1 (only one that supports it)
-
+        if(chan1_active && chan1_sweep_active && chan1_sweep.time) chan1_sweep_counter--;
+        if(chan1_sweep_counter == 0) {
+            chan1_sweep_counter = chan1_sweep.time;
+            int16_t freq = chan1_freq_shadow;
+            int16_t delta = (freq>>chan1_sweep.shift);
+            if(chan1_sweep.direction) delta *=-1;
+            freq+=delta;
+            if(freq > 2047) {
+                chan1_active = false;
+                chan1_sweep_active = false;
+            }
+            else {
+                chan1_freq_shadow = util::clamp(0,freq,2047);
+                freq = 2048 - chan1_freq_shadow;
+                chan1_freq.freq = freq;
+            }
+            if(sweep_overflow()) {
+                chan1_active = false;
+                chan1_sweep_active = false;
+            }
+        }
     }
     if(sequencer_phase == 7) {
         //clock volume for 1, 2, and 4? I think chan3 has level, but not envelope.
@@ -303,9 +334,15 @@ void apu::clock_freqs() {
     if(chan3_active) {
         chan3_freq_counter--;
         if(!chan3_freq_counter) {
-            chan3_freq_counter = chan3_freq.freq;
+            chan3_freq_counter = 2048 - chan3_freq.freq;
             chan3_duty_phase++;
             chan3_duty_phase %= wave_length;
+            if(chan3_duty_phase & 1) {
+                chan3_cur_sample = (wave_pattern[chan3_duty_phase] & 0x0f);
+            }
+            else {
+                chan3_cur_sample = ((wave_pattern[chan3_duty_phase] & 0xf0)>>4);
+            }
         }
     }
     if(chan4_active) {
@@ -347,27 +384,18 @@ void apu::apply(util::cmd& c) {
             chan1_freq.freq_high = c.val;
             if(chan1_freq.initial) {
                 chan1_freq_shadow = 2048 - chan1_freq.freq;
-                chan1_sweep_counter = 0;
+                chan1_sweep_counter = chan1_sweep.time;
                 chan1_active = true;
-                if(chan1_sweep.shift != 0 && !sweep_check()) {
+                if(chan1_sweep.shift != 0 && sweep_overflow()) {
                     chan1_active = false;
+                }
+                if(chan1_active && (chan1_sweep.shift || chan1_sweep.time)) {
+                    chan1_sweep_active = true;
                 }
                 if(chan1_patlen.length == 0) {
                     chan1_length_counter = 64;
                 }
                 chan1_level = chan1_env.volume;
-                /*
-                - freq copied to sweep shadow register
-                - sweep timer is reloaded (timer count restarts from 0)
-                - sweep's internal enabled flag is set if sweep period or shift are non-zero, cleared otherwise
-                - if sweep shift is non-zero, freq calc and overflow check happen immediately
-                  - freq calc performed as previously noted, using the value in the shadow register
-                  - if resulting value > 2047, channel is disabled.
-                - when sweep is clocked, enabled flag is on, sweep period is non-zero:
-                *     - if overflow check passes, the new freq is written to the shadow reg, and NR13+NR14
-                *     - overflow check is run AGAIN with the new value (and can disable the channel), but value isn't written back
-                *   - if NR13+NR14 are changed during operation, the channel will switch back to the old freq when data is copied from shadow, on next sweep
-                */
             }
 
             //printf("apu: S1 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
