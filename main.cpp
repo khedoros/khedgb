@@ -120,11 +120,11 @@ int main(int argc, char *argv[]) {
     uint64_t cycle = 144*114; //Cycles since the machine started running (the system starts in vblank)
     uint64_t tick_size = 70224/16; //Cycles to run in a batch
     bool continue_running = true;
-    uint64_t last_output_cycle = 0; //Last cycle that the ppu output a frame
-    //uint64_t last_output_tick = 0;  //Last millisecond that the ppu output a frame
+
+    uint64_t cycle_offset = 0;
+    uint64_t start = SDL_GetTicks();
     while(continue_running) {
         //printf("Running CPU and PPU until cycle %ld (%ld for CPU)\n", cycle+tick_size, 2*(cycle+tick_size));
-        uint64_t start = SDL_GetTicks();
         continue_running = util::process_events(&proc, &bus);
         uint64_t count = proc.run(cycle + tick_size);
         if(!count) {
@@ -140,33 +140,23 @@ int main(int argc, char *argv[]) {
             //printf("Main got report of output at: %lld\n", cur_output_cycle);
         }
 
-        //Going to clock this during interrupt check, actually.
-        //if(audio && continue_running) {
-        //    sound->run(cycle + tick_size); //TODO: Add audio support
-        //}
-
         //Frame delay
         if(cur_output_cycle != 0) {
             uint64_t now = SDL_GetTicks();
-            //uint64_t ms_diff = now - last_output_tick;
-            uint64_t cycle_diff = cur_output_cycle - last_output_cycle; //cycles since last frame was output
-            //printf("cycle diff: %ld\n", cycle_diff);
-
-            if(cycle_diff != 0) {
-                uint64_t delay = (double(cycle_diff*1000) / double(1024*1024));
-                delay = delay - (now - start);
-                if(delay < 1000) {
-                    //printf("Delaying for %ld ms\n", delay/2);
-                    SDL_Delay(delay*2/3);
+            uint64_t time_elapsed = now - start;
+            uint64_t simulated_time = (1000 * (cycle + tick_size - cycle_offset)) / (1024 * 1024);
+            if(time_elapsed < simulated_time) {
+                if(simulated_time - time_elapsed < 20) {
+                    SDL_Delay(simulated_time - time_elapsed);
                 }
-                uint64_t actual_delay = SDL_GetTicks() - now;
-                if(actual_delay > delay) {
-                    printf("Delayed for %ld ms too long\n", actual_delay - delay);
+                else {
+                    start = SDL_GetTicks();
+                    cycle_offset = cycle + tick_size;
                 }
             }
-            //last_output_tick = now;
-            last_output_cycle = cur_output_cycle;
-            cur_output_cycle = 0;
+            else if(time_elapsed > simulated_time + 1000) {
+                printf("Seeing consistent slowdown.\n");
+            }
         }
         cycle += tick_size;
     }
