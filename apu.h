@@ -276,6 +276,7 @@ private:
     int16_t chan3_freq_counter;
     uint8_t     chan3_duty_phase;   //Which sample is the current one
     uint8_t chan3_cur_sample;
+    uint16_t chan3_freq_shadow;
 
     //Channel 4 noise
     noise_length chan4_length; //0xFF20 NR41
@@ -284,7 +285,8 @@ private:
     noise_count_init chan4_counter; //0xFF23 NR44 Enables use of length counter, and inits playback
     static const uint8_t noise_divisors[8];
     bool chan4_active;
-    int16_t chan4_freq_counter; //How many steps until lfsr is clocked
+    int32_t chan4_freq_counter; //How many steps until lfsr is clocked
+    uint32_t chan4_freq_shadow;
     uint16_t chan4_env_counter;
     uint8_t chan4_level;
     uint16_t chan4_lfsr;         //Linear Feedback Shift Register for noise output
