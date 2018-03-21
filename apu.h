@@ -168,8 +168,8 @@ private:
 
     union noise_length { //NR41
         struct {
-            unsigned length:5;
-            unsigned lengh_unused:3;
+            unsigned length:6;
+            unsigned lengh_unused:2;
         };
         uint8_t val;
     };
@@ -290,7 +290,7 @@ private:
     uint16_t chan4_env_counter;
     uint8_t chan4_level;
     uint16_t chan4_lfsr;         //Linear Feedback Shift Register for noise output
-    uint8_t lfsr_value;          //Current output value of LFSR
+    int8_t lfsr_value;          //Current output value of LFSR
     uint16_t chan4_length_counter; //Length to play
 
     //Sound control registers
