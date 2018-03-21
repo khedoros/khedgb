@@ -1,9 +1,9 @@
 # khedgb
-Adventures in Game Boy emulation (Or, What Khedoros Likes To Do In His Not-so-abundant Free Time)
+Adventures in Game Boy emulation (Or, What Khedoros Likes To Do In His Not-so-abundant Free Time). Honestly, it's working better than I would have thought. A lot of these ideas would be good to carry over to my NES emulator to fix some longstanding bugs, while simultaneously improving compatibility and code quality.
 
 ## Plan
 
-This started as a DMG (original GameBoy) emulator, has expanded to cover some accessories, and now support CGB (GameBoy Color) games. Sound is turning out to be the last thing to add; it's next on the list.
+This started as a DMG (original GameBoy) emulator, has expanded to cover some accessories, and now support CGB (GameBoy Color) games. The remaining plan is to quash timing bugs that still cause problems in some games, to improve audio quality, and maybe add a GUI to make the program feel more comfortable.
 
 ## Usage
 
@@ -53,7 +53,7 @@ Option | Effect
 --cgb | Set Color Gameboy mode
 --trace | Activate CPU+PPU instruction trace (listing of what the game is doing)
 --headless | Headless mode (disable graphics) (I don't test this often)
---nosound | NoSound mode (disable audio) (Sound isn't working yet anyhow...)
+--nosound | NoSound mode (disable audio) (Sound is working now, but I don't think this option is yet)
 --fw `fw_filename` | Boot using specified bootstrap firmware (expect 256 byte files for SGB and DMG, and a 2,304 byte file for CGB)
 
 Note about the firmware: They aren't strictly necessary. The emulator runs without them just fine. They just complete the experience.
@@ -64,23 +64,23 @@ Most GameBoy and Color games are booting and running (all of the ones I test wor
 
 ### CPU
 
-The CPU seems stable, although there might be timing issues (like the 0xCBxx instruction timing that I just fixed). Blargg cpu_inst tests pass, and so do a lot of the ones related to timing. Speed switching (for CGB) "works", but I'm not convinced yet that it's very reliable.
+The CPU seems stable, although there are still subtle timing issues (the kind that don't affect most games, but completely cripple others). Blargg cpu_inst tests pass, and so do a lot of the ones related to timing. Speed switching (for CGB) "works", but I'm not convinced yet that it's quite correct (although it seems reliable, and doesn't seem to be a point of difficulty for most games).
 
 ### Memory Map
 
-The Memory Map is fairly fleshed-out, but not complete, and some of the peripheral hardware isn't being emulated yet (sound is mostly absent, serial is only partially implemented (e.g. printer works, multiplayer doesn't)). Undocumented registers may or may not react as on a real system. I've implemented some of them, but not all. Some differences between DMG and CGB probably aren't written properly.
+The Memory Map is complete, but undocumented registers may or may not react as on a real system, and there might be cases where some things act like an original GameBoy and some act like a GameBoy Color.
 
 ### ROM mapping
 
-ROMs load, and I added the ability to load them directly from zip files (it just finds the first file in the archive, and loads it if it's between 32KB and 8MB). Onboard ROM+RAM work, and I've got the mappers I consider important written (null, mbc1, mbc2, mbc3, mbc5, camera). Null covers the simpler 32KB games, MBC1+2 cover a lot of early ones, MBC3 covers most of them that need to keep time (like the Pokemon games), and MBC5 covers later GameBoy games, and especially almost all of the Color games. MBC3 doesn't correctly support the clock chip, or saving and loading the time in save games. The Camera mapper correctly boots the game and provides access to the camera (if you specify the option to support the camera, when compiling).
+The following mappers are supported: null, mbc1, mbc2, mbc3, mbc5, and the camera. Null covers the simpler 32KB games, MBC1+2 cover a lot of early ones, MBC3 covers most of them that need to keep time (like the Pokemon games), and MBC5 covers later GameBoy games, and especially almost all of the Color games. The Camera mapper correctly boots the game and provides access to the camera (if you specify the option to support the camera, when compiling). MBC3 doesn't correctly support the clock chip, or saving and loading the time in save games.
 
 ### Interrupts
 
-The link cable works, at least at a basic level. The emulator currently pretends that you have a Printer plugged in all the time. There's a kludge for Blargg test serial line outputs, but that's silenced by default, because it usually means a lot of extra noise, if you're doing "real" serial transfers. The LCD interrupts work, with approximately-correct timing (real cycle-accurate emulation relies on details that I'm not taking into account, as rendering a line takes variable amounts of time). VBlank interrupts work. Joypad interrupts work.
+All of the interrupts basically "work", but I'm guessing that the specifics are one of the last remaining sources of bugs (i.e. minor timing errors that cause games to malfunction).
 
 ### Display
 
-Display output composites the video roughly correctly, although sprite priority isn't quite right. The rendering for color games needs a lot of work though. On real hardware, it's possible to modify certain display registers during rendering. I don't support sub-line rendering changes, right now. The emulator does a partial colorization when possible (and when the palette is set correctly), kind of like how the Game Boy Color does with non-color games. Sprites are blue and green-tinted (since there are 2 internal sprite palettes), the background is monochrome, and the "window" overlay is red/pink. In Super Game Boy mode, most games provide a themed backdrop, and this emulator supports displaying that. CGB and DMG rendering is separated, and so can behave quite differently.
+Working; CGB and DMG use separate rendering functions. DMG has all the framework necessary to support custom palettes; I just need to wire them in. Currently, original Game Boy games use a kind of sepia-tone palette, but the previous semi-colorized one is still present in the source code.
 
 ### Super GameBoy
 
