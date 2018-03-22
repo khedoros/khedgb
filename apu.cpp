@@ -677,7 +677,7 @@ void apu::apply(util::cmd& c) {
             }
             else {
                 APRINTF(" (sounds on)\n");
-                init();
+                //init();
                 //writes_enabled = true;
             }
             status.val = c.val;
