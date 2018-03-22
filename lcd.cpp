@@ -1179,8 +1179,8 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
             }
             else {
                 SDL_RenderCopy(renderer,texture,NULL,NULL);
-                SDL_RenderPresent(renderer);
             }
+            SDL_RenderPresent(renderer);
         }
         if(render_line == LAST_RENDER_LINE) {
             output_cycle = start_cycle - start_frame_cycle + (LAST_RENDER_LINE*CYCLES_PER_LINE) + MODE_2_LENGTH + MODE_3_LENGTH;

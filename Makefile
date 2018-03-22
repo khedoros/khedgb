@@ -6,7 +6,7 @@ ifeq "$(BUILD)" "debug"
 else ifeq "$(BUILD)" "profile"
     CXXFLAGS:=-g -pg -std=c++11
 else
-    CXXFLAGS:=-std=c++11 -O3
+    CXXFLAGS:=-std=c++11 -O3 -march=native
 endif
 
 ifeq "$(CAMERA)" "yes"
@@ -38,4 +38,4 @@ decode.o: decode.cpp
 	$(CXX) -c $(CXXFLAGS) $<
 
 clean:
-	rm khedgb *.o
+	-rm khedgb *.o
