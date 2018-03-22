@@ -328,6 +328,7 @@ void apu::clock_sequencer() {
                     chan1_level--;
                 }
                 chan1_env_counter = chan1_env.shift;
+                if(!chan1_env_counter) chan1_env_counter = 8;
             }
         }
         if(chan2_active && chan2_level > 0 && chan2_env.shift) {
@@ -340,6 +341,7 @@ void apu::clock_sequencer() {
                     chan2_level--;
                 }
                 chan2_env_counter = chan2_env.shift;
+                if(!chan2_env_counter) chan2_env_counter = 8;
             }
         }
         if(chan4_active && chan4_level > 0 && chan4_env.shift) {
@@ -352,6 +354,7 @@ void apu::clock_sequencer() {
                     chan4_level--;
                 }
                 chan4_env_counter = chan4_env.shift;
+                if(!chan4_env_counter) chan4_env_counter = 8;
             }
         }
     }
@@ -525,11 +528,11 @@ void apu::apply(util::cmd& c) {
                 chan3_freq_shadow = 2048 - chan3_freq.freq;
                 chan3_freq_counter = chan3_freq_shadow;
                 chan3_length_counter = 256 - chan3_length.length;
-                chan3_cur_sample = ((wave_pattern[chan3_duty_phase] & 0xf0)>>4);
+                chan3_duty_phase = 0;
             }
             else {
                 printf(" (ch3 stop)\n");
-                chan3_active = false;
+                //chan3_active = false;
             }
             //printf("apu: S3 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
             break;
@@ -566,7 +569,7 @@ void apu::apply(util::cmd& c) {
             }
             else {
                 printf(" (ch4 stop)\n");
-                chan4_active = false;
+                //chan4_active = false;
             }
             //printf("apu: S4 start: %d counter/continuous: %d\n", c.val>>7, (c.val&0x40)>>6);
             break;
