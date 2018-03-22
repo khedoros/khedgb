@@ -123,6 +123,9 @@ void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
 }
 
 uint8_t apu::read(uint16_t addr, uint64_t cycle) {
+    if(addr == 0xff26) {
+        return 0;
+    }
     return written_values[addr - 0xff10] | or_values[addr - 0xff10];
     //TODO: Calculate status for NR52
     //TODO: Block reads from wave RAM when it's in use (or, rather, return current wave value)
@@ -201,14 +204,14 @@ void apu::run(uint64_t run_to) {
 
 void apu::render(apu::samples& s) {
     if(!status.enable_sound) return;
-    s.l = 128;
-    s.r = 128;
+    s.l = 0;
+    s.r = 0;
     int32_t chan1 = 0;
     int32_t chan2 = 0;
     int32_t chan3 = 0;
     int32_t chan4 = 0;
-    int32_t templ = 128;
-    int32_t tempr = 128;
+    int32_t templ = 0;
+    int32_t tempr = 0;
     if(chan1_active) {
         chan1 = chan1_level * square_wave[chan1_patlen.duty_cycle][chan1_duty_phase];
     }
@@ -216,7 +219,8 @@ void apu::render(apu::samples& s) {
         chan2 = chan2_level * square_wave[chan2_patlen.duty_cycle][chan2_duty_phase];
     }
     if(chan3_active && chan3_on.active) {
-        chan3 = 10 * (chan3_cur_sample>>(wave_shift[chan3_level.level])) - (8 / (1<<(wave_shift[chan3_level.level])));
+        //chan3 = (chan3_cur_sample>>(wave_shift[chan3_level.level])) - (8 / (1<<(wave_shift[chan3_level.level])));
+        chan3 = (chan3_cur_sample>>(chan3_level.level));// - (8 / (1<<(chan3_level.level)));
     }
     if(chan4_active) {
         chan4 = chan4_level * lfsr_value;
@@ -232,14 +236,14 @@ void apu::render(apu::samples& s) {
     if(output_map.ch4_to_so2) tempr += chan4;
 
     //printf("chan1 (l: %d v: %d) chan2 (l: %d v: %d) templ: %d tempr: %d\n", chan1_level, chan1, chan2_level, chan2, templ, tempr);
-    assert(templ > 0);
-    assert(tempr > 0);
-    assert(templ < 256);
-    assert(tempr < 256);
+    assert(templ >= -128);
+    assert(tempr >= -128);
+    assert(templ < 127);
+    assert(tempr < 127);
 
     //if(templ != 128 || tempr != 128) printf("tl: %d tr: %d\n", templ,tempr);
-    s.l = templ;
-    s.r = tempr;
+    s.l = templ + 128;
+    s.r = tempr + 128;
     //printf("sl: %d sr: %d\n", s.l, s.r);
     //printf("APU Render cycle %ld to %ld\n", cycle, render_to);
     return;
@@ -402,7 +406,7 @@ void apu::clock_freqs() {
 }
 
 void apu::apply(util::cmd& c) {
-    printf("apply %04x = %02x @ %ld", c.addr,c.val,c.cycle);
+    //printf("apply %04x = %02x @ %ld", c.addr,c.val,c.cycle);
     switch(c.addr) {
         //sound 1: rectangle with sweep + envelope
         case 0xff10: //sound 1 sweep
@@ -431,21 +435,23 @@ void apu::apply(util::cmd& c) {
                 printf(" (ch1 trigger)\n");
                 chan1_freq_shadow = 2048 - chan1_freq.freq;
                 chan1_sweep_counter = chan1_sweep.time;
+                if(!chan1_sweep_counter) chan1_sweep_counter = 8;
                 chan1_active = true;
                 if(chan1_sweep.shift != 0 && sweep_overflow()) {
                     chan1_active = false;
                 }
-                if(chan1_active && (chan1_sweep.shift || chan1_sweep.time)) {
+                if(chan1_active && (chan1_sweep.shift || chan1_sweep_counter)) {
                     chan1_sweep_active = true;
                 }
                 chan1_length_counter = 64 - chan1_patlen.length;
                 chan1_level = chan1_env.volume;
                 chan1_env_counter = chan1_env.shift;
+                if(!chan1_env_counter) chan1_env_counter = 8;
                 chan1_freq_counter = chan1_freq_shadow;
             }
             else {
                 printf(" (ch1 stop)\n");
-                chan1_active = false;
+                //chan1_active = false;
             }
             //printf("apu: S1 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
             break;
@@ -476,10 +482,11 @@ void apu::apply(util::cmd& c) {
                 chan2_freq_counter = chan2_freq_shadow;
                 chan2_level = chan2_env.volume;
                 chan2_env_counter = chan2_env.shift;
+                if(!chan2_env_counter) chan2_env_counter = 8;
             }
             else {
                 printf(" (ch2 stop)\n");
-                chan2_active = false;
+                //chan2_active = false;
             }
             //printf("apu: S2 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
             break;
@@ -518,6 +525,7 @@ void apu::apply(util::cmd& c) {
                 chan3_freq_shadow = 2048 - chan3_freq.freq;
                 chan3_freq_counter = chan3_freq_shadow;
                 chan3_length_counter = 256 - chan3_length.length;
+                chan3_cur_sample = ((wave_pattern[chan3_duty_phase] & 0xf0)>>4);
             }
             else {
                 printf(" (ch3 stop)\n");
@@ -554,6 +562,7 @@ void apu::apply(util::cmd& c) {
                 chan4_lfsr = 32767;
                 chan4_level = chan4_env.volume;
                 chan4_env_counter = chan4_env.shift;
+                if(!chan4_env_counter) chan4_env_counter = 8;
             }
             else {
                 printf(" (ch4 stop)\n");
@@ -576,7 +585,7 @@ void apu::apply(util::cmd& c) {
             break;
         case 0xff26: //Sound activation
             if(!(c.val & 0x80)) {
-                printf(" (sounds off)\n");
+                printf(" (sounds off) %02x\n", c.val);
                 /*
                 c.val = 0;
                 for(int i=0xff10;i<0xff30;i++) {
@@ -584,11 +593,11 @@ void apu::apply(util::cmd& c) {
                     apply(c);
                 }
                 */
-                writes_enabled = false;
+                //writes_enabled = false;
             }
             else {
                 printf(" (sounds on)\n");
-                writes_enabled = true;
+                //writes_enabled = true;
             }
             status.val = c.val;
             //printf("apu: master: %d S4-on: %d S3-on: %d S2-on: %d S1-on: %d\n", c.val>>7, (c.val&0x08)>>3, (c.val&0x04)>>2, (c.val&0x02)>>1, (c.val&0x01));
