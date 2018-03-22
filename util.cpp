@@ -12,6 +12,12 @@
 #include<cassert>
 #include<png.h>
 
+#ifdef DEBUG
+#define ASSERT assert
+#else
+#define ASSERT //assert
+#endif
+
 namespace util {
 #ifndef PPU_ONLY
 bool process_events(cpu * proc, memmap * bus) {
@@ -238,7 +244,7 @@ int clamp(int low, int val, int high) {
     return val;
 }
 std::string to_hex_string(uint32_t val, int length) { 
-    assert(length <= 8); 
+    ASSERT(length <= 8); 
     char buf[10]; 
     char fmt[10]; 
     std::snprintf(fmt,10,"%%0%dx",length); 

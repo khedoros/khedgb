@@ -5,6 +5,12 @@
 #include<fstream>
 #include<string>
 
+#ifdef DEBUG
+#define ASSERT assert
+#else
+#define ASSERT //assert
+#endif
+
 lcd::lcd() : cgb_mode(false), debug(false), during_dma(false), cycle(0), next_line(0), control{.val=0x00}, bg_scroll_y(0), bg_scroll_x(0), 
              bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, 
              win_scroll_y(0), win_scroll_x(0), active_cycle(0), frame(0), 
@@ -38,8 +44,8 @@ lcd::lcd() : cgb_mode(false), debug(false), during_dma(false), cycle(0), next_li
     bg2 = SDL_CreateRGBSurface(0,512,512,32,0,0,0,0);
 
     if(buffer && bg1) {
-        assert(buffer->pitch == SCREEN_WIDTH*4);
-        assert(bg1->pitch == 512 * 4);
+        ASSERT(buffer->pitch == SCREEN_WIDTH*4);
+        ASSERT(bg1->pitch == 512 * 4);
     }
 
     //printf("lcd::Setting render draw color to black\n");
@@ -146,7 +152,7 @@ lcd::~lcd() {
 }
 
 uint64_t lcd::run(uint64_t run_to) {
-    assert(cycle < run_to);
+    ASSERT(cycle < run_to);
     //printf("PPU: Start: %ld run_to: %ld\n", cycle, run_to);
 
     uint64_t render_cycle = 0;
@@ -330,7 +336,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
         }
         printf(" @ %ld\n", cycle);
     }
-    assert(size==1);
+    ASSERT(size==1);
     //printf("PPU: 0x%04X = 0x%02x @ %ld (mode %d)\n", addr, *((uint8_t *)val), cycle, get_mode(cycle));
     if(addr >= 0x8000 && addr < 0xa000) {
         if(get_mode(cycle) != 3 || !cpu_control.display_enable) {
@@ -551,8 +557,8 @@ uint8_t lcd::get_mode(uint64_t cycle, bool ppu_view/*=false*/) {
     int frame_cycle = (cycle - active) % 17556;
     int line = frame_cycle / CYCLES_PER_LINE;
 
-    assert(line < LINES_PER_FRAME);
-    assert(line >= 0);
+    ASSERT(line < LINES_PER_FRAME);
+    ASSERT(line >= 0);
 
     int mode = 0; //hblank; largest amount of time per frame. May as well use it.
     if(line > LAST_RENDER_LINE) {
@@ -577,7 +583,7 @@ uint64_t lcd::get_active_cycle() {
 //Reads the CPU's view of the current state of the PPU
 void lcd::read(int addr, void * val, int size, uint64_t cycle) {
     if(size > 1 && size != 0x1000) return;
-    //assert(size==1);
+    //ASSERT(size==1);
     if(addr >= 0x8000 && addr < 0xa000) {
         if(get_mode(cycle) != 3) {
             memcpy(val, &(cpu_vram[cpu_vram_bank][addr-0x8000]), size);
@@ -675,7 +681,7 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
 
 void lcd::get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixels, int bank/*=0*/) {
 #ifdef UNCACHED
-    assert(tilenum < 384); assert(row < 16); assert(pixels.size() == 8);
+    ASSERT(tilenum < 384); ASSERT(row < 16); ASSERT(pixels.size() == 8);
     int addr = tilenum * 16 + row * 2;
     int b1 = vram[bank][addr];
     int b2 = vram[bank][addr + 1];
@@ -1382,7 +1388,7 @@ void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Arr<uint16_t, 7>& colors) { /
 	    col.val=colors[i];
 	    printf("%04x=(%02x,%02x,%02x) ",colors[i],col.red,col.green,col.blue);
     }*/
-    //assert(colors.size() == 7);
+    //ASSERT(colors.size() == 7);
     sgb_color col;
     col.val=colors[0];
     uint32_t col0 = SDL_MapRGB(buffer->format, col.red*8, col.green*8, col.blue*8);
@@ -1412,7 +1418,7 @@ void lcd::sgb_set_pals(uint8_t pal1, uint8_t pal2, Arr<uint16_t, 7>& colors) { /
 }
 
 void lcd::sgb_set_attrs(Arr<uint8_t,360>& attrs) {
-    //assert(attrs.size() == 360);
+    //ASSERT(attrs.size() == 360);
     for(int i=0;i<360;i++) {
         if(attrs[i] != 10)
             sgb_attrs[i] = attrs[i];
@@ -1480,9 +1486,9 @@ void lcd::do_vram_transfer() {
         case 0: //none
             break;
         case 1: //pal, transfers 512 palettes of 8 bytes each
-            assert(sizeof(sgb_color) == 2);
-            assert(sizeof(sgb_pal4) == 8);
-            assert(sgb_sys_pals.size() == 512);
+            ASSERT(sizeof(sgb_color) == 2);
+            ASSERT(sizeof(sgb_pal4) == 8);
+            ASSERT(sgb_sys_pals.size() == 512);
             memcpy(&(sgb_sys_pals[0]), &(vram_data[0]), 4096);
             break;
         case 2: //chr0, transfers 128 32-byte tiles in 4-bit color, using the 4 bit plane arrangement from SNES (tiles 0-127)
@@ -1510,11 +1516,11 @@ void lcd::do_vram_transfer() {
             break;
         case 4: //pct, transfers 1024 16-bit background attributes, then 16 2-byte colors (as palettes 4-7)
             //printf("sgb_attr size: %d\n", sizeof(sgb_attr));
-            assert(sizeof(sgb_attr) == 2);
-            assert(sizeof(sgb_color) == 2);
-            assert(sgb_frame_pals.size() == 4);
-            assert(sizeof(sgb_pal16) == 32);
-            assert(sgb_frame_attrs.size() == 1024);
+            ASSERT(sizeof(sgb_attr) == 2);
+            ASSERT(sizeof(sgb_color) == 2);
+            ASSERT(sgb_frame_pals.size() == 4);
+            ASSERT(sizeof(sgb_pal16) == 32);
+            ASSERT(sgb_frame_attrs.size() == 1024);
             memcpy(&(sgb_frame_attrs[0]), &(vram_data[0]), 2048);
             memcpy(&(sgb_frame_pals[0]), &(vram_data[0x800]), 128);
             /*
@@ -1527,9 +1533,9 @@ void lcd::do_vram_transfer() {
             */
             break;
         case 5: //attr, transfers 45 90-byte attribute transfer files
-            assert(sgb_attr_files.size() == 45);
+            ASSERT(sgb_attr_files.size() == 45);
             printf("attrib file size: %ld\n", sizeof(attrib_file));
-            assert(sizeof(attrib_file) == 90);
+            ASSERT(sizeof(attrib_file) == 90);
             memcpy(&(sgb_attr_files[0]), &(vram_data[0]), 4050);
             break;
         default: //undefined
@@ -1551,7 +1557,7 @@ void lcd::regen_background() {
             sgb_attr attr = sgb_frame_attrs[i*32+j];
             int tile_index = (attr.tile & 0xff);
             int pal_index = (attr.pal & 0x3);
-            assert(sgb_mode == true);
+            ASSERT(sgb_mode == true);
             for(int c = 1; c < 16; c++) {
                 uint8_t r = sgb_frame_pals[pal_index].col[c].red * 8;
                 uint8_t g = sgb_frame_pals[pal_index].col[c].green * 8;
@@ -1567,11 +1573,11 @@ void lcd::regen_background() {
                     int x_coord = x;
                     if(xflip) x_coord = 7 - x;
                     int tiledat_index = tile_index * 64 + 8 * y_coord + x_coord;
-                    assert(tiledat_index >= 0 && tiledat_index < 256*64);
+                    ASSERT(tiledat_index >= 0 && tiledat_index < 256*64);
                     int pixel_index = i * 2048 + y * 256 + j * 8 + x;
-                    assert(pixel_index >= 0 && pixel_index < 256*224);
+                    ASSERT(pixel_index >= 0 && pixel_index < 256*224);
                     uint8_t col = sgb_tiles[tiledat_index];
-                    assert(col >= 0 && col < 16);
+                    ASSERT(col >= 0 && col < 16);
                     //printf("%x ", col);
                     pixels[pixel_index] = palette[col];
                 }
@@ -1587,8 +1593,8 @@ void lcd::regen_background() {
 
 //Interprets current rendering state and VRAM and simulates sending it to the SGB
 void lcd::interpret_vram(Arr<uint8_t, 4096>& vram_data) {
-    assert(bg_scroll_x == 0);
-    assert(bg_scroll_y == 0);
+    ASSERT(bg_scroll_x == 0);
+    ASSERT(bg_scroll_y == 0);
     int map_base = 0x1800 + 0x400 * control.bg_map;
     bool signed_addr = !control.tile_addr_mode;
     for(int tile=0;tile<256;tile++) {
@@ -1643,7 +1649,7 @@ void lcd::sgb_enable(bool enable) {
         }
         sgb_texture = SDL_CreateTextureFromSurface(renderer, sgb_border);
 
-        assert(sgb_frame_pals.size() == 4);
+        ASSERT(sgb_frame_pals.size() == 4);
     }
     else if(switched) {
         cur_x_res = SCREEN_WIDTH;

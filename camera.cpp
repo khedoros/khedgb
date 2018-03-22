@@ -1,6 +1,12 @@
 #include "camera.h"
 #include<cstdio>
 
+#ifdef DEBUG
+#define ASSERT assert
+#else
+#define ASSERT //assert
+#endif
+
 camera::camera() : cap(0), valid(false), capture_start_cycle(0), capture_length(0),
                    screen_raw(NULL), screen_processed(NULL), renderer_raw(NULL), buffer_raw(NULL),
                    buffer_processed(NULL), texture_raw(NULL), texture_processed(NULL), renderer_processed(NULL)
@@ -50,8 +56,8 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
 
     height = shrunk_image.size().height;
     width = shrunk_image.size().width;
-    assert(height == 128 && width == 128);
-    assert(shrunk_image.rows == 128 && shrunk_image.cols == 128);
+    ASSERT(height == 128 && width == 128);
+    ASSERT(shrunk_image.rows == 128 && shrunk_image.cols == 128);
 
     //uint32_t * pix_r = ((uint32_t *)buffer_raw->pixels);
     //uint32_t * pix_p = ((uint32_t *)buffer_processed->pixels);

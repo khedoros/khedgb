@@ -5,9 +5,12 @@
 
 #ifdef DEBUG
 #define APRINTF printf
+#define ASSERT assert
 #else
 #define APRINTF //printf
+#define ASSERT //assert
 #endif
+
 
 const uint8_t apu::or_values[] = {0x80, 0x3f, 0x00, 0xff, 0xbf, //0x10,0x11,0x12,0x13,0x14
                                   0xff, 0x3f, 0x00, 0xff, 0xbf, //0x15,0x16,0x17,0x18,0x19
@@ -82,17 +85,17 @@ void null_callback(void * userdata, Uint8* stream, int len) {}
 
 apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_chunk(0)
 {
-    assert(sizeof(sweep_reg) == 1);
-    assert(sizeof(wave_on_reg) == 1);
-    assert(sizeof(pat_len_reg) == 1);
-    assert(sizeof(wave_length) == 1);
-    assert(sizeof(wave_level) == 1);
-    assert(sizeof(freq_reg) == 2);
-    assert(sizeof(noise_freq) == 1);
-    assert(sizeof(noise_count_init) == 1);
-    assert(sizeof(output_levels) == 1);
-    assert(sizeof(channel_map) == 1);
-    assert(sizeof(channel_status) == 1);
+    ASSERT(sizeof(sweep_reg) == 1);
+    ASSERT(sizeof(wave_on_reg) == 1);
+    ASSERT(sizeof(pat_len_reg) == 1);
+    ASSERT(sizeof(wave_length) == 1);
+    ASSERT(sizeof(wave_level) == 1);
+    ASSERT(sizeof(freq_reg) == 2);
+    ASSERT(sizeof(noise_freq) == 1);
+    ASSERT(sizeof(noise_count_init) == 1);
+    ASSERT(sizeof(output_levels) == 1);
+    ASSERT(sizeof(channel_map) == 1);
+    ASSERT(sizeof(channel_status) == 1);
     clear();
     clear_regs();
     int num_drivers = SDL_GetNumAudioDrivers();
@@ -242,7 +245,6 @@ void apu::run(uint64_t run_to) {
             //printf("L: %d R: %d acc: %d\n", left, right, sample_accum);
             out_buffer[cur_sample*2] = left/sample_accum;
             out_buffer[cur_sample*2+1] = right/sample_accum;
-            //assert(sample_accum == sample_count);
             cur_sample++;
             left=0;
             right=0;
@@ -271,29 +273,28 @@ void apu::render(apu::samples& s) {
     int32_t chan4 = 0;
     if(chan1_active) {
         chan1 = chan1_level * square_wave[chan1_patlen.duty_cycle][chan1_duty_phase];
-        assert(chan1 > -129 && chan1 < 128);
+        ASSERT(chan1 > -129 && chan1 < 128);
         //printf("ch1: %02x ", chan1&0xff);
     }
     //else if(chan2_active || chan3_active || chan4_active) printf("        ");
 
     if(chan2_active) {
         chan2 = chan2_level * square_wave[chan2_patlen.duty_cycle][chan2_duty_phase];
-        assert(chan2 > -129 && chan2 < 128);
+        ASSERT(chan2 > -129 && chan2 < 128);
         //printf("ch2: %02x ", chan2&0xff);
     }
     //else if(chan1_active || chan3_active || chan4_active) printf("        ");
 
     if(chan3_active) {
-        //chan3 = 2 * (chan3_cur_sample>>(wave_shift[chan3_level.level_shift_index]));// - (8 / (1<<(wave_shift[chan3_level.level_shift_index])));
-        chan3 = 2 * ((chan3_cur_sample) / (1<<(wave_shift[chan3_level.level_shift_index]))) - (8>>(wave_shift[chan3_level.level_shift_index]));
-        assert(chan3 > -129 && chan3 < 128);
-        //printf("ch3: %d \n", chan3);
+        chan3 = 2 * (((chan3_cur_sample) / (1<<(wave_shift[chan3_level.level_shift_index]))) - (8>>(wave_shift[chan3_level.level_shift_index])));
+        ASSERT(chan3 > -129 && chan3 < 128);
+        //printf("ch3: sample: %x shift: %x offset: %x result: %d \n", chan3_cur_sample, wave_shift[chan3_level.level_shift_index], 8>>(wave_shift[chan3_level.level_shift_index]), chan3/4);
     }
     //else if(chan2_active || chan1_active || chan4_active) printf("        ");
 
     if(chan4_active) {
         chan4 = chan4_level * lfsr_value;
-        assert(chan4 > -129 && chan4 < 128);
+        ASSERT(chan4 > -129 && chan4 < 128);
         //printf("ch4: %02x \n", chan4&0xff);
     }
     //else if(chan2_active || chan3_active || chan1_active) printf("        \n");
@@ -308,7 +309,7 @@ void apu::render(apu::samples& s) {
     if(output_map.ch4_to_so2) s.r += chan4;
 
     if(output_map.val == 0) {
-        assert(s.l == 0 && s.r == 0);
+        ASSERT(s.l == 0 && s.r == 0);
     }
 
     //printf("chan1 (l: %d v: %d) chan2 (l: %d v: %d) templ: %d tempr: %d\n", chan1_level, chan1, chan2_level, chan2, templ, tempr);

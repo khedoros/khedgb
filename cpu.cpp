@@ -27,6 +27,14 @@
 #define SER_INT_ADDR 0x0058
 #define JOY_INT_ADDR 0x0060
 
+#ifdef DEBUG
+#define APRINTF printf
+#define ASSERT assert
+#else
+#define APRINTF //printf
+#define ASSERT //assert
+#endif
+
 void decode(int pre,int x,int y,int z,int data);
 
 cpu::cpu(memmap * b, bool cgb_mode, bool has_firmware/*=false*/): bus(b),
@@ -70,7 +78,7 @@ cpu::cpu(memmap * b, bool cgb_mode, bool has_firmware/*=false*/): bus(b),
 }
 
 uint64_t cpu::run(uint64_t run_to) {
-    assert(cycle/2 < run_to);
+    ASSERT(cycle/2 < run_to);
     uint32_t opcode=0;
     bool running=true;
     uint64_t cycles=0;
@@ -740,7 +748,7 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                     break;
                 case 7: //Transfer SP+8-bit signed to HL, 0xf8
                     data = extend(data);
-                    assert(data>-129 && data < 128);
+                    ASSERT(data>-129 && data < 128);
 
                     if(data >=0) {
                         if((sp&0xff) + data > 0xff) set(CARRY_FLAG);

@@ -5,6 +5,12 @@
 #include<cstring>
 #include<cassert>
 
+#ifdef DEBUG
+#define ASSERT assert
+#else
+#define ASSERT //assert
+#endif
+
 const unsigned int memmap::timer_clock_select[4] = {
       256, //4096Hz
         4, //262144Hz
@@ -668,7 +674,7 @@ void memmap::update_interrupts(uint64_t cycle) {
     if(!int_requested.serial && serial_transfer && internal_clock && cycle >= transfer_start) {
         int bit = (cycle - transfer_start) / 128;
         //std::cout<<"Transfer start: "<<transfer_start<<" "<<cycle<<std::endl;
-        //assert(bit < 256);
+        //ASSERT(bit < 256);
         if(bit == (bits_transferred + 1)) { //Passed the time to transfer a new bit
             //printf("Serial shift, current values (before shift): out: %02x, in: %02x\n", link_data, link_in_data);
             bits_transferred = bit;
@@ -747,7 +753,7 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
     }
 
     //printf("Command data size: %d, expected: %d\n", sgb_cmd_data.size(), sgb_cmd_count * 16);
-    assert(sgb_cmd_data.size() == sgb_cmd_count * 16);
+    ASSERT(sgb_cmd_data.size() == sgb_cmd_count * 16);
 
     //printf("%d / %d: ", sgb_cmd_index+1, sgb_cmd_count);
 
