@@ -5,8 +5,8 @@
 #include<fstream>
 #include<string>
 
-lcd::lcd() : debug(false), during_dma(false), cycle(0), next_line(0), control{.val=0x00}, bg_scroll_y(0), bg_scroll_x(0), 
-             cgb_mode(false), bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, 
+lcd::lcd() : cgb_mode(false), debug(false), during_dma(false), cycle(0), next_line(0), control{.val=0x00}, bg_scroll_y(0), bg_scroll_x(0), 
+             bgpal{{0,1,2,3}}, obj1pal{{0,1,2,3}}, obj2pal{{0,1,2,3}}, 
              win_scroll_y(0), win_scroll_x(0), active_cycle(0), frame(0), 
              lyc_next_cycle(0), m0_next_cycle(0), m1_next_cycle(0), m2_next_cycle(0), 
              cpu_control{.val=0x00}, cpu_status(0), cpu_bg_scroll_y(0), cpu_bg_scroll_x(0), cpu_lyc(0), cpu_dma_addr(0), 
@@ -495,7 +495,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff4f: //CGB VRAM bank
                 cpu_vram_bank = ((*(uint8_t *)val) & 1);
-                cmd_queue.emplace_back(util::cmd{cycle, addr, ((*(uint8_t *)val) & 1), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, uint8_t((*(uint8_t *)val) & 1), 0});
                 break;
             case 0xff68:
                 cpu_cgb_bgpal_index = (*((uint8_t *)val) & 0x3f);
@@ -1146,7 +1146,6 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
                 for(int x=0;x!=8;x++) {
                     uint8_t col = tile_line[x];
-                    uint32_t color = 0;
                     if(!col) continue;
 
                     int xcoord = sprite_x + x;
@@ -1617,6 +1616,7 @@ void lcd::sgb_enable(bool enable) {
         win_x_res = 512;
         win_y_res = 448;
         bool success = util::reinit_sdl_screen(&screen, &renderer, &texture, cur_x_res, cur_y_res);
+        if(!success) fprintf(stderr, "Failed to resize screen to %dx%d?\n", cur_x_res, cur_y_res);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
         if(overlay) {
@@ -1651,6 +1651,7 @@ void lcd::sgb_enable(bool enable) {
         win_x_res = 320;
         win_y_res = 288;
         bool success = util::reinit_sdl_screen(&screen, &renderer, &texture, cur_x_res, cur_y_res);
+        if(!success) fprintf(stderr, "Failed to resize screen to %dx%d?\n", cur_x_res, cur_y_res);
 
         if(overlay) {
             SDL_FreeSurface(overlay);

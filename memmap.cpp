@@ -666,7 +666,7 @@ void memmap::update_interrupts(uint64_t cycle) {
 
     //SERIAL
     if(!int_requested.serial && serial_transfer && internal_clock && cycle >= transfer_start) {
-        unsigned int bit = (cycle - transfer_start) / 128;
+        int bit = (cycle - transfer_start) / 128;
         //std::cout<<"Transfer start: "<<transfer_start<<" "<<cycle<<std::endl;
         //assert(bit < 256);
         if(bit == (bits_transferred + 1)) { //Passed the time to transfer a new bit

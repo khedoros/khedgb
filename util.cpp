@@ -251,7 +251,7 @@ void setRGB(png_bytep r, uint8_t * i) {
     *r = ((i[0]<<6)|(i[1]<<4)|(i[2]<<2)|i[3]);
 }
 
-void output_png(std::string& filename, int width, int height, Vect<uint8_t>& image) {
+int output_png(std::string& filename, int width, int height, Vect<uint8_t>& image) {
     int code = 0;
     FILE *fp = NULL;
     png_structp png_ptr = NULL;
@@ -319,7 +319,7 @@ finalise:
     if (png_ptr != NULL) png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
     if (row != NULL) free(row);
 
-    //return code;
+    return code;
 }
 }
 

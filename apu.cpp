@@ -3,6 +3,12 @@
 #include<cstdio>
 #include<cassert>
 
+#ifdef DEBUG
+#define APRINTF printf
+#else
+#define APRINTF //printf
+#endif
+
 const uint8_t apu::or_values[] = {0x80, 0x3f, 0x00, 0xff, 0xbf, //0x10,0x11,0x12,0x13,0x14
                                   0xff, 0x3f, 0x00, 0xff, 0xbf, //0x15,0x16,0x17,0x18,0x19
                                   0x7f, 0xff, 0x9f, 0xff, 0xbf, //0x1a,0x1b,0x1c,0x1d,0x1e,
@@ -17,6 +23,7 @@ const int8_t apu::square_wave[4][8] = {{-1,-1,-1,-1,-1,-1,-1, 1},
                                        { 1,-1,-1,-1,-1,-1,-1, 1},
                                        { 1,-1,-1,-1,-1, 1, 1, 1},
                                        {-1, 1, 1, 1, 1, 1, 1,-1}};
+
 const uint8_t apu::noise_divisors[] = {8, 16, 32, 48, 64, 80, 96, 112};
 
 const uint8_t apu::wave_shift[] = {4, 0, 1, 2};
@@ -27,28 +34,76 @@ void apu::clear() {
     }
 }
 
+void apu::clear_regs() {
+    //Channel 1, rectangle with sweep
+    chan1_sweep.val = 0;    //0xFF10 NR10
+    chan1_patlen.val = 0; //0xFF11 NR11
+    chan1_env.val = 0;   //0xFF12 NR12
+    chan1_freq.freq_high = 0;      //0xFF13+FF14 NR13+NR14
+    chan1_freq.freq_low = 0;      //0xFF13+FF14 NR13+NR14
+    chan1_active = false;
+
+    //Channel 2, rectangle
+    chan2_patlen.val = 0; //0xFF16 NR21
+    chan2_env.val = 0;   //0xFF17 NR22
+    chan2_freq.freq_high = 0;      //0xFF18+FF19 NR23+NR24
+    chan2_freq.freq_low = 0;      //0xFF18+FF19 NR23+NR24
+    chan2_active = false;
+
+    //Channel 3, wave
+    chan3_on.val = 0;     //0xFF1A NR30
+    chan3_length.val = 0; //0xFF1B NR31
+    chan3_level.val = 0;  //0xFF1C NR32
+    chan3_freq.freq_high = 0;   //0xFF1D+FF1E NR33+NR34
+    chan3_freq.freq_low = 0;   //0xFF1D+FF1E NR33+NR34
+    chan3_active = false;
+
+    //Channel 4 noise
+    chan4_length.val = 0; //0xFF20 NR41
+    chan4_env.val = 0;    //0xFF21 NR42
+    chan4_freq.val = 0;   //0xFF22 NR43
+    chan4_counter.val = 0; //0xFF23 NR44 Enables use of length counter, and inits playback
+    chan4_active = false;
+
+    //Sound control registers
+    levels.val = 0;      //0xFF24 NR50
+    output_map.val = 0;  //0xFF25 NR51
+}
+
 void apu::init() {
     sequencer_phase = 7; //so that next step is 0
     chan1_duty_phase = 0;
     chan2_duty_phase = 0;
     chan3_duty_phase = 0;
+    clear_regs();
 }
 
 void null_callback(void * userdata, Uint8* stream, int len) {}
 
-apu::apu() : writes_enabled(false), cycle(0), devid(0), cur_chunk(0), audio_open(false)
+apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_chunk(0)
 {
+    assert(sizeof(sweep_reg) == 1);
+    assert(sizeof(wave_on_reg) == 1);
+    assert(sizeof(pat_len_reg) == 1);
+    assert(sizeof(wave_length) == 1);
+    assert(sizeof(wave_level) == 1);
+    assert(sizeof(freq_reg) == 2);
+    assert(sizeof(noise_freq) == 1);
+    assert(sizeof(noise_count_init) == 1);
+    assert(sizeof(output_levels) == 1);
+    assert(sizeof(channel_map) == 1);
+    assert(sizeof(channel_status) == 1);
     clear();
-    int num_drivers = SDL_GetNumAudioDrivers();
-    int num_playback_devices = SDL_GetNumAudioDevices(0);
-    int num_capture_devices = SDL_GetNumAudioDevices(1);
-    int chosen_driver = 255;
-    int driver_desirability = 255;
+    clear_regs();
+    unsigned int num_drivers = SDL_GetNumAudioDrivers();
+    unsigned int num_playback_devices = SDL_GetNumAudioDevices(0);
+    unsigned int chosen_driver = 255;
+    unsigned int driver_desirability = 255;
     std::array<std::array<const char, 20>, 6> desired_drivers = {"directsound", "winmm", "pulse", "pulseaudio", "alsa", "dummy"};
     printf("Audio Drivers: \n");
-    for(int i=0; i<num_drivers;i++) {
+    for(unsigned int i=0; i<num_drivers;i++) {
         printf("\tDriver %d: \"%s\"\n", i, SDL_GetAudioDriver(i));
-        for(int j=0;j<desired_drivers.size();j++) {
+        for(unsigned int j=0;j<desired_drivers.size();j++) {
             if(strncmp((desired_drivers[j].data()), SDL_GetAudioDriver(i), 20) == 0 && j < driver_desirability) {
                 chosen_driver = i;
                 driver_desirability = j;
@@ -65,15 +120,15 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), cur_chunk(0), audio_open
         }
 
         printf("Audio Devices: \n\tPlayback:\n");
-        for(int i=0; i<num_playback_devices;i++) {
+        for(unsigned int i=0; i<num_playback_devices;i++) {
             printf("\t\tDevice %d: %s\n", i, SDL_GetAudioDeviceName(i,0));
             if(!devid) {
                 SDL_AudioSpec want;
                     want.freq=44100;
-                    want.format=AUDIO_U8;
+                    want.format=AUDIO_S8;
                     want.channels=CHANNELS;
                     want.silence=0;
-                    want.samples=/*8192*/ 2067;
+                    want.samples=/*8192*/ 689;
                     want.size=0;
                     want.callback=NULL;//null_callback;
                     want.userdata=NULL;
@@ -96,10 +151,11 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), cur_chunk(0), audio_open
             SDL_PauseAudioDevice(devid, 0);
         }
     }
+    out.open("audio.out");
 }
 
 apu::~apu() {
-
+    out.close();
 }
 
 void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
@@ -115,7 +171,6 @@ void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
             writes_enabled = false;
         }
         else {
-            init();
             writes_enabled = true;
         }
         cmd_queue.emplace_back(util::cmd{cycle, addr, val, 0});
@@ -143,16 +198,16 @@ void apu::run(uint64_t run_to) {
     }
     int cur_sample = 0;
 
-    Arr<uint8_t, 690*2> out_buffer;
-    memset(out_buffer.data(),128,690*2);
+    Arr<int8_t, 690*2> out_buffer;
+    memset(out_buffer.data(),0,690*2);
     int sample_count = 689;
     if(cur_chunk == 15) {
-        sample_count++;
+        //sample_count++;
     }
     uint64_t start_cycle = cycle;
-    uint32_t left = 0;
-    uint32_t right = 0;
-    uint32_t sample_accum = 0;
+    int32_t left = 0;
+    int32_t right = 0;
+    int32_t sample_accum = 0;
     for(;cycle < run_to; cycle++) {
 
         //Clock the frame sequencer at 512Hz
@@ -184,6 +239,7 @@ void apu::run(uint64_t run_to) {
             //printf("L: %d R: %d acc: %d\n", left, right, sample_accum);
             out_buffer[cur_sample*2] = left/sample_accum;
             out_buffer[cur_sample*2+1] = right/sample_accum;
+            //assert(sample_accum == sample_count);
             cur_sample++;
             left=0;
             right=0;
@@ -194,6 +250,7 @@ void apu::run(uint64_t run_to) {
     //Push the sample to the output device.
     if(audio_open && SDL_GetQueuedAudioSize(devid) < 4000) {
         //printf("%d ", SDL_GetQueuedAudioSize(devid));
+        //out.write(reinterpret_cast<const char *>(out_buffer.data()), sample_count * CHANNELS * SAMPLE_SIZE);
         SDL_QueueAudio(devid, out_buffer.data(), sample_count * CHANNELS * SAMPLE_SIZE);
     }
 
@@ -203,47 +260,56 @@ void apu::run(uint64_t run_to) {
 }
 
 void apu::render(apu::samples& s) {
-    if(!status.enable_sound) return;
     s.l = 0;
     s.r = 0;
     int32_t chan1 = 0;
     int32_t chan2 = 0;
     int32_t chan3 = 0;
     int32_t chan4 = 0;
-    int32_t templ = 0;
-    int32_t tempr = 0;
     if(chan1_active) {
         chan1 = chan1_level * square_wave[chan1_patlen.duty_cycle][chan1_duty_phase];
+        assert(chan1 > -129 && chan1 < 128);
+        //printf("ch1: %02x ", chan1&0xff);
     }
+    //else if(chan2_active || chan3_active || chan4_active) printf("        ");
+
     if(chan2_active) {
         chan2 = chan2_level * square_wave[chan2_patlen.duty_cycle][chan2_duty_phase];
+        assert(chan2 > -129 && chan2 < 128);
+        //printf("ch2: %02x ", chan2&0xff);
     }
-    if(chan3_active && chan3_on.active) {
-        //chan3 = (chan3_cur_sample>>(wave_shift[chan3_level.level])) - (8 / (1<<(wave_shift[chan3_level.level])));
-        chan3 = (chan3_cur_sample>>(chan3_level.level));// - (8 / (1<<(chan3_level.level)));
+    //else if(chan1_active || chan3_active || chan4_active) printf("        ");
+
+    if(chan3_active) {
+        //chan3 = 2 * (chan3_cur_sample>>(wave_shift[chan3_level.level_shift_index]));// - (8 / (1<<(wave_shift[chan3_level.level_shift_index])));
+        chan3 = 2 * ((chan3_cur_sample) / (1<<(wave_shift[chan3_level.level_shift_index]))) - (8>>(wave_shift[chan3_level.level_shift_index]));
+        assert(chan3 > -129 && chan3 < 128);
+        //printf("ch3: %d \n", chan3);
     }
+    //else if(chan2_active || chan1_active || chan4_active) printf("        ");
+
     if(chan4_active) {
         chan4 = chan4_level * lfsr_value;
+        assert(chan4 > -129 && chan4 < 128);
+        //printf("ch4: %02x \n", chan4&0xff);
+    }
+    //else if(chan2_active || chan3_active || chan1_active) printf("        \n");
+
+    if(output_map.ch1_to_so1) s.l += chan1;
+    if(output_map.ch2_to_so1) s.l += chan2;
+    if(output_map.ch3_to_so1) s.l += chan3;
+    if(output_map.ch4_to_so1) s.l += chan4;
+    if(output_map.ch1_to_so2) s.r += chan1;
+    if(output_map.ch2_to_so2) s.r += chan2;
+    if(output_map.ch3_to_so2) s.r += chan3;
+    if(output_map.ch4_to_so2) s.r += chan4;
+
+    if(output_map.val == 0) {
+        assert(s.l == 0 && s.r == 0);
     }
 
-    if(output_map.ch1_to_so1) templ += chan1;
-    if(output_map.ch2_to_so1) templ += chan2;
-    if(output_map.ch3_to_so1) templ += chan3;
-    if(output_map.ch4_to_so1) templ += chan4;
-    if(output_map.ch1_to_so2) tempr += chan1;
-    if(output_map.ch2_to_so2) tempr += chan2;
-    if(output_map.ch3_to_so2) tempr += chan3;
-    if(output_map.ch4_to_so2) tempr += chan4;
-
     //printf("chan1 (l: %d v: %d) chan2 (l: %d v: %d) templ: %d tempr: %d\n", chan1_level, chan1, chan2_level, chan2, templ, tempr);
-    assert(templ >= -128);
-    assert(tempr >= -128);
-    assert(templ < 127);
-    assert(tempr < 127);
 
-    //if(templ != 128 || tempr != 128) printf("tl: %d tr: %d\n", templ,tempr);
-    s.l = templ + 128;
-    s.r = tempr + 128;
     //printf("sl: %d sr: %d\n", s.l, s.r);
     //printf("APU Render cycle %ld to %ld\n", cycle, render_to);
     return;
@@ -272,88 +338,99 @@ void apu::clock_sequencer() {
     sequencer_phase %= 8;
     if(sequencer_phase == 0 || sequencer_phase == 2 || sequencer_phase == 4 || sequencer_phase == 6) {
         //clock length for all the channels
-        if(chan1_active && chan1_freq.freq_counter) {
+        if(chan1_active && chan1_freq.length_enable) {
             chan1_length_counter--;
             if(chan1_length_counter == 0) chan1_active = false;
         }
 
-        if(chan2_active && chan2_freq.freq_counter) {
+        if(chan2_active && chan2_freq.length_enable) {
             chan2_length_counter--;
             if(chan2_length_counter == 0) chan2_active = false;
         }
 
-        if(chan3_active && chan3_freq.freq_counter) {
+        if(chan3_active && chan3_freq.length_enable) {
             chan3_length_counter--;
             if(chan3_length_counter == 0) chan3_active = false;
         }
 
-        if(chan4_active && chan4_counter.freq_counter) {
+        if(chan4_active && chan4_counter.length_enable) {
             chan4_length_counter--;
             if(chan4_length_counter == 0) chan4_active = false;
         }
     }
     if((sequencer_phase == 2 || sequencer_phase == 6) && chan1_sweep_active) {
         //clock sweep for channel 1 (only one that supports it)
-        if(chan1_active && chan1_sweep_active && chan1_sweep.time) chan1_sweep_counter--;
-        if(chan1_sweep_counter == 0) {
-            chan1_sweep_counter = chan1_sweep.time;
-            int16_t freq = chan1_freq_shadow;
-            int16_t delta = (freq>>chan1_sweep.shift);
-            if(!chan1_sweep.direction) delta *=-1;
-            freq+=delta;
-            if(freq > 2047) {
-                chan1_active = false;
-                chan1_sweep_active = false;
-            }
-            else {
-                chan1_freq_shadow = util::clamp(0,freq,2047);
-                freq = 2048 - chan1_freq_shadow;
-                chan1_freq.freq = freq;
-            }
-            if(sweep_overflow()) {
-                chan1_active = false;
-                chan1_sweep_active = false;
+        if(chan1_active && chan1_sweep_active && chan1_sweep.period) {
+            chan1_sweep_counter--;
+            if(chan1_sweep_counter == 0) {
+                chan1_sweep_counter = chan1_sweep.period;
+                int16_t freq = chan1_freq_shadow;
+                int16_t delta = (freq>>chan1_sweep.shift);
+                if(!chan1_sweep.direction) delta *=-1;
+                freq+=delta;
+                if(freq > 2047) {
+                    chan1_active = false;
+                    chan1_sweep_active = false;
+                }
+                else {
+                    chan1_freq_shadow = util::clamp(0,freq,2047);
+                    freq = 2048 - chan1_freq_shadow;
+                    chan1_freq.freq = freq;
+                }
+                if(sweep_overflow()) {
+                    chan1_active = false;
+                    chan1_sweep_active = false;
+                }
             }
         }
     }
     if(sequencer_phase == 7) {
         //clock volume for 1, 2, and 4? I think chan3 has level, but not envelope.
-        if(chan1_active && chan1_level > 0 && chan1_env.shift) {
+        if(chan1_active && chan1_level > 0 && chan1_env.period) {
             chan1_env_counter--;
             if(!chan1_env_counter) {
                 if(chan1_env.direction && chan1_level < 15) {
                     chan1_level++;
                 }
-                else if(!chan1_env.direction) {
+                else if(!chan1_env.direction && chan1_level > 0) {
                     chan1_level--;
                 }
-                chan1_env_counter = chan1_env.shift;
+                else if(!chan1_env.direction && !chan1_level) {
+                    chan1_active = false;
+                }
+                chan1_env_counter = chan1_env.period;
                 if(!chan1_env_counter) chan1_env_counter = 8;
             }
         }
-        if(chan2_active && chan2_level > 0 && chan2_env.shift) {
+        if(chan2_active && chan2_level > 0 && chan2_env.period) {
             chan2_env_counter--;
             if(!chan2_env_counter) {
                 if(chan2_env.direction && chan2_level < 15) {
                     chan2_level++;
                 }
-                else if(!chan2_env.direction) {
+                else if(!chan2_env.direction && chan2_level > 0) {
                     chan2_level--;
                 }
-                chan2_env_counter = chan2_env.shift;
+                else if(!chan2_env.direction && !chan2_level) {
+                    chan2_active = false;
+                }
+                chan2_env_counter = chan2_env.period;
                 if(!chan2_env_counter) chan2_env_counter = 8;
             }
         }
-        if(chan4_active && chan4_level > 0 && chan4_env.shift) {
+        if(chan4_active && chan4_level > 0 && chan4_env.period) {
             chan4_env_counter--;
             if(!chan4_env_counter) {
                 if(chan4_env.direction && chan4_level < 15) {
                     chan4_level++;
                 }
-                else if(!chan4_env.direction) {
+                else if(!chan4_env.direction && chan4_level > 0) {
                     chan4_level--;
                 }
-                chan4_env_counter = chan4_env.shift;
+                else if(!chan4_env.direction && !chan4_level) {
+                    chan4_active = false;
+                }
+                chan4_env_counter = chan4_env.period;
                 if(!chan4_env_counter) chan4_env_counter = 8;
             }
         }
@@ -372,7 +449,7 @@ void apu::clock_freqs() {
     if(chan2_active) {
         chan2_freq_counter--;
         if(chan2_freq_counter <= 0) {
-            chan2_freq_counter += chan2_freq_shadow;
+            chan2_freq_counter += (2048 - chan2_freq.freq);
             chan2_duty_phase++;
             chan2_duty_phase %= square_wave_length;
         }
@@ -380,7 +457,7 @@ void apu::clock_freqs() {
     if(chan3_active) {
         chan3_freq_counter--;
         if(chan3_freq_counter <= 0) {
-            chan3_freq_counter = chan3_freq_shadow;
+            chan3_freq_counter += (2048 - chan3_freq.freq);
             chan3_duty_phase++;
             chan3_duty_phase %= wave_length;
             if((chan3_duty_phase & 1) == 1) {
@@ -394,7 +471,7 @@ void apu::clock_freqs() {
     if(chan4_active) {
         chan4_freq_counter--;
         if(chan4_freq_counter <= 0) {
-            chan4_freq_counter = chan4_freq_shadow;
+            chan4_freq_counter = (noise_divisors[chan4_freq.div_code]<<(chan4_freq.clock_shift))/4;
             uint16_t next = (chan4_lfsr & BIT0) ^ ((chan4_lfsr & BIT1)>>1);
             chan4_lfsr>>=1;
             chan4_lfsr |= (next<<14);
@@ -409,35 +486,35 @@ void apu::clock_freqs() {
 }
 
 void apu::apply(util::cmd& c) {
-    //printf("apply %04x = %02x @ %ld", c.addr,c.val,c.cycle);
+    APRINTF("apply %04x = %02x @ %ld", c.addr,c.val,c.cycle);
     switch(c.addr) {
         //sound 1: rectangle with sweep + envelope
         case 0xff10: //sound 1 sweep
-            printf(" (ch1 sweep)\n");
+            APRINTF(" (ch1 sweep)\n");
             chan1_sweep.val = c.val;
-            //printf("apu: S1 sweep time: %d increase: %d shift: %d\n", (c.val&0x70)>>4, (c.val&8)>>3, (c.val&7));
+            //APRINTF("apu: S1 sweep time: %d increase: %d shift: %d\n", (c.val&0x70)>>4, (c.val&8)>>3, (c.val&7));
             break;
         case 0xff11: //sound 1 length + duty cycle
-            printf(" (ch1 duty+length)\n");
+            APRINTF(" (ch1 duty+length)\n");
             chan1_patlen.val = c.val;
-            //printf("apu: S1 duty cycle: %d length: %d\n", c.val>>6, (c.val&0x3f));
+            //APRINTF("apu: S1 duty cycle: %d length: %d\n", c.val>>6, (c.val&0x3f));
             break;
         case 0xff12: //sound 1 envelope
-            printf(" (ch1 envelope)\n");
+            APRINTF(" (ch1 envelope)\n");
             chan1_env.val = c.val;
-            //printf("apu: S1 default envelope: %d up/down: %d step length: %d\n", c.val>>4, (c.val&8)>>3, (c.val&7));
+            //APRINTF("apu: S1 default envelope: %d up/down: %d step length: %d\n", c.val>>4, (c.val&8)>>3, (c.val&7));
             break;
         case 0xff13: //sound 1 low-order frequency
-            printf(" (ch1 low-freq)\n");
+            APRINTF(" (ch1 low-freq)\n");
             chan1_freq.freq_low = c.val;
-            //printf("apu: S1 freq-low: %d\n", c.val);
+            //APRINTF("apu: S1 freq-low: %d\n", c.val);
             break;
         case 0xff14: //sound 1 high-order frequency + start
             chan1_freq.freq_high = c.val;
             if(chan1_freq.initial) {
-                printf(" (ch1 trigger)\n");
+                APRINTF(" (ch1 trigger)\n");
                 chan1_freq_shadow = 2048 - chan1_freq.freq;
-                chan1_sweep_counter = chan1_sweep.time;
+                chan1_sweep_counter = chan1_sweep.period;
                 if(!chan1_sweep_counter) chan1_sweep_counter = 8;
                 chan1_active = true;
                 if(chan1_sweep.shift != 0 && sweep_overflow()) {
@@ -448,173 +525,179 @@ void apu::apply(util::cmd& c) {
                 }
                 chan1_length_counter = 64 - chan1_patlen.length;
                 chan1_level = chan1_env.volume;
-                chan1_env_counter = chan1_env.shift;
+                chan1_env_counter = chan1_env.period;
                 if(!chan1_env_counter) chan1_env_counter = 8;
                 chan1_freq_counter = chan1_freq_shadow;
             }
             else {
-                printf(" (ch1 stop)\n");
+                APRINTF(" (ch1 stop)\n");
                 //chan1_active = false;
             }
-            //printf("apu: S1 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
+            //APRINTF("apu: S1 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
             break;
 
         //sound 2: rectangle with envelope
         case 0xff16: //sound 2 length + duty cycle
-            printf(" (ch2 duty+length)\n");
+            APRINTF(" (ch2 duty+length)\n");
             chan2_patlen.val = c.val;
-            //printf("apu: S2 duty cycle: %d length: %d\n", c.val>>6, (c.val&0x3f));
+            //APRINTF("apu: S2 duty cycle: %d length: %d\n", c.val>>6, (c.val&0x3f));
             break;
         case 0xff17: //sound 2 envelope
-            printf(" (ch2 envelope)\n");
+            APRINTF(" (ch2 envelope)\n");
             chan2_env.val = c.val;
-            //printf("apu: S2 default envelope: %d up/down: %d step length: %d\n", c.val>>4, (c.val&8)>>3, (c.val&7));
+            //APRINTF("apu: S2 default envelope: %d up/down: %d step length: %d\n", c.val>>4, (c.val&8)>>3, (c.val&7));
             break;
         case 0xff18: //sound 2 low-order frequency
-            printf(" (ch2 low-freq)\n");
+            APRINTF(" (ch2 low-freq)\n");
             chan2_freq.freq_low = c.val;
-            //printf("apu: S2 freq-low: %d\n", c.val);
+            //APRINTF("apu: S2 freq-low: %d\n", c.val);
             break;
         case 0xff19: //sound 2 high-order frequency + start
             chan2_freq.freq_high = c.val;
             if(chan2_freq.initial) {
-                printf(" (ch2 trigger)\n");
-                chan2_freq_shadow = 2048 - chan2_freq.freq;
+                APRINTF(" (ch2 trigger)\n");
                 chan2_active = true;
                 chan2_length_counter = 64 - chan2_patlen.length;
-                chan2_freq_counter = chan2_freq_shadow;
+                chan2_freq_counter = 2048 - chan2_freq.freq;
                 chan2_level = chan2_env.volume;
-                chan2_env_counter = chan2_env.shift;
+                chan2_env_counter = chan2_env.period;
                 if(!chan2_env_counter) chan2_env_counter = 8;
             }
             else {
-                printf(" (ch2 stop)\n");
+                APRINTF(" (ch2 stop)\n");
                 //chan2_active = false;
             }
-            //printf("apu: S2 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
+            //APRINTF("apu: S2 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
             break;
 
         //sound 3: arbitrary waveform
         case 0xff1a: //sound 3 start/stop
-            if(c.val>>7) {
-                printf(" (ch3 DAC on)\n");
+            if(c.val & BIT7) {
+                APRINTF(" (ch3 DAC on)\n");
+                //chan3_active = true;
+                chan3_dac = true;
             }
             else {
-                printf(" (ch3 DAC off)\n");
+                APRINTF(" (ch3 DAC off)\n");
+                //chan3_active = false;
+                chan3_dac = false;
             }
             chan3_on.val = c.val;
-            //printf("apu: S3 enable: %d\n", c.val>>7);
+            //APRINTF("apu: S3 enable: %d\n", c.val>>7);
             break;
         case 0xff1b: //sound 3 length
-            printf(" (ch3 length)\n");
+            APRINTF(" (ch3 length)\n");
             chan3_length.val = c.val;
-            //printf("apu: S3 length: %d\n", c.val);
+            //APRINTF("apu: S3 length: %d\n", c.val);
             break;
         case 0xff1c: //sound 3 output level
-            printf(" (ch3 level)\n");
+            APRINTF(" (ch3 level)\n");
             chan3_level.val = c.val;
-            //printf("apu: S3 level: %d\n", (c.val&0x60)>>5);
+            //APRINTF("apu: S3 level: %d\n", (c.val&0x60)>>5);
             break;
         case 0xff1d: //sound 3 low-order frequency
-            printf(" (ch3 low-freq)\n");
+            APRINTF(" (ch3 low-freq)\n");
             chan3_freq.freq_low = c.val;
-            //printf("apu: S3 freq-low: %d\n", c.val);
+            //APRINTF("apu: S3 freq-low: %d\n", c.val);
             break;
         case 0xff1e: //sound 3 high-order frequency + start
             chan3_freq.freq_high = c.val;
             if(chan3_freq.initial) {
-                printf(" (ch3 trigger)\n");
+                APRINTF(" (ch3 trigger)\n");
                 chan3_active = true;
-                chan3_freq_shadow = 2048 - chan3_freq.freq;
-                chan3_freq_counter = chan3_freq_shadow;
+                chan3_freq_counter = 2048 - chan3_freq.freq;
                 chan3_length_counter = 256 - chan3_length.length;
                 chan3_duty_phase = 0;
+                //if(!chan3_on.active) chan3_active = false;
+                APRINTF("chan3_trigger level index: %d, level shift: %d, freq: %d, length: %d, DAC: %d, chan is: %s\n", chan3_level.level_shift_index, wave_shift[chan3_level.level_shift_index], chan3_freq_counter, chan3_length_counter, chan3_on.active,(chan3_active?"on":"off"));
             }
             else {
-                printf(" (ch3 stop)\n");
+                APRINTF(" (ch3 stop)\n");
                 //chan3_active = false;
             }
-            //printf("apu: S3 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
+            //APRINTF("apu: S3 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
             break;
 
         //sound 4: noise
         case 0xff20: //sound 4 length
-            //printf("apu: S4 length: %d\n", c.val&0x3f);
-            printf(" (ch4 length)\n");
+            //APRINTF("apu: S4 length: %d\n", c.val&0x3f);
+            APRINTF(" (ch4 length)\n");
             chan4_length.val = c.val;
             break;
         case 0xff21: //sound 4 envelope
-            //printf("apu: S4 default envelope: %d up/down: %d step length: %d\n", c.val>>4, (c.val&0x08)>>3, (c.val&7));
-            printf(" (ch4 envelope)\n");
+            //APRINTF("apu: S4 default envelope: %d up/down: %d step length: %d\n", c.val>>4, (c.val&0x08)>>3, (c.val&7));
+            APRINTF(" (ch4 envelope)\n");
             chan4_env.val = c.val;
             break;
         case 0xff22: //sound 4 frequency settings
-            printf(" (ch4 freq)\n");
+            APRINTF(" (ch4 freq)\n");
             chan4_freq.val = c.val;
-            //printf("apu: S4 shift freq: %d counter steps: %d freq division ratio: %d\n", c.val>>4, (c.val&0x08)>>3, (c.val&7));
+            //APRINTF("apu: S4 shift freq: %d counter steps: %d freq division ratio: %d\n", c.val>>4, (c.val&0x08)>>3, (c.val&7));
             break;
         case 0xff23: //sound 4 start
             chan4_counter.val = c.val;
             if(chan4_counter.initial) {
-                printf(" (ch4 trigger)\n");
+                APRINTF(" (ch4 trigger)\n");
                 chan4_active = true;
                 chan4_length_counter = 64 - chan4_length.length;
-                chan4_freq_shadow = (noise_divisors[chan4_freq.div_ratio]<<(chan4_freq.shift_clock ))/4;
-                chan4_freq_counter = chan4_freq_shadow;
-                //printf("ch4 freq: %d (divisor %d, ratio %d, shift %d) type: %d\n", chan4_freq_counter, noise_divisors[chan4_freq.div_ratio], chan4_freq.div_ratio, chan4_freq.shift_clock, chan4_freq.noise_type);
+                chan4_freq_counter = (noise_divisors[chan4_freq.div_code]<<(chan4_freq.clock_shift ))/4;
+                //APRINTF("ch4 freq: %d (divisor %d, ratio %d, shift %d) type: %d\n", chan4_freq_counter, noise_divisors[chan4_freq.div_ratio], chan4_freq.div_ratio, chan4_freq.shift_clock, chan4_freq.noise_type);
                 chan4_lfsr = 32767;
                 chan4_level = chan4_env.volume;
-                chan4_env_counter = chan4_env.shift;
+                chan4_env_counter = chan4_env.period;
                 if(!chan4_env_counter) chan4_env_counter = 8;
             }
             else {
-                printf(" (ch4 stop)\n");
+                APRINTF(" (ch4 stop)\n");
                 //chan4_active = false;
             }
-            //printf("apu: S4 start: %d counter/continuous: %d\n", c.val>>7, (c.val&0x40)>>6);
+            //APRINTF("apu: S4 start: %d counter/continuous: %d\n", c.val>>7, (c.val&0x40)>>6);
             break;
 
         //audio control
         case 0xff24: //V-in output levels+channels
-            printf(" (output levels)\n");
+            APRINTF(" (output levels)\n");
             levels.val = c.val;
-            //printf("apu: Vin->SO2: %d, S02 level: %d, Vin->SO1: %d, S01 level: %d\n", c.val>>7, (c.val&0x70)>>4, (c.val&0x08)>>3, (c.val&0x07));
+            //APRINTF("apu: Vin->SO2: %d, S02 level: %d, Vin->SO1: %d, S01 level: %d\n", c.val>>7, (c.val&0x70)>>4, (c.val&0x08)>>3, (c.val&0x07));
             break;
         case 0xff25: //Left+right channel selections
-            printf(" (output mappings)\n");
+            APRINTF(" (output mappings)\n");
             output_map.val = c.val;
-            //printf("apu: S1->SO2: %d S2->S02: %d S3->S02: %d S4->S02: %d S1->SO1: %d S2->S01: %d S3->S01: %d S4->S01: %d\n", c.val>>7, (c.val&0x40)>>6, (c.val&0x20)>>5, (c.val&0x10)>>4,
+            //APRINTF("apu: S1->SO2: %d S2->S02: %d S3->S02: %d S4->S02: %d S1->SO1: %d S2->S01: %d S3->S01: %d S4->S01: %d\n", c.val>>7, (c.val&0x40)>>6, (c.val&0x20)>>5, (c.val&0x10)>>4,
                                                                                                                              //(c.val&0x0f)>>3, (c.val&0x04)>>2, (c.val&0x02)>>1, (c.val&0x01));
             break;
         case 0xff26: //Sound activation
             if(!(c.val & 0x80)) {
-                printf(" (sounds off) %02x\n", c.val);
-                /*
-                c.val = 0;
-                for(int i=0xff10;i<0xff30;i++) {
-                    c.addr = i;
-                    apply(c);
-                }
-                */
+                APRINTF(" (sounds off) %02x\n", c.val);
+                clear_regs();
                 //writes_enabled = false;
             }
             else {
-                printf(" (sounds on)\n");
+                APRINTF(" (sounds on)\n");
+                init();
                 //writes_enabled = true;
             }
             status.val = c.val;
-            //printf("apu: master: %d S4-on: %d S3-on: %d S2-on: %d S1-on: %d\n", c.val>>7, (c.val&0x08)>>3, (c.val&0x04)>>2, (c.val&0x02)>>1, (c.val&0x01));
+            //APRINTF("apu: master: %d S4-on: %d S3-on: %d S2-on: %d S1-on: %d\n", c.val>>7, (c.val&0x08)>>3, (c.val&0x04)>>2, (c.val&0x02)>>1, (c.val&0x01));
             break;
 
         default:
             if(c.addr >= 0xff30 && c.addr < 0xff40) {
-                printf( " (wave val %d)\n", (c.addr & 0x0f));
-                //printf("apu: wave[%d] = %d, wave[%d] = %d\n", (addr-0xff30)*2, (c.val&0xf0)>>4, (addr-0xff30)*2+1, c.val&0x0f);
+                APRINTF( " (wave val %d)\n", (c.addr & 0x0f));
+                wave_pattern[c.addr & 0x0f] = c.val;
+                /*
+                if(c.addr == 0xff3f) {
+                    for(int i=0;i<16;i++) printf("%01x %01x ", (wave_pattern[i]>>4), (wave_pattern[i]&0xf));
+                    printf("level index: %d, level shift: %d, DAC: %d", chan3_level.level_shift_index, wave_shift[chan3_level.level_shift_index], chan3_on.active);
+                    printf("\n");
+                }
+                */
+                //APRINTF("apu: wave[%d] = %d, wave[%d] = %d\n", (addr-0xff30)*2, (c.val&0xf0)>>4, (addr-0xff30)*2+1, c.val&0x0f);
                 //waveform RAM
             }
             else {
-                printf("\n");
-                //printf("apu: unknown, addr=0x%04x, c.val=0x%02x\n", addr, c.val);
+                APRINTF("\n");
+                //APRINTF("apu: unknown, addr=0x%04x, c.val=0x%02x\n", addr, c.val);
             }
     }
 }

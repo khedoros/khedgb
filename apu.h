@@ -3,6 +3,8 @@
 #include<list>
 #include<SDL2/SDL_audio.h>
 #include "util.h"
+#include<iostream>
+#include<fstream>
 
 /* 512 Hz frame sequencer, with 8 phases (2048 cycles between phases)
  * - length is clocked on phases 0, 2, 4, and 6 (256Hz)
@@ -88,14 +90,16 @@ public:
     void write(uint16_t addr, uint8_t val, uint64_t cycle);
     uint8_t read(uint16_t addr, uint64_t cycle);
     void run(uint64_t run_to);
+    std::ofstream out;
 private:
     struct samples {
-        uint8_t l;
-        uint8_t r;
+        int8_t l;
+        int8_t r;
     };
 
     void apply(util::cmd& c);
-    void clear(); //When class is constructed or audio power is turned off
+    void clear(); //Clear CPU-side values
+    void clear_regs(); //Clears rendering-side registers
     void init(); //When audio power is turned on
     void render(apu::samples&); //Generate next audio samples
     void clock_sequencer(); //Clock the sequencer by one step
@@ -103,52 +107,31 @@ private:
     bool sweep_overflow(); //Check if next sweep iteration should disable the channel due to overflow
     std::list<util::cmd> cmd_queue;
 
-    union sweep_reg { //NR10
+    //NRx0 Registers
+    union sweep_reg { //NR10 0xff10
         struct {
             unsigned shift:3;
             unsigned direction:1; //0=up, 1=down
-            unsigned time:3;
+            unsigned period:3;
             unsigned unused:1;
-        };
+        } __attribute__((packed));
         uint8_t val;
     };
 
-    union pat_len_reg { //NR11, NR21
-        struct {
-            unsigned length:6;
-            unsigned duty_cycle:2;
-        };
-        uint8_t val;
-    };
-
-    union envelope_reg { //NR12, NR22, NR42
-        struct {
-            unsigned shift:3;
-            unsigned direction:1; //0=down, 1=up
-            unsigned volume:4; //initial volume
-        };
-        uint8_t val;
-    };
-
-    //freq = 131072/(2048-x) Hz
-    union freq_reg {
-        struct {
-            unsigned freq:11;
-            unsigned freq_unused:3;
-            unsigned freq_counter:1;
-            unsigned initial:1;
-        };
-        struct {
-            unsigned freq_low:8;      //NR13, NR23, NR33
-            unsigned freq_high:8;     //NR14, NR24, NR34
-        };
-    };
-
-    union wave_on_reg { //NR30
+    union wave_on_reg { //NR30 0xff1a
         struct {
             unsigned unused_wave:7;
             unsigned active:1;
-        };
+        } __attribute__((packed));
+        uint8_t val;
+    };
+    
+    //NRx1 Registers
+    union pat_len_reg { //NR11 0xff11, NR21 0xff16, NR41 0xff20
+        struct {
+            unsigned length:6;
+            unsigned duty_cycle:2; //used for ch1+2, but not ch4
+        } __attribute__((packed));
         uint8_t val;
     };
 
@@ -157,53 +140,69 @@ private:
         uint8_t val;
     };
 
+    //NRx2 Registers
+    union envelope_reg { //NR12 0xff12, NR22 0xff17, NR42 0xff21
+        struct {
+            unsigned period:3;
+            unsigned direction:1; //0=down, 1=up
+            unsigned volume:4; //initial volume
+        };
+        uint8_t val;
+    };
+
     union wave_level { //NR32
         struct {
             unsigned unused_1:5;
-            unsigned level:2;
+            unsigned level_shift_index:2;
             unsigned unused_2:1;
-        };
+        } __attribute__((packed));
         uint8_t val;
     };
 
-    union noise_length { //NR41
+    //NRx3 + NRx4 registers
+    union freq_reg {
         struct {
-            unsigned length:6;
-            unsigned lengh_unused:2;
-        };
-        uint8_t val;
+            unsigned freq:11;
+            unsigned freq_unused:3;
+            unsigned length_enable:1;
+            unsigned initial:1;
+        } __attribute__((packed));
+        struct {
+            unsigned freq_low:8;      //NR13 0xff13, NR23, 0xff18 NR33 0xff1d
+            unsigned freq_high:8;     //NR14 0xff14, NR24, 0xff19 NR34 0xff1e
+        } __attribute__((packed));
     };
 
-    union noise_freq { //NR43
+    union noise_freq { //NR43 0xff22
         struct {
-            unsigned div_ratio:3;
+            unsigned div_code:3;
             unsigned noise_type:1;
-            unsigned shift_clock:4;
-        };
+            unsigned clock_shift:4;
+        } __attribute__((packed));
         uint8_t val;
     };
 
-    union noise_count_init { //NR44
+    union noise_count_init { //NR44 0xff23
         struct {
             unsigned unused:6;
-            unsigned freq_counter:1;
+            unsigned length_enable:1;
             unsigned initial:1;
-        };
+        } __attribute__((packed));
         uint8_t val;
     };
 
-
-    union output_levels {
+    //Global status/control registers
+    union output_levels { //NR50 0xff24
         struct {
             unsigned so1_level:3;
             unsigned vin_to_so1:1;
             unsigned so2_level:3;
             unsigned vin_to_so2:1;
-        };
+        } __attribute__((packed));
         uint8_t val;
     };
 
-    union channel_map {
+    union channel_map { //NR51 0xff25
         struct {
             unsigned ch1_to_so1:1;
             unsigned ch2_to_so1:1;
@@ -213,11 +212,11 @@ private:
             unsigned ch2_to_so2:1;
             unsigned ch3_to_so2:1;
             unsigned ch4_to_so2:1;
-        };
+        } __attribute__((packed));
         uint8_t val;
     };
 
-    union channel_status {
+    union channel_status { //NR52 0xff26
         struct {
             unsigned chan1_playing:1;
             unsigned chan2_playing:1;
@@ -225,7 +224,7 @@ private:
             unsigned chan4_playing:1;
             unsigned unused:3;
             unsigned enable_sound:1;
-        };
+        } __attribute__((packed));
         uint8_t val;
     };
 
@@ -260,7 +259,6 @@ private:
     uint16_t chan2_length_counter; //Counts how many steps until channel is silenced
     int16_t chan2_freq_counter;   //Counts how many steps until waveform is clocked
     uint16_t chan2_env_counter;    //Counts how many steps until envelope is clocked
-    uint16_t chan2_freq_shadow;    //Frequency shadow register used by sweep
     uint8_t chan2_level;           //Current output level
     uint8_t chan2_duty_phase;      //Which waveform sample is it on
 
@@ -273,26 +271,25 @@ private:
     static const uint8_t wave_length = 32; //Number of elements in the wave registers
     static const uint8_t wave_shift[4]; //wave volume shift levels
     bool chan3_active;
+    bool chan3_dac;
     uint16_t chan3_length_counter;
     int16_t chan3_freq_counter;
     uint8_t     chan3_duty_phase;   //Which sample is the current one
     uint8_t chan3_cur_sample;
-    uint16_t chan3_freq_shadow;
 
     //Channel 4 noise
-    noise_length chan4_length; //0xFF20 NR41
+    pat_len_reg chan4_length; //0xFF20 NR41
     envelope_reg  chan4_env;    //0xFF21 NR42
     noise_freq   chan4_freq;   //0xFF22 NR43
     noise_count_init chan4_counter; //0xFF23 NR44 Enables use of length counter, and inits playback
     static const uint8_t noise_divisors[8];
     bool chan4_active;
     int32_t chan4_freq_counter; //How many steps until lfsr is clocked
-    uint32_t chan4_freq_shadow;
     uint16_t chan4_env_counter;
     uint8_t chan4_level;
     uint16_t chan4_lfsr;         //Linear Feedback Shift Register for noise output
     int8_t lfsr_value;          //Current output value of LFSR
-    uint16_t chan4_length_counter; //Length to play
+    int16_t chan4_length_counter; //Length to play
 
     //Sound control registers
     output_levels levels;      //0xFF24 NR50
