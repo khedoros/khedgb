@@ -19,6 +19,8 @@ const int8_t apu::square_wave[4][8] = {{-1,-1,-1,-1,-1,-1,-1, 1},
                                        {-1, 1, 1, 1, 1, 1, 1,-1}};
 const uint8_t apu::noise_divisors[] = {8, 16, 32, 48, 64, 80, 96, 112};
 
+const uint8_t apu::wave_shift[] = {4, 0, 1, 2};
+
 void apu::clear() {
     for(int i=0; i<0x30;i++) {
         written_values[i] = 0;
@@ -121,7 +123,6 @@ void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
 }
 
 uint8_t apu::read(uint16_t addr, uint64_t cycle) {
-    if(addr == 0xff26) return (written_values[addr - 0xff10] & 0x80);
     return written_values[addr - 0xff10] | or_values[addr - 0xff10];
     //TODO: Calculate status for NR52
     //TODO: Block reads from wave RAM when it's in use (or, rather, return current wave value)
@@ -215,7 +216,7 @@ void apu::render(apu::samples& s) {
         chan2 = chan2_level * square_wave[chan2_patlen.duty_cycle][chan2_duty_phase];
     }
     if(chan3_active && chan3_on.active) {
-        chan3 = (chan3_cur_sample>>chan3_level.level) - (8 / (1<<(chan3_level.level)));
+        chan3 = 10 * (chan3_cur_sample>>(wave_shift[chan3_level.level])) - (8 / (1<<(wave_shift[chan3_level.level])));
     }
     if(chan4_active) {
         chan4 = chan4_level * lfsr_value;
@@ -401,28 +402,33 @@ void apu::clock_freqs() {
 }
 
 void apu::apply(util::cmd& c) {
-    //printf("apply %04x = %02x @ %ld\n", c.addr,c.val,c.cycle);
+    printf("apply %04x = %02x @ %ld", c.addr,c.val,c.cycle);
     switch(c.addr) {
         //sound 1: rectangle with sweep + envelope
         case 0xff10: //sound 1 sweep
+            printf(" (ch1 sweep)\n");
             chan1_sweep.val = c.val;
             //printf("apu: S1 sweep time: %d increase: %d shift: %d\n", (c.val&0x70)>>4, (c.val&8)>>3, (c.val&7));
             break;
         case 0xff11: //sound 1 length + duty cycle
+            printf(" (ch1 duty+length)\n");
             chan1_patlen.val = c.val;
             //printf("apu: S1 duty cycle: %d length: %d\n", c.val>>6, (c.val&0x3f));
             break;
         case 0xff12: //sound 1 envelope
+            printf(" (ch1 envelope)\n");
             chan1_env.val = c.val;
             //printf("apu: S1 default envelope: %d up/down: %d step length: %d\n", c.val>>4, (c.val&8)>>3, (c.val&7));
             break;
         case 0xff13: //sound 1 low-order frequency
+            printf(" (ch1 low-freq)\n");
             chan1_freq.freq_low = c.val;
             //printf("apu: S1 freq-low: %d\n", c.val);
             break;
         case 0xff14: //sound 1 high-order frequency + start
             chan1_freq.freq_high = c.val;
             if(chan1_freq.initial) {
+                printf(" (ch1 trigger)\n");
                 chan1_freq_shadow = 2048 - chan1_freq.freq;
                 chan1_sweep_counter = chan1_sweep.time;
                 chan1_active = true;
@@ -438,6 +444,7 @@ void apu::apply(util::cmd& c) {
                 chan1_freq_counter = chan1_freq_shadow;
             }
             else {
+                printf(" (ch1 stop)\n");
                 chan1_active = false;
             }
             //printf("apu: S1 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
@@ -445,20 +452,24 @@ void apu::apply(util::cmd& c) {
 
         //sound 2: rectangle with envelope
         case 0xff16: //sound 2 length + duty cycle
+            printf(" (ch2 duty+length)\n");
             chan2_patlen.val = c.val;
             //printf("apu: S2 duty cycle: %d length: %d\n", c.val>>6, (c.val&0x3f));
             break;
         case 0xff17: //sound 2 envelope
+            printf(" (ch2 envelope)\n");
             chan2_env.val = c.val;
             //printf("apu: S2 default envelope: %d up/down: %d step length: %d\n", c.val>>4, (c.val&8)>>3, (c.val&7));
             break;
         case 0xff18: //sound 2 low-order frequency
+            printf(" (ch2 low-freq)\n");
             chan2_freq.freq_low = c.val;
             //printf("apu: S2 freq-low: %d\n", c.val);
             break;
         case 0xff19: //sound 2 high-order frequency + start
             chan2_freq.freq_high = c.val;
             if(chan2_freq.initial) {
+                printf(" (ch2 trigger)\n");
                 chan2_freq_shadow = 2048 - chan2_freq.freq;
                 chan2_active = true;
                 chan2_length_counter = 64 - chan2_patlen.length;
@@ -467,6 +478,7 @@ void apu::apply(util::cmd& c) {
                 chan2_env_counter = chan2_env.shift;
             }
             else {
+                printf(" (ch2 stop)\n");
                 chan2_active = false;
             }
             //printf("apu: S2 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
@@ -474,30 +486,41 @@ void apu::apply(util::cmd& c) {
 
         //sound 3: arbitrary waveform
         case 0xff1a: //sound 3 start/stop
+            if(c.val>>7) {
+                printf(" (ch3 DAC on)\n");
+            }
+            else {
+                printf(" (ch3 DAC off)\n");
+            }
             chan3_on.val = c.val;
             //printf("apu: S3 enable: %d\n", c.val>>7);
             break;
         case 0xff1b: //sound 3 length
+            printf(" (ch3 length)\n");
             chan3_length.val = c.val;
             //printf("apu: S3 length: %d\n", c.val);
             break;
         case 0xff1c: //sound 3 output level
+            printf(" (ch3 level)\n");
             chan3_level.val = c.val;
             //printf("apu: S3 level: %d\n", (c.val&0x60)>>5);
             break;
         case 0xff1d: //sound 3 low-order frequency
+            printf(" (ch3 low-freq)\n");
             chan3_freq.freq_low = c.val;
             //printf("apu: S3 freq-low: %d\n", c.val);
             break;
         case 0xff1e: //sound 3 high-order frequency + start
             chan3_freq.freq_high = c.val;
             if(chan3_freq.initial) {
+                printf(" (ch3 trigger)\n");
                 chan3_active = true;
                 chan3_freq_shadow = 2048 - chan3_freq.freq;
                 chan3_freq_counter = chan3_freq_shadow;
                 chan3_length_counter = 256 - chan3_length.length;
             }
             else {
+                printf(" (ch3 stop)\n");
                 chan3_active = false;
             }
             //printf("apu: S3 start: %d freq-high: %d\n", c.val>>7, (0x03&c.val));
@@ -506,29 +529,34 @@ void apu::apply(util::cmd& c) {
         //sound 4: noise
         case 0xff20: //sound 4 length
             //printf("apu: S4 length: %d\n", c.val&0x3f);
+            printf(" (ch4 length)\n");
             chan4_length.val = c.val;
             break;
         case 0xff21: //sound 4 envelope
             //printf("apu: S4 default envelope: %d up/down: %d step length: %d\n", c.val>>4, (c.val&0x08)>>3, (c.val&7));
+            printf(" (ch4 envelope)\n");
             chan4_env.val = c.val;
             break;
         case 0xff22: //sound 4 frequency settings
+            printf(" (ch4 freq)\n");
             chan4_freq.val = c.val;
             //printf("apu: S4 shift freq: %d counter steps: %d freq division ratio: %d\n", c.val>>4, (c.val&0x08)>>3, (c.val&7));
             break;
         case 0xff23: //sound 4 start
             chan4_counter.val = c.val;
             if(chan4_counter.initial) {
+                printf(" (ch4 trigger)\n");
                 chan4_active = true;
                 chan4_length_counter = 64 - chan4_length.length;
                 chan4_freq_shadow = (noise_divisors[chan4_freq.div_ratio]<<(chan4_freq.shift_clock ))/4;
                 chan4_freq_counter = chan4_freq_shadow;
-                printf("ch4 freq: %d (divisor %d, ratio %d, shift %d) type: %d\n", chan4_freq_counter, noise_divisors[chan4_freq.div_ratio], chan4_freq.div_ratio, chan4_freq.shift_clock, chan4_freq.noise_type);
+                //printf("ch4 freq: %d (divisor %d, ratio %d, shift %d) type: %d\n", chan4_freq_counter, noise_divisors[chan4_freq.div_ratio], chan4_freq.div_ratio, chan4_freq.shift_clock, chan4_freq.noise_type);
                 chan4_lfsr = 32767;
                 chan4_level = chan4_env.volume;
                 chan4_env_counter = chan4_env.shift;
             }
             else {
+                printf(" (ch4 stop)\n");
                 chan4_active = false;
             }
             //printf("apu: S4 start: %d counter/continuous: %d\n", c.val>>7, (c.val&0x40)>>6);
@@ -536,20 +564,30 @@ void apu::apply(util::cmd& c) {
 
         //audio control
         case 0xff24: //V-in output levels+channels
+            printf(" (output levels)\n");
             levels.val = c.val;
             //printf("apu: Vin->SO2: %d, S02 level: %d, Vin->SO1: %d, S01 level: %d\n", c.val>>7, (c.val&0x70)>>4, (c.val&0x08)>>3, (c.val&0x07));
             break;
         case 0xff25: //Left+right channel selections
+            printf(" (output mappings)\n");
             output_map.val = c.val;
             //printf("apu: S1->SO2: %d S2->S02: %d S3->S02: %d S4->S02: %d S1->SO1: %d S2->S01: %d S3->S01: %d S4->S01: %d\n", c.val>>7, (c.val&0x40)>>6, (c.val&0x20)>>5, (c.val&0x10)>>4,
                                                                                                                              //(c.val&0x0f)>>3, (c.val&0x04)>>2, (c.val&0x02)>>1, (c.val&0x01));
             break;
         case 0xff26: //Sound activation
-            if(!c.val>>7) {
-                clear();
+            if(!(c.val & 0x80)) {
+                printf(" (sounds off)\n");
+                /*
+                c.val = 0;
+                for(int i=0xff10;i<0xff30;i++) {
+                    c.addr = i;
+                    apply(c);
+                }
+                */
                 writes_enabled = false;
             }
             else {
+                printf(" (sounds on)\n");
                 writes_enabled = true;
             }
             status.val = c.val;
@@ -558,10 +596,12 @@ void apu::apply(util::cmd& c) {
 
         default:
             if(c.addr >= 0xff30 && c.addr < 0xff40) {
+                printf( " (wave val %d)\n", (c.addr & 0x0f));
                 //printf("apu: wave[%d] = %d, wave[%d] = %d\n", (addr-0xff30)*2, (c.val&0xf0)>>4, (addr-0xff30)*2+1, c.val&0x0f);
                 //waveform RAM
             }
             else {
+                printf("\n");
                 //printf("apu: unknown, addr=0x%04x, c.val=0x%02x\n", addr, c.val);
             }
     }

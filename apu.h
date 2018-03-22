@@ -271,6 +271,7 @@ private:
     freq_reg    chan3_freq;   //0xFF1D+FF1E NR33+NR34
     uint8_t     wave_pattern[32]; //0xFF30-0xFF3F
     static const uint8_t wave_length = 32; //Number of elements in the wave registers
+    static const uint8_t wave_shift[4]; //wave volume shift levels
     bool chan3_active;
     uint16_t chan3_length_counter;
     int16_t chan3_freq_counter;
