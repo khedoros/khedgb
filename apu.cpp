@@ -95,15 +95,14 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_c
     assert(sizeof(channel_status) == 1);
     clear();
     clear_regs();
-    unsigned int num_drivers = SDL_GetNumAudioDrivers();
-    unsigned int num_playback_devices = SDL_GetNumAudioDevices(0);
+    int num_drivers = SDL_GetNumAudioDrivers();
     unsigned int chosen_driver = 255;
     unsigned int driver_desirability = 255;
     std::array<std::array<const char, 20>, 6> desired_drivers = {"directsound", "winmm", "pulse", "pulseaudio", "alsa", "dummy"};
     printf("Audio Drivers: \n");
-    for(unsigned int i=0; i<num_drivers;i++) {
+    for(int i=0; i<num_drivers;i++) {
         printf("\tDriver %d: \"%s\"\n", i, SDL_GetAudioDriver(i));
-        for(unsigned int j=0;j<desired_drivers.size();j++) {
+        for(int j=0;j<desired_drivers.size();j++) {
             if(strncmp((desired_drivers[j].data()), SDL_GetAudioDriver(i), 20) == 0 && j < driver_desirability) {
                 chosen_driver = i;
                 driver_desirability = j;
@@ -119,8 +118,9 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_c
             fprintf(stderr, "Error init'ing driver: %s", SDL_GetError());
         }
 
+        int num_playback_devices = SDL_GetNumAudioDevices(0);
         printf("Audio Devices: \n\tPlayback:\n");
-        for(unsigned int i=0; i<num_playback_devices;i++) {
+        for(int i=0; i<num_playback_devices;i++) {
             printf("\t\tDevice %d: %s\n", i, SDL_GetAudioDeviceName(i,0));
             if(!devid) {
                 SDL_AudioSpec want;
@@ -150,6 +150,9 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_c
             audio_open = true;
             SDL_PauseAudioDevice(devid, 0);
         }
+    }
+    else {
+        fprintf(stderr, "No suitable drivers available.\n");
     }
     out.open("audio.out");
 }
@@ -608,7 +611,7 @@ void apu::apply(util::cmd& c) {
                 chan3_freq_counter = 2048 - chan3_freq.freq;
                 chan3_length_counter = 256 - chan3_length.length;
                 chan3_duty_phase = 0;
-                //if(!chan3_on.active) chan3_active = false;
+                if(!chan3_on.active) chan3_active = false;
                 APRINTF("chan3_trigger level index: %d, level shift: %d, freq: %d, length: %d, DAC: %d, chan is: %s\n", chan3_level.level_shift_index, wave_shift[chan3_level.level_shift_index], chan3_freq_counter, chan3_length_counter, chan3_on.active,(chan3_active?"on":"off"));
             }
             else {

@@ -700,6 +700,11 @@ void memmap::update_interrupts(uint64_t cycle) {
 
     //Clock the APU/generate audio every 1/64th of a second. Generates 689 samples (per channel) for 15 calls, then 690 for the 16th.
     if(cycle2 >= next_apu_cycle) {
+        /*
+        if(cycle2 - next_apu_cycle > 20) {
+            printf("how late I am: %d\n", cycle2 - next_apu_cycle);
+        }
+        */
         sound.run(cycle2);
         next_apu_cycle += 16384;
     }

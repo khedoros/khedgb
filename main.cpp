@@ -110,7 +110,6 @@ int main(int argc, char *argv[]) {
 
     cpu    proc(&bus, cgb, bus.has_firmware());
     lcd *  ppu = bus.get_lcd();
-    apu *  sound = bus.get_apu();
 
     if(cpu_trace) {
         proc.toggle_trace();
@@ -146,7 +145,7 @@ int main(int argc, char *argv[]) {
             uint64_t time_elapsed = now - start;
             uint64_t simulated_time = (1000 * (cycle + tick_size - cycle_offset)) / (1024 * 1024);
             if(time_elapsed < simulated_time) {
-                if(simulated_time - time_elapsed < 20) {
+                if(simulated_time - time_elapsed < 17) {
                     SDL_Delay(simulated_time - time_elapsed);
                 }
                 else {

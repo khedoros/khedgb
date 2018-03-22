@@ -85,6 +85,7 @@ uint64_t cpu::run(uint64_t run_to) {
         cycle+=cycles;
         //114 CPU cycles per line, 154 lines per frame. CPU runs at 1024*1024 Hz, gives a framerate around 59.7Hz.
         if(cycle/2 >= run_to) {
+            bus->update_interrupts(cycle);
             return cycle/2;
         }
     }
