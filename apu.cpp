@@ -13,10 +13,10 @@ const uint8_t apu::or_values[] = {0x80, 0x3f, 0x00, 0xff, 0xbf, //0x10,0x11,0x12
                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  //0x30-0x37
                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; //0x38-0x3f
 
-const uint8_t apu::square_wave[4][8] = {{0,0,0,0,0,0,0,1},
-                                        {1,0,0,0,0,0,0,1},
-                                        {1,0,0,0,0,1,1,1},
-                                        {0,1,1,1,1,1,1,0}};
+const int8_t apu::square_wave[4][8] = {{-1,-1,-1,-1,-1,-1,-1, 1},
+                                       { 1,-1,-1,-1,-1,-1,-1, 1},
+                                       { 1,-1,-1,-1,-1, 1, 1, 1},
+                                       {-1, 1, 1, 1, 1, 1, 1,-1}};
 const uint8_t apu::noise_divisors[] = {8, 16, 32, 48, 64, 80, 96, 112};
 
 void apu::clear() {
@@ -71,7 +71,7 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), cur_chunk(0), audio_open
                     want.format=AUDIO_U8;
                     want.channels=CHANNELS;
                     want.silence=0;
-                    want.samples=/*8192*/ 689;
+                    want.samples=/*8192*/ 2067;
                     want.size=0;
                     want.callback=NULL;//null_callback;
                     want.userdata=NULL;
@@ -202,31 +202,44 @@ void apu::render(apu::samples& s) {
     if(!status.enable_sound) return;
     s.l = 128;
     s.r = 128;
-    uint32_t chan1 = 128;
-    uint32_t chan2 = 128;
-    uint32_t chan3 = 128;
-    uint32_t chan4 = 128;
+    int32_t chan1 = 0;
+    int32_t chan2 = 0;
+    int32_t chan3 = 0;
+    int32_t chan4 = 0;
+    int32_t templ = 128;
+    int32_t tempr = 128;
     if(chan1_active) {
-        chan1 += chan1_level * square_wave[chan1_patlen.duty_cycle][chan1_duty_phase];
+        chan1 = chan1_level * square_wave[chan1_patlen.duty_cycle][chan1_duty_phase];
     }
     if(chan2_active) {
-        chan2 += chan2_level * square_wave[chan2_patlen.duty_cycle][chan2_duty_phase];
+        chan2 = chan2_level * square_wave[chan2_patlen.duty_cycle][chan2_duty_phase];
     }
     if(chan3_active && chan3_on.active) {
-        chan3 += (chan3_cur_sample>>chan3_level.level);
+        chan3 = (chan3_cur_sample>>chan3_level.level) - (8 / (1<<(chan3_level.level)));
     }
     if(chan4_active) {
-        chan4 += chan4_level * lfsr_value;
+        chan4 = chan4_level * lfsr_value;
     }
 
-    if(output_map.ch1_to_so1) s.l += chan1;
-    if(output_map.ch2_to_so1) s.l += chan2;
-    if(output_map.ch3_to_so1) s.l += chan3;
-    if(output_map.ch4_to_so1) s.l += chan4;
-    if(output_map.ch1_to_so2) s.r += chan1;
-    if(output_map.ch2_to_so2) s.r += chan2;
-    if(output_map.ch3_to_so2) s.r += chan3;
-    if(output_map.ch4_to_so2) s.r += chan4;
+    if(output_map.ch1_to_so1) templ += chan1;
+    if(output_map.ch2_to_so1) templ += chan2;
+    if(output_map.ch3_to_so1) templ += chan3;
+    if(output_map.ch4_to_so1) templ += chan4;
+    if(output_map.ch1_to_so2) tempr += chan1;
+    if(output_map.ch2_to_so2) tempr += chan2;
+    if(output_map.ch3_to_so2) tempr += chan3;
+    if(output_map.ch4_to_so2) tempr += chan4;
+
+    //printf("chan1 (l: %d v: %d) chan2 (l: %d v: %d) templ: %d tempr: %d\n", chan1_level, chan1, chan2_level, chan2, templ, tempr);
+    assert(templ > 0);
+    assert(tempr > 0);
+    assert(templ < 256);
+    assert(tempr < 256);
+
+    //if(templ != 128 || tempr != 128) printf("tl: %d tr: %d\n", templ,tempr);
+    s.l = templ;
+    s.r = tempr;
+    //printf("sl: %d sr: %d\n", s.l, s.r);
     //printf("APU Render cycle %ld to %ld\n", cycle, render_to);
     return;
 }
@@ -358,11 +371,11 @@ void apu::clock_freqs() {
     }
     if(chan3_active) {
         chan3_freq_counter--;
-        if(!chan3_freq_counter) {
-            chan3_freq_counter = 2048 - chan3_freq.freq;
+        if(chan3_freq_counter <= 0) {
+            chan3_freq_counter = chan3_freq_shadow;
             chan3_duty_phase++;
             chan3_duty_phase %= wave_length;
-            if(chan3_duty_phase & 1) {
+            if((chan3_duty_phase & 1) == 1) {
                 chan3_cur_sample = (wave_pattern[chan3_duty_phase] & 0x0f);
             }
             else {
@@ -372,15 +385,16 @@ void apu::clock_freqs() {
     }
     if(chan4_active) {
         chan4_freq_counter--;
-        if(!chan4_freq_counter) {
+        if(chan4_freq_counter <= 0) {
             chan4_freq_counter = chan4_freq_shadow;
             uint16_t next = (chan4_lfsr & BIT0) ^ ((chan4_lfsr & BIT1)>>1);
             chan4_lfsr>>=1;
             chan4_lfsr |= (next<<14);
             if(chan4_freq.noise_type) {
-                chan4_lfsr &= 32735 | (next<<5);
+                //chan4_lfsr &= 32735;
+                chan4_lfsr ^= (next<<5);
             }
-            lfsr_value = ((next)?0:1);
+            lfsr_value = ((next)?-1:1);
             //printf("lfsr out: %d\n", lfsr_value);
         }
     }
@@ -509,7 +523,7 @@ void apu::apply(util::cmd& c) {
                 chan4_length_counter = 64 - chan4_length.length;
                 chan4_freq_shadow = (noise_divisors[chan4_freq.div_ratio]<<(chan4_freq.shift_clock ))/4;
                 chan4_freq_counter = chan4_freq_shadow;
-                printf("ch4 freq: %d (divisor %d, ratio %d, shift %d)\n", chan4_freq_counter, noise_divisors[chan4_freq.div_ratio], chan4_freq.div_ratio, chan4_freq.shift_clock);
+                printf("ch4 freq: %d (divisor %d, ratio %d, shift %d) type: %d\n", chan4_freq_counter, noise_divisors[chan4_freq.div_ratio], chan4_freq.div_ratio, chan4_freq.shift_clock, chan4_freq.noise_type);
                 chan4_lfsr = 32767;
                 chan4_level = chan4_env.volume;
                 chan4_env_counter = chan4_env.shift;

@@ -234,7 +234,7 @@ private:
     unsigned int sequencer_phase; //Which of 8 phases are we in, for clocking length, volume, sweep?
 
     //Definitions of the waveforms for the square waves
-    static const uint8_t square_wave[4][8];      //The 4 actual square waves
+    static const int8_t square_wave[4][8];      //The 4 actual square waves
     static const uint8_t square_wave_length = 8; //Number of steps in the wave output
 
     //Channel 1, rectangle with sweep
