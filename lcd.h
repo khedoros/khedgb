@@ -3,7 +3,8 @@
 #include<cstdint>
 #include<SDL2/SDL.h>
 #include "util.h"
-#include<list>
+//#include<list>
+#include<queue>
 #include<string>
 #include<functional>
 
@@ -137,8 +138,10 @@ private:
     };
 
     //Needed for rendering, so must be mirrored to "catch up" with the CPU's view of the PPU state
-    std::list<util::cmd> cmd_queue; //List of commands to catch up PPU with CPU
-    std::list<util::timing_data> timing_queue; //Abusing the util::cmd type to store line, cycle, and whether the access was a write to oam, vram, or some other control register
+    //std::list<util::cmd> cmd_queue; //List of commands to catch up PPU with CPU
+    //std::list<util::timing_data> timing_queue; //Abusing the util::cmd type to store line, cycle, and whether the access was a write to oam, vram, or some other control register
+    std::queue<util::cmd> cmd_queue; //List of commands to catch up PPU with CPU
+    std::queue<util::timing_data> timing_queue; //Abusing the util::cmd type to store line, cycle, and whether the access was a write to oam, vram, or some other control register
     Arr<Arr<uint8_t, 0x2000>, 2> vram;
     Arr<uint8_t, 0xa0> oam;
     Arr<Arr<uint8_t, 8>, 768*8> row_cache; //pre-calculated cache of tile data

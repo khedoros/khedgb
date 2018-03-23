@@ -1,6 +1,7 @@
 #pragma once
 #include<cstdint>
-#include<list>
+//#include<list>
+#include<queue>
 #include<SDL2/SDL_audio.h>
 #include "util.h"
 #include<iostream>
@@ -106,7 +107,8 @@ private:
     void clock_sequencer(); //Clock the sequencer
     void clock_freqs(uint64_t c_s = 1); //Clock the frequency counters by c_s cycles
     bool sweep_overflow(); //Check if next sweep iteration should disable the channel due to overflow
-    std::list<util::cmd> cmd_queue;
+    //std::list<util::cmd> cmd_queue;
+    std::queue<util::cmd> cmd_queue;
 
     enum sound_event {
         end_loop, //loop ends before anything but sample rendering happens (based on run_to)

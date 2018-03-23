@@ -11,7 +11,6 @@
 #define ASSERT //assert
 #endif
 
-
 const uint8_t apu::or_values[] = {0x80, 0x3f, 0x00, 0xff, 0xbf, //0x10,0x11,0x12,0x13,0x14
                                   0xff, 0x3f, 0x00, 0xff, 0xbf, //0x15,0x16,0x17,0x18,0x19
                                   0x7f, 0xff, 0x9f, 0xff, 0xbf, //0x1a,0x1b,0x1c,0x1d,0x1e,
@@ -175,7 +174,7 @@ void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
     //printf("addr: %04x val: %02x ", addr, val);
     if(writes_enabled || addr >= 0xff30) {
         written_values[addr - 0xff10] = val;
-        cmd_queue.emplace_back(util::cmd{cycle, addr, val});
+        cmd_queue.emplace(util::cmd{cycle, addr, val});
     }
     else if(addr == 0xff26) {
         written_values[addr - 0xff10] = (val & 0x80);
@@ -186,7 +185,7 @@ void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
         else {
             writes_enabled = true;
         }
-        cmd_queue.emplace_back(util::cmd{cycle, addr, val});
+        cmd_queue.emplace(util::cmd{cycle, addr, val});
     }
 }
 
@@ -235,7 +234,7 @@ void apu::run(uint64_t run_to) {
         //If it's time, apply the current command, and grab the next one, if it exists
         while(!cmd_queue.empty() && cycle >= cur_cmd.cycle) {
             apply(cur_cmd);
-            cmd_queue.pop_front();
+            cmd_queue.pop();
             if(!cmd_queue.empty()) {
                 cur_cmd = cmd_queue.front();
             }
@@ -355,10 +354,12 @@ void apu::clock_sequencer() {
             if(chan1_sweep_counter == 0) {
                 chan1_sweep_counter = chan1_sweep.period;
                 int16_t freq = chan1_freq_shadow;
-                int16_t delta = (freq>>chan1_sweep.shift);
+                int16_t delta = (chan1_freq.freq>>chan1_sweep.shift);
                 if(!chan1_sweep.direction) delta *=-1;
+                //printf("sweep from %d to ", freq);
                 freq+=delta;
-                if(freq > 2047) {
+                //printf("%d due to delta %d\n", freq, delta);
+                if(freq < 0) {
                     chan1_active = false;
                     chan1_sweep_active = false;
                 }
