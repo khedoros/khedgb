@@ -102,10 +102,19 @@ private:
     void clear_regs(); //Clears rendering-side registers
     void init(); //When audio power is turned on
     void render(apu::samples&); //Generate next audio samples
-    void clock_sequencer(); //Clock the sequencer by one step
-    void clock_freqs();     //Clock the frequency counters
+    void clock_sequencer(); //Clock the sequencer
+    void clock_freqs(uint64_t c_s = 1); //Clock the frequency counters by c_s cycles
     bool sweep_overflow(); //Check if next sweep iteration should disable the channel due to overflow
     std::list<util::cmd> cmd_queue;
+
+    enum sound_event {
+        end_loop, //loop ends before anything but sample rendering happens (based on run_to)
+        sequencer, //We hit the 2048-cycle deadline and need to clock the sequencer (based on divisibility by 2048)
+        apply_command, //a command needs to be run (based on cycle of next command in queue)
+        duty_cycle, //a channel will clock its duty cycle (based on smallest frequency counter variable)
+        //render_sample, //This is the variable dependent on the other agents of state change
+        output_sample, //use accumulated rendered samples and output an SDL sample (based on calculated next cycle to output on
+    };
 
     //NRx0 Registers
     union sweep_reg { //NR10 0xff10

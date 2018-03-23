@@ -168,7 +168,7 @@ void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
     //printf("addr: %04x val: %02x ", addr, val);
     if(writes_enabled || addr >= 0xff30) {
         written_values[addr - 0xff10] = val;
-        cmd_queue.emplace_back(util::cmd{cycle, addr, val, 0});
+        cmd_queue.emplace_back(util::cmd{cycle, addr, val});
     }
     else if(addr == 0xff26) {
         written_values[addr - 0xff10] = (val & 0x80);
@@ -179,7 +179,7 @@ void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
         else {
             writes_enabled = true;
         }
-        cmd_queue.emplace_back(util::cmd{cycle, addr, val, 0});
+        cmd_queue.emplace_back(util::cmd{cycle, addr, val});
     }
 }
 
@@ -214,8 +214,8 @@ void apu::run(uint64_t run_to) {
     int32_t left = 0;
     int32_t right = 0;
     int32_t sample_accum = 0;
-    for(;cycle < run_to; cycle++) {
 
+    for(;cycle < run_to; cycle++) {
         //Clock the frame sequencer at 512Hz
         if(cycle%2048 == 0) {
             clock_sequencer();
@@ -441,9 +441,9 @@ void apu::clock_sequencer() {
     }
 }
 
-void apu::clock_freqs() {
+void apu::clock_freqs(uint64_t c_s /* = 1 */) {
     if(chan1_active) {
-        chan1_freq_counter--;
+        chan1_freq_counter -= c_s;
         if(chan1_freq_counter <= 0) {
             chan1_freq_counter += chan1_freq_shadow;
             chan1_duty_phase++;
@@ -451,7 +451,7 @@ void apu::clock_freqs() {
         }
     }
     if(chan2_active) {
-        chan2_freq_counter--;
+        chan2_freq_counter -= c_s;
         if(chan2_freq_counter <= 0) {
             chan2_freq_counter += (2048 - chan2_freq.freq);
             chan2_duty_phase++;
@@ -459,7 +459,7 @@ void apu::clock_freqs() {
         }
     }
     if(chan3_active) {
-        chan3_freq_counter--;
+        chan3_freq_counter -= c_s;
         if(chan3_freq_counter <= 0) {
             chan3_freq_counter += (2048 - chan3_freq.freq);
             chan3_duty_phase++;
@@ -473,7 +473,7 @@ void apu::clock_freqs() {
         }
     }
     if(chan4_active) {
-        chan4_freq_counter--;
+        chan4_freq_counter -= c_s;
         if(chan4_freq_counter <= 0) {
             chan4_freq_counter = (noise_divisors[chan4_freq.div_code]<<(chan4_freq.clock_shift))/4;
             uint16_t next = (chan4_lfsr & BIT0) ^ ((chan4_lfsr & BIT1)>>1);

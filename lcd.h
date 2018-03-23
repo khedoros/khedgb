@@ -71,7 +71,7 @@ public:
 
 private:
     void update_estimates(uint64_t cycle);
-    void apply(int addr, uint8_t val, uint64_t index, uint64_t cycle);
+    void apply(int addr, uint8_t val, uint64_t cycle);
     uint64_t dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle);
     uint64_t cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle);
     std::function<uint64_t(int, uint64_t, uint64_t)> render;
@@ -138,7 +138,7 @@ private:
 
     //Needed for rendering, so must be mirrored to "catch up" with the CPU's view of the PPU state
     std::list<util::cmd> cmd_queue; //List of commands to catch up PPU with CPU
-    std::list<util::cmd> timing_queue; //Abusing the util::cmd type to store line, cycle, and whether the access was a write to oam, vram, or some other control register
+    std::list<util::timing_data> timing_queue; //Abusing the util::cmd type to store line, cycle, and whether the access was a write to oam, vram, or some other control register
     Arr<Arr<uint8_t, 0x2000>, 2> vram;
     Arr<uint8_t, 0xa0> oam;
     Arr<Arr<uint8_t, 8>, 768*8> row_cache; //pre-calculated cache of tile data

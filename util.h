@@ -50,8 +50,15 @@ struct cmd {
     uint64_t cycle;
     int addr;
     uint8_t val;
+};
+
+struct timing_data {
+    uint64_t cycle;
+    int addr;
+    uint8_t val;
     uint64_t data_index;
 };
+
 
 bool process_events(cpu * c, memmap * bus);
 #ifndef __CYGWIN__

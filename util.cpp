@@ -211,10 +211,10 @@ bool reinit_sdl_screen(SDL_Window ** screen, SDL_Renderer ** renderer, SDL_Textu
 
     SDL_SetWindowMinimumSize(*screen, xres, yres);
 
-    //*renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED/*|SDL_RENDERER_PRESENTVSYNC*/);
-    //*renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
-    //*renderer = SDL_CreateRenderer(screen, -1, SDL_RENDERER_SOFTWARE|SDL_RENDERER_PRESENTVSYNC);
-    *renderer = SDL_CreateRenderer(*screen, -1, SDL_RENDERER_SOFTWARE/*|SDL_RENDERER_PRESENTVSYNC*/);
+    *renderer = SDL_CreateRenderer(*screen, -1, SDL_RENDERER_ACCELERATED/*|SDL_RENDERER_PRESENTVSYNC*/);
+    //*renderer = SDL_CreateRenderer(*screen, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
+    //*renderer = SDL_CreateRenderer(*screen, -1, SDL_RENDERER_SOFTWARE|SDL_RENDERER_PRESENTVSYNC);
+    //*renderer = SDL_CreateRenderer(*screen, -1, SDL_RENDERER_SOFTWARE/*|SDL_RENDERER_PRESENTVSYNC*/);
     SDL_SetRenderDrawBlendMode(*renderer,SDL_BLENDMODE_BLEND);
     if(!(*renderer)) {
         fprintf(stderr, "lcd::Couldn't create a renderer: %s\nStarting without video output.\n", SDL_GetError());

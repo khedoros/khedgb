@@ -167,7 +167,7 @@ uint64_t lcd::run(uint64_t run_to) {
             }
         }
 
-        apply(current.addr, current.val, current.data_index, current.cycle);
+        apply(current.addr, current.val, current.cycle);
 
         cmd_queue.pop_front();
         cycle = current.cycle;
@@ -189,7 +189,7 @@ uint64_t lcd::run(uint64_t run_to) {
 }
 
 //Apply the data extracted from the command queue, and apply it to the PPU view of the state
-void lcd::apply(int addr, uint8_t val, uint64_t index, uint64_t cycle) {
+void lcd::apply(int addr, uint8_t val, uint64_t cycle) {
     //uint8_t prev = 0xb5; //stands for "BS"
     if(addr >= 0x8000 && addr < 0xa000) {
         uint8_t prev = vram[vram_bank][addr&0x1fff];
@@ -341,23 +341,23 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
     if(addr >= 0x8000 && addr < 0xa000) {
         if(get_mode(cycle) != 3 || !cpu_control.display_enable) {
             memcpy(&(cpu_vram[cpu_vram_bank][addr-0x8000]), val, size);
-            cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+            cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
         }
         if(debug) {
             uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
             int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
-            timing_queue.emplace_back(util::cmd{line,line_cycle,0,0});
+            timing_queue.emplace_back(util::timing_data{line,line_cycle,0,0});
         }
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
         if(get_mode(cycle) < 2 || !cpu_control.display_enable || cpu_during_dma) {
             memcpy(&(cpu_oam[addr - 0xfe00]), val, size);
-            cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+            cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
         }
         if(debug) {
             uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
             int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
-            timing_queue.emplace_back(util::cmd{line,line_cycle,1,cpu_during_dma});
+            timing_queue.emplace_back(util::timing_data{line,line_cycle,1,cpu_during_dma});
         }
         //else {
         //    printf("PPU: Cycle %010ld Denied write during mode 2/3: 0x%04x = 0x%02x\n", cycle, addr, *((uint8_t *)val));
@@ -390,12 +390,12 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                     " window map: "<<cpu_control.window_map<<
                     " display on: "<<cpu_control.display_enable<<std::endl;
                 */
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
 
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
-                    timing_queue.emplace_back(util::cmd{line,line_cycle,2,0});
+                    timing_queue.emplace_back(util::timing_data{line,line_cycle,2,0});
                 }
                 break;
             case 0xff41: 
@@ -411,20 +411,20 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff42:
                 cpu_bg_scroll_y = *((uint8_t *)val);
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
-                    timing_queue.emplace_back(util::cmd{line,line_cycle,3,0});
+                    timing_queue.emplace_back(util::timing_data{line,line_cycle,3,0});
                 }
                 break;
             case 0xff43:
                 cpu_bg_scroll_x = *((uint8_t *)val);
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
-                    timing_queue.emplace_back(util::cmd{line,line_cycle,4,0});
+                    timing_queue.emplace_back(util::timing_data{line,line_cycle,4,0});
                 }
                 break;
             case 0xff45:
@@ -442,7 +442,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff46://OAM DMA
                 //Send whether DMA is active or inactive (this is now just a bool, *not* the actual DMA; the DMA is transmitted as a series of writes directly to OAM)
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
                 //Value of DMA addr is set when DMA is first requested, so we don't handle it here
                 break;
             case 0xff47:
@@ -450,11 +450,11 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_bgpal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
                 cpu_bgpal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
                 cpu_bgpal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
-                    timing_queue.emplace_back(util::cmd{line,line_cycle,6,0});
+                    timing_queue.emplace_back(util::timing_data{line,line_cycle,6,0});
                 }
                 break;
             case 0xff48:
@@ -462,11 +462,11 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_obj1pal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
                 cpu_obj1pal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
                 cpu_obj1pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
-                    timing_queue.emplace_back(util::cmd{line,line_cycle,7,0});
+                    timing_queue.emplace_back(util::timing_data{line,line_cycle,7,0});
                 }
                 break;
             case 0xff49:
@@ -474,44 +474,44 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 cpu_obj2pal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
                 cpu_obj2pal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
                 cpu_obj2pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
-                    timing_queue.emplace_back(util::cmd{line,line_cycle,8,0});
+                    timing_queue.emplace_back(util::timing_data{line,line_cycle,8,0});
                 }
                 break;
             case 0xff4a: //TODO: Actually influences mode3 timing
                 cpu_win_scroll_y = *((uint8_t *)val);
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
-                    timing_queue.emplace_back(util::cmd{line,line_cycle,9,0});
+                    timing_queue.emplace_back(util::timing_data{line,line_cycle,9,0});
                 }
                 break;
             case 0xff4b: //TODO: influences mode3 timing
                 cpu_win_scroll_x = *((uint8_t *)val);
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
-                    timing_queue.emplace_back(util::cmd{line,line_cycle,0x0a,0});
+                    timing_queue.emplace_back(util::timing_data{line,line_cycle,0x0a,0});
                 }
                 break;
             case 0xff4f: //CGB VRAM bank
                 cpu_vram_bank = ((*(uint8_t *)val) & 1);
-                cmd_queue.emplace_back(util::cmd{cycle, addr, uint8_t((*(uint8_t *)val) & 1), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, uint8_t((*(uint8_t *)val) & 1)});
                 break;
             case 0xff68:
                 cpu_cgb_bgpal_index = (*((uint8_t *)val) & 0x3f);
                 cpu_cgb_bgpal_advance = ((*((uint8_t *)val) & 0x80) == 0x80);
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
                 break;
             case 0xff69:
                 if(get_mode(cycle) != 3 || !cpu_control.display_enable) {
                     cpu_cgb_bgpal[cpu_cgb_bgpal_index] = *(uint8_t *)val;
-                    cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                    cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
                     if(cpu_cgb_bgpal_advance) {
                         cpu_cgb_bgpal_index++;
                         cpu_cgb_bgpal_index %= 0x3f;
@@ -521,12 +521,12 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff6a:
                 cpu_cgb_objpal_index = (*((uint8_t *)val) & 0x3f);
                 cpu_cgb_objpal_advance = ((*((uint8_t *)val) & 0x80) == 0x80);
-                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
                 break;
             case 0xff6b:
                 if(get_mode(cycle) != 3 || !cpu_control.display_enable) {
                     cpu_cgb_objpal[cpu_cgb_objpal_index] = *(uint8_t *)val;
-                    cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val), 0});
+                    cmd_queue.emplace_back(util::cmd{cycle, addr, *((uint8_t *)val)});
                     if(cpu_cgb_objpal_advance) {
                         cpu_cgb_objpal_index++;
                         cpu_cgb_objpal_index %= 0x3f;
@@ -680,6 +680,7 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
 }
 
 void lcd::get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixels, int bank/*=0*/) {
+#define UNCACHED
 #ifdef UNCACHED
     ASSERT(tilenum < 384); ASSERT(row < 16); ASSERT(pixels.size() == 8);
     int addr = tilenum * 16 + row * 2;
@@ -1345,8 +1346,8 @@ void lcd::draw_debug_overlay() {
     }
 
     uint64_t last_seen = 0;
-    while(timing_queue.size() > 0 && timing_queue.front().cycle >= last_seen) {
-        util::cmd c = timing_queue.front();
+    while(!timing_queue.empty() && timing_queue.front().cycle >= last_seen) {
+        util::timing_data c = timing_queue.front();
         uint64_t line = c.cycle;
         last_seen = line;
         int line_cycle = c.addr;
