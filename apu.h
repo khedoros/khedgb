@@ -90,7 +90,8 @@ public:
     void write(uint16_t addr, uint8_t val, uint64_t cycle);
     uint8_t read(uint16_t addr, uint64_t cycle);
     void run(uint64_t run_to);
-    std::ofstream out;
+    std::ofstream out_wav;
+    std::ofstream out_ch3;
 private:
     struct samples {
         int8_t l;
@@ -284,7 +285,7 @@ private:
     uint16_t chan3_length_counter;
     int16_t chan3_freq_counter;
     uint8_t     chan3_duty_phase;   //Which sample is the current one
-    uint8_t chan3_cur_sample;
+    int8_t chan3_cur_sample;
 
     //Channel 4 noise
     pat_len_reg chan4_length; //0xFF20 NR41

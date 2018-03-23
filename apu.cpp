@@ -157,11 +157,18 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_c
     else {
         fprintf(stderr, "No suitable drivers available.\n");
     }
-    out.open("audio.out");
+
+    for(int i=0;i<8;i++) {
+        wave_pattern[i*2] = 0;
+        wave_pattern[i*2+1]=0xff;
+    }
+    //out_wav.open("audio.out");
+    //out_ch3.open("ch3_audio.out");
 }
 
 apu::~apu() {
-    out.close();
+    //out_wav.close();
+    //out_ch3.close();
 }
 
 void apu::write(uint16_t addr, uint8_t val, uint64_t cycle) {
@@ -187,6 +194,7 @@ uint8_t apu::read(uint16_t addr, uint64_t cycle) {
     if(addr == 0xff26) {
         return 0;
     }
+    //printf("Read %04x\n", addr);
     return written_values[addr - 0xff10] | or_values[addr - 0xff10];
     //TODO: Calculate status for NR52
     //TODO: Block reads from wave RAM when it's in use (or, rather, return current wave value)
@@ -255,7 +263,7 @@ void apu::run(uint64_t run_to) {
     //Push the sample to the output device.
     if(audio_open && SDL_GetQueuedAudioSize(devid) < 4000) {
         //printf("%d ", SDL_GetQueuedAudioSize(devid));
-        //out.write(reinterpret_cast<const char *>(out_buffer.data()), sample_count * CHANNELS * SAMPLE_SIZE);
+        //out_wav.write(reinterpret_cast<const char *>(out_buffer.data()), sample_count * CHANNELS * SAMPLE_SIZE);
         SDL_QueueAudio(devid, out_buffer.data(), sample_count * CHANNELS * SAMPLE_SIZE);
     }
 
@@ -271,6 +279,7 @@ void apu::render(apu::samples& s) {
     int32_t chan2 = 0;
     int32_t chan3 = 0;
     int32_t chan4 = 0;
+
     if(chan1_active) {
         chan1 = chan1_level * square_wave[chan1_patlen.duty_cycle][chan1_duty_phase];
         ASSERT(chan1 > -129 && chan1 < 128);
@@ -285,8 +294,8 @@ void apu::render(apu::samples& s) {
     }
     //else if(chan1_active || chan3_active || chan4_active) printf("        ");
 
-    if(chan3_active) {
-        chan3 = (((chan3_cur_sample) / (1<<(wave_shift[chan3_level.level_shift_index]))) - (8>>(wave_shift[chan3_level.level_shift_index])));
+    if(chan3_active && chan3_dac) {
+        chan3 = ((chan3_cur_sample - 8) / (1<<(wave_shift[chan3_level.level_shift_index])));
         ASSERT(chan3 > -129 && chan3 < 128);
         //printf("ch3: sample: %x shift: %x offset: %x result: %d \n", chan3_cur_sample, wave_shift[chan3_level.level_shift_index], 8>>(wave_shift[chan3_level.level_shift_index]), chan3/4);
     }
@@ -459,17 +468,18 @@ void apu::clock_freqs(uint64_t c_s /* = 1 */) {
         }
     }
     if(chan3_active) {
-        chan3_freq_counter -= c_s;
+        chan3_freq_counter -= (2 * c_s);
         if(chan3_freq_counter <= 0) {
             chan3_freq_counter += (2048 - chan3_freq.freq);
             chan3_duty_phase++;
             chan3_duty_phase %= wave_length;
             if((chan3_duty_phase & 1) == 1) {
-                chan3_cur_sample = (wave_pattern[chan3_duty_phase] & 0x0f);
+                chan3_cur_sample = (wave_pattern[chan3_duty_phase/2] & 0x0f);
             }
             else {
-                chan3_cur_sample = ((wave_pattern[chan3_duty_phase] & 0xf0)>>4);
+                chan3_cur_sample = ((wave_pattern[chan3_duty_phase/2] & 0xf0)>>4);
             }
+            //printf("duty: %d, sample: %d\n", chan3_duty_phase, chan3_cur_sample);
         }
     }
     if(chan4_active) {
@@ -694,6 +704,18 @@ void apu::apply(util::cmd& c) {
                     for(int i=0;i<16;i++) printf("%01x %01x ", (wave_pattern[i]>>4), (wave_pattern[i]&0xf));
                     printf("level index: %d, level shift: %d, DAC: %d", chan3_level.level_shift_index, wave_shift[chan3_level.level_shift_index], chan3_on.active);
                     printf("\n");
+                }
+                */
+
+                /*
+                if(c.addr == 0xff3f) {
+                    char buffer[32];
+
+                    for(int i=0;i<16;i++) {
+                        buffer[i*2] = (wave_pattern[i]>>4);
+                        buffer[i*2+1] = (wave_pattern[i]&0x0f);
+                    }
+                    out_ch3.write(buffer, 32);
                 }
                 */
                 //APRINTF("apu: wave[%d] = %d, wave[%d] = %d\n", (addr-0xff30)*2, (c.val&0xf0)>>4, (addr-0xff30)*2+1, c.val&0x0f);
