@@ -273,53 +273,30 @@ void apu::run(uint64_t run_to) {
 }
 
 void apu::render(apu::samples& s) {
-    s.l = 0;
-    s.r = 0;
-    int32_t chan1 = 0;
-    int32_t chan2 = 0;
-    int32_t chan3 = 0;
-    int32_t chan4 = 0;
+    int32_t chan1 = chan1_active * chan1_level * square_wave[chan1_patlen.duty_cycle][chan1_duty_phase];
+    ASSERT(chan1 > -129 && chan1 < 128);
+    //printf("ch1: %02x ", chan1&0xff);
 
-    if(chan1_active) {
-        chan1 = chan1_level * square_wave[chan1_patlen.duty_cycle][chan1_duty_phase];
-        ASSERT(chan1 > -129 && chan1 < 128);
-        //printf("ch1: %02x ", chan1&0xff);
-    }
-    //else if(chan2_active || chan3_active || chan4_active) printf("        ");
+    int32_t chan2 = chan2_active * chan2_level * square_wave[chan2_patlen.duty_cycle][chan2_duty_phase];
+    ASSERT(chan2 > -129 && chan2 < 128);
+    //printf("ch2: %02x ", chan2&0xff);
 
-    if(chan2_active) {
-        chan2 = chan2_level * square_wave[chan2_patlen.duty_cycle][chan2_duty_phase];
-        ASSERT(chan2 > -129 && chan2 < 128);
-        //printf("ch2: %02x ", chan2&0xff);
-    }
-    //else if(chan1_active || chan3_active || chan4_active) printf("        ");
+    int32_t chan3 = chan3_active * chan3_dac * ((chan3_cur_sample - 8) / (1<<(wave_shift[chan3_level.level_shift_index])));
+    ASSERT(chan3 > -129 && chan3 < 128);
+    //printf("ch3: sample: %x shift: %x offset: %x result: %d \n", chan3_cur_sample, wave_shift[chan3_level.level_shift_index], 8>>(wave_shift[chan3_level.level_shift_index]), chan3/4);
 
-    if(chan3_active && chan3_dac) {
-        chan3 = ((chan3_cur_sample - 8) / (1<<(wave_shift[chan3_level.level_shift_index])));
-        ASSERT(chan3 > -129 && chan3 < 128);
-        //printf("ch3: sample: %x shift: %x offset: %x result: %d \n", chan3_cur_sample, wave_shift[chan3_level.level_shift_index], 8>>(wave_shift[chan3_level.level_shift_index]), chan3/4);
-    }
-    //else if(chan2_active || chan1_active || chan4_active) printf("        ");
+    int32_t chan4 = chan4_active * chan4_level * lfsr_value;
+    ASSERT(chan4 > -129 && chan4 < 128);
+    //printf("ch4: %02x \n", chan4&0xff);
 
-    if(chan4_active) {
-        chan4 = chan4_level * lfsr_value;
-        ASSERT(chan4 > -129 && chan4 < 128);
-        //printf("ch4: %02x \n", chan4&0xff);
-    }
-    //else if(chan2_active || chan3_active || chan1_active) printf("        \n");
-
-    if(output_map.ch1_to_so1) s.l += chan1;
-    if(output_map.ch2_to_so1) s.l += chan2;
-    if(output_map.ch3_to_so1) s.l += chan3;
-    if(output_map.ch4_to_so1) s.l += chan4;
-    if(output_map.ch1_to_so2) s.r += chan1;
-    if(output_map.ch2_to_so2) s.r += chan2;
-    if(output_map.ch3_to_so2) s.r += chan3;
-    if(output_map.ch4_to_so2) s.r += chan4;
-
-    if(output_map.val == 0) {
-        ASSERT(s.l == 0 && s.r == 0);
-    }
+    s.l = output_map.ch1_to_so1 * chan1;
+    s.l += output_map.ch2_to_so1 * chan2;
+    s.l += output_map.ch3_to_so1 * chan3;
+    s.l += output_map.ch4_to_so1 * chan4;
+    s.r = output_map.ch1_to_so2 * chan1;
+    s.r += output_map.ch2_to_so2 * chan2;
+    s.r += output_map.ch3_to_so2 * chan3;
+    s.r += output_map.ch4_to_so2 * chan4;
 
     //printf("chan1 (l: %d v: %d) chan2 (l: %d v: %d) templ: %d tempr: %d\n", chan1_level, chan1, chan2_level, chan2, templ, tempr);
 
