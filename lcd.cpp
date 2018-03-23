@@ -555,13 +555,13 @@ uint8_t lcd::get_mode(uint64_t cycle, bool ppu_view/*=false*/) {
         return 1;
     }
     int frame_cycle = (cycle - active) % 17556;
-    int line = frame_cycle / CYCLES_PER_LINE;
+    div_t line_cycle_dat = div(frame_cycle, CYCLES_PER_LINE);
 
-    ASSERT(line < LINES_PER_FRAME);
-    ASSERT(line >= 0);
+    ASSERT(line_cycle_dat.quot < LINES_PER_FRAME);
+    ASSERT(line_cycle_dat.quot >= 0);
 
     int mode = 0; //hblank; largest amount of time per frame. May as well use it.
-    if(line > LAST_RENDER_LINE) {
+    if(line_cycle_dat.quot > LAST_RENDER_LINE) {
         mode = 1; //vblank
     }
     else {
@@ -569,9 +569,8 @@ uint8_t lcd::get_mode(uint64_t cycle, bool ppu_view/*=false*/) {
         //2. transfer to lcd for around 43 cycles (mode 3)
         //3. h-blank around 51 cycles (mode 0)
         //4. repeat 144 times, then vblank for 1140 cycles (mode 1)
-        int line_cycle = frame_cycle % CYCLES_PER_LINE;
-        if(line_cycle < MODE_2_LENGTH) mode = 2; //OAM access
-        else if (line_cycle < MODE_2_LENGTH+MODE_3_LENGTH) mode = 3; //LCD transfer
+        if(line_cycle_dat.rem < MODE_2_LENGTH) mode = 2; //OAM access
+        else if (line_cycle_dat.rem < MODE_2_LENGTH+MODE_3_LENGTH) mode = 3; //LCD transfer
     }
     return mode;
 }
@@ -680,7 +679,6 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
 }
 
 void lcd::get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixels, int bank/*=0*/) {
-#define UNCACHED
 #ifdef UNCACHED
     ASSERT(tilenum < 384); ASSERT(row < 16); ASSERT(pixels.size() == 8);
     int addr = tilenum * 16 + row * 2;
@@ -1675,6 +1673,10 @@ void lcd::sgb_enable(bool enable) {
             sgb_texture = NULL;
         }
     }
+}
+
+void lcd::set_window_title(std::string& title) {
+    SDL_SetWindowTitle(screen, title.c_str());
 }
 
 void lcd::win_resize(unsigned int new_x, unsigned int new_y) {

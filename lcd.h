@@ -59,6 +59,7 @@ public:
     uint64_t get_frame();
     void dma(bool dma_active, uint64_t cycle, uint8_t dma_addr);
     void win_resize(unsigned int new_x, unsigned int new_y);
+    void set_window_title(std::string&);
 
     void sgb_trigger_dump(std::string filename);
     void sgb_set_pals(uint8_t pal1, uint8_t pal2, Arr<uint16_t, 7>& colors);
