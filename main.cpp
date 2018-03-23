@@ -89,7 +89,9 @@ int main(int argc, char *argv[]) {
     }
     else {
         bus.set_sgb(false);
-        printf("Disabling Super GameBoy mode (--sgb to activate it)\n");
+        if(bus.supports_sgb()) {
+            printf("Super GameBoy mode wasn't selected, but the game supports it (--sgb to activate it)\n");
+        }
     }
 
     if(cgb) {

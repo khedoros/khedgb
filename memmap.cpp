@@ -740,6 +740,10 @@ bool memmap::set_sgb(bool active) {
     return sgb_active;
 }
 
+bool memmap::supports_sgb() {
+    return cart.supports_sgb();
+}
+
 void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
     //If we're on the first packet, read the data
     if(sgb_cmd_index == 0) {

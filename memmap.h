@@ -33,6 +33,7 @@ public:
     apu * get_apu();
     void win_resize(unsigned int newx, unsigned int newy);
     bool set_sgb(bool active);
+    bool supports_sgb();
     struct int_flags {
         union {
             struct {

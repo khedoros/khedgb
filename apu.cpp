@@ -286,7 +286,7 @@ void apu::render(apu::samples& s) {
     //else if(chan1_active || chan3_active || chan4_active) printf("        ");
 
     if(chan3_active) {
-        chan3 = 2 * (((chan3_cur_sample) / (1<<(wave_shift[chan3_level.level_shift_index]))) - (8>>(wave_shift[chan3_level.level_shift_index])));
+        chan3 = (((chan3_cur_sample) / (1<<(wave_shift[chan3_level.level_shift_index]))) - (8>>(wave_shift[chan3_level.level_shift_index])));
         ASSERT(chan3 > -129 && chan3 < 128);
         //printf("ch3: sample: %x shift: %x offset: %x result: %d \n", chan3_cur_sample, wave_shift[chan3_level.level_shift_index], 8>>(wave_shift[chan3_level.level_shift_index]), chan3/4);
     }
