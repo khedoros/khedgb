@@ -602,7 +602,7 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff41: 
                 if(!cpu_control.display_enable) {
-                    *((uint8_t *)val) = BIT7|BIT0|cpu_status; //return current interrupt flags and v-blank mode, if screen is disabled.
+                    *((uint8_t *)val) = BIT7|cpu_status; //return current interrupt flags and v-blank mode, if screen is disabled.
                 }
                 else {
                     int mode = get_mode(cycle);
