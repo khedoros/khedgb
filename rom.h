@@ -129,6 +129,27 @@ class mbc3_rom: public mapper {
         uint8_t rambank;
         bool ram_enabled;
         bool rtc_latch;
+        
+        union rtc_days {
+            struct {
+                unsigned days:9;
+                unsigned unused:5;
+                unsigned halt_timer:1;
+                unsigned day_overflow:1;
+            } __attribute__((packed));
+            struct {
+                uint8_t low;
+                uint8_t high;
+            };
+        };
+
+        struct rtc_reg {
+            uint8_t seconds; //0x08
+            uint8_t minutes; //0x09
+            uint8_t hours;   //0x0a
+            rtc_days days;   //0x0b/0x0c
+        };
+
         uint8_t rtc[5];
         uint8_t latched_rtc[5];
         uint64_t load_timestamp; //64-bit Unix timestamp, representing when the file is loaded (save data stores when the file was saved, so that we can simulate the appropriate passage of time)

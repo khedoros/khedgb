@@ -419,6 +419,26 @@ uint32_t mbc3_rom::map_ram(uint32_t addr, uint64_t cycle) {
     }
     else if(rambank >= 0x08 && rambank <= 0x0c) {
         //TODO: Make this actually return current time if unlatched, and latched data if latched
+        switch(rambank) {
+            case 0x08:
+                printf("MBC3 R/W to rtc seconds\n");
+                break;
+            case 0x09:
+                printf("MBC3 R/W to rtc minutes\n");
+                break;
+            case 0x0a:
+                printf("MBC3 R/W to rtc hours\n");
+                break;
+            case 0x0b:
+                printf("MBC3 R/W to rtc days(low)\n");
+                break;
+            case 0x0c:
+                printf("MBC3 R/W to rtc days(high)\n");
+                break;
+            default:
+                printf("MBC R/W to RAM bank %x\n", rambank);
+        }
+
         return (uint32_t(rtc[rambank-0x08]) | 0xffffff00);
     }
     return 0;
@@ -437,10 +457,30 @@ void mbc3_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
     }
     else if(addr < 0x6000) {
         rambank = *(((uint8_t *)val));
+        switch(rambank) {
+            case 0x08:
+                printf("MBC3 map to rtc seconds\n");
+                break;
+            case 0x09:
+                printf("MBC3 map to rtc minutes\n");
+                break;
+            case 0x0a:
+                printf("MBC3 map to rtc hours\n");
+                break;
+            case 0x0b:
+                printf("MBC3 map to rtc days(low)\n");
+                break;
+            case 0x0c:
+                printf("MBC3 map to rtc days(high)\n");
+                break;
+            default:
+                printf("MBC map to RAM bank %x\n", rambank);
+        }
     }
     else if(addr < 0x8000) {
         if(*(((uint8_t *)val)) == 1 && !rtc_latch) {
             //TODO: actually latch new data here
+            printf("MBC3 latched registers\n");
             rtc_latch = true;
         }
         else if(*(((uint8_t *)val)) == 0) {
@@ -448,7 +488,9 @@ void mbc3_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
         }
     }
     else if(addr >= 0xa000 && addr < 0xc000) {
-        printf("MBC3 write to RTC registers\n");
+        if(rambank > 0x07) {
+            printf("MBC3 write to RTC registers\n");
+        }
     }
 }
 
