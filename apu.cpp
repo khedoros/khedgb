@@ -209,6 +209,9 @@ void apu::run(uint64_t run_to) {
     if(!cmd_queue.empty()) {
         cur_cmd = cmd_queue.front();
     }
+    else {
+        cur_cmd.cycle = -1;
+    }
     int cur_sample = 0;
 
     Arr<int8_t, 690*2> out_buffer;
@@ -222,14 +225,31 @@ void apu::run(uint64_t run_to) {
     int32_t right = 0;
     int32_t sample_accum = 0;
 
-    for(;cycle < run_to; cycle++) {
+    while(cycle < run_to) {
+
+        uint64_t next_event_cycle = run_to;
+        uint64_t next_sample_cycle = (cur_sample*(run_to-start_cycle))/sample_count + start_cycle;
+        uint64_t next_frame_clock = cycle - (cycle%2048) + 2048;
+        uint64_t next_clock_freqs = cycle + next_clock_freq();
+        uint64_t next_command_cycle = cur_cmd.cycle;
+
+        if(next_sample_cycle < next_event_cycle) next_event_cycle = next_sample_cycle;
+        if(next_frame_clock < next_event_cycle) next_event_cycle = next_frame_clock;
+        if(next_clock_freqs < next_event_cycle) next_event_cycle = next_clock_freqs;
+        if(next_command_cycle < next_event_cycle) next_event_cycle = next_command_cycle;
+
+        ASSERT(next_event_cycle >= cycle);
+        uint64_t cycle_diff = next_event_cycle - cycle;
+
         //Clock the frame sequencer at 512Hz
         if(cycle%2048 == 0) {
             clock_sequencer();
         }
 
         //Clock the frequency counters for each channel
-        clock_freqs();
+        if(cycle == next_clock_freq()) {
+            clock_freqs();
+        }
 
         //If it's time, apply the current command, and grab the next one, if it exists
         while(!cmd_queue.empty() && cycle >= cur_cmd.cycle) {
@@ -238,13 +258,16 @@ void apu::run(uint64_t run_to) {
             if(!cmd_queue.empty()) {
                 cur_cmd = cmd_queue.front();
             }
+            else {
+                cur_cmd.cycle = -1;
+            }
         }
 
         apu::samples s;
         render(s);
-        left+=s.l;
-        right+=s.r;
-        sample_accum++;
+        left+=(cycle_diff * s.l);
+        right+=(cycle_diff * s.r);
+        sample_accum+=cycle_diff;
 
         //Figure out if it's time to generate a new sample, and put it into the output buffer if it is
         int sample = int(float(sample_count) * (float(cycle - start_cycle) / float(run_to - start_cycle)));
@@ -257,6 +280,8 @@ void apu::run(uint64_t run_to) {
             right=0;
             sample_accum=0;
         }
+
+        cycle += cycle_diff;
     }
 
     //Push the sample to the output device.
@@ -430,6 +455,7 @@ void apu::clock_sequencer() {
 
 void apu::clock_freqs(uint64_t c_s /* = 1 */) {
     if(chan1_active) {
+        ASSERT(c_s <= chan1_freq_counter);
         chan1_freq_counter -= c_s;
         if(chan1_freq_counter <= 0) {
             chan1_freq_counter += chan1_freq_shadow;
@@ -438,6 +464,7 @@ void apu::clock_freqs(uint64_t c_s /* = 1 */) {
         }
     }
     if(chan2_active) {
+        ASSERT(c_s <= chan2_freq_counter);
         chan2_freq_counter -= c_s;
         if(chan2_freq_counter <= 0) {
             chan2_freq_counter += (2048 - chan2_freq.freq);
@@ -446,6 +473,7 @@ void apu::clock_freqs(uint64_t c_s /* = 1 */) {
         }
     }
     if(chan3_active) {
+        ASSERT(c_s <= chan3_freq_counter);
         chan3_freq_counter -= (2 * c_s);
         if(chan3_freq_counter <= 0) {
             chan3_freq_counter += (2048 - chan3_freq.freq);
@@ -461,6 +489,7 @@ void apu::clock_freqs(uint64_t c_s /* = 1 */) {
         }
     }
     if(chan4_active) {
+        ASSERT(c_s <= chan4_freq_counter);
         chan4_freq_counter -= c_s;
         if(chan4_freq_counter <= 0) {
             chan4_freq_counter = (noise_divisors[chan4_freq.div_code]<<(chan4_freq.clock_shift))/4;
@@ -475,6 +504,14 @@ void apu::clock_freqs(uint64_t c_s /* = 1 */) {
             //printf("lfsr out: %d\n", lfsr_value);
         }
     }
+}
+
+uint64_t apu::next_clock_freq() {
+    uint64_t retval = ((chan1_active)?chan1_freq_counter:-1);
+    if(chan2_active && chan2_freq_counter < retval) retval = chan2_freq_counter;
+    if(chan3_active && chan3_freq_counter < retval) retval = chan3_freq_counter;
+    if(chan4_active && chan4_freq_counter < retval) retval = chan4_freq_counter;
+    return retval;
 }
 
 void apu::apply(util::cmd& c) {
