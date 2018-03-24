@@ -106,7 +106,6 @@ private:
     void render(apu::samples&); //Generate next audio samples
     void clock_sequencer(); //Clock the sequencer
     void clock_freqs(uint64_t c_s = 1); //Clock the frequency counters by c_s cycles
-    uint64_t next_clock_freq();
     bool sweep_overflow(); //Check if next sweep iteration should disable the channel due to overflow
     //std::list<util::cmd> cmd_queue;
     std::queue<util::cmd> cmd_queue;
