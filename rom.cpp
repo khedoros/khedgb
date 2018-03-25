@@ -177,7 +177,7 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
         uint32_t min_size = cram.size();
         uint32_t max_size = cram.size();
         if(h.mapper == MAP_MBC3) { //Take into account the RTC values
-            min_size+=44;
+            //min_size+=44;
             max_size+=48;
         }
 
@@ -212,9 +212,6 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
             map = new mbc2_rom(h.rom_size, h.has_bat);
             break;
         case MAP_MBC3:
-            if(rtc_data.size() != 44 && rtc_data.size() != 48) {
-                rtc_data.resize(48,0);
-            }
             map = new mbc3_rom(h.rom_size, h.ram_size, h.has_bat, h.has_rtc, rtc_data);
             break;
         case MAP_MBC5:
@@ -235,6 +232,10 @@ rom::~rom() {
         std::ofstream outfile(filename.substr(0, filename.find_last_of(".")+1)+"sav");
         if(outfile.is_open()) {
             outfile.write(reinterpret_cast<char *>(&cram[0]), cram.size());
+            if(h.mapper == MAP_MBC3) {
+                Vect<uint8_t> rtc_data = map->read_extra();
+                outfile.write(reinterpret_cast<char *>(&rtc_data[0]), rtc_data.size());
+            }
             outfile.close();
         }
     }
@@ -328,6 +329,9 @@ uint32_t mapper::map_ram(uint32_t addr, uint64_t cycle) {
     return 0;
 }
 void mapper::write(uint32_t addr, void * val, int size, uint64_t cycle) { }
+Vect<uint8_t> mapper::read_extra() {
+    return Vect<uint8_t>(0);
+}
 
 
 
@@ -398,8 +402,27 @@ void mbc2_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
 
 
 //MBC3 mapper
-mbc3_rom::mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc, Vect<uint8_t>& rtc_data) : mapper(rom_size, ram_size+5, has_bat), rombank(1), rambank(0), ram_enabled(false), rtc_latch(false), rtc{0,0,0,0,0}, latched_rtc{0,0,0,0,0}, load_timestamp(0) {
-    //TODO: Add RTC load code
+mbc3_rom::mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc, Vect<uint8_t>& rtc_data) : mapper(rom_size, ram_size+5, has_bat), rombank(1), rambank(0), ram_enabled(false), rtc_latch(false), rtc{0,0,0,0,0}, latched_rtc{0,0,0,0,0}, cur_time(0) {
+    if(rtc_data.size() == 0) {
+        printf("No RTC data found appended to the save data itself.\n");
+    }
+    else if(rtc_data.size() == 44 || rtc_data.size() == 48) {
+        printf("Found RTC data with a %d-bit timestamp.\n", (rtc_data.size()==44)?32:64);
+        for(int i=0; i<20;i+=4) {
+            rtc[i/4] = rtc_data[i];
+        }
+        for(int i=20; i<40;i+=4) {
+            latched_rtc[(i-20)/4] = rtc_data[i];
+        }
+        cur_time = uint32_t(rtc_data[40]) + (uint32_t(rtc_data[41])<<8) + (uint32_t(rtc_data[42])<<16) + (uint32_t(rtc_data[43])<<24);
+        if(rtc_data.size() == 48) {
+            cur_time += (uint64_t(uint32_t(rtc_data[44]) + (uint32_t(rtc_data[45])<<8) + (uint32_t(rtc_data[46])<<16) + (uint32_t(rtc_data[47]<<24)))<<32);
+        }
+        forward_time();
+    }
+    else {
+        printf("Unexpected RTC data size: %ld", rtc_data.size());
+    }
 }
 uint32_t mbc3_rom::map_rom(uint32_t addr, uint64_t cycle) {
     if(addr < 0x4000) {
@@ -421,25 +444,31 @@ uint32_t mbc3_rom::map_ram(uint32_t addr, uint64_t cycle) {
         //TODO: Make this actually return current time if unlatched, and latched data if latched
         switch(rambank) {
             case 0x08:
-                printf("MBC3 R/W to rtc seconds\n");
+                //printf("MBC3 R/W to rtc seconds\n");
                 break;
             case 0x09:
-                printf("MBC3 R/W to rtc minutes\n");
+                //printf("MBC3 R/W to rtc minutes\n");
                 break;
             case 0x0a:
-                printf("MBC3 R/W to rtc hours\n");
+                //printf("MBC3 R/W to rtc hours\n");
                 break;
             case 0x0b:
-                printf("MBC3 R/W to rtc days(low)\n");
+                //printf("MBC3 R/W to rtc days(low)\n");
                 break;
             case 0x0c:
-                printf("MBC3 R/W to rtc days(high)\n");
+                //printf("MBC3 R/W to rtc days(high)\n");
                 break;
             default:
-                printf("MBC R/W to RAM bank %x\n", rambank);
+                //printf("MBC R/W to RAM bank %x\n", rambank);
+                break;
         }
 
-        return (uint32_t(rtc[rambank-0x08]) | 0xffffff00);
+        if(rtc_latch) {
+            return (uint32_t(latched_rtc[rambank-0x08]) | 0xffffff00);
+        }
+        else {
+            return (uint32_t(rtc[rambank-0x08]) | 0xffffff00);
+        }
     }
     return 0;
 }
@@ -459,39 +488,69 @@ void mbc3_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
         rambank = *(((uint8_t *)val));
         switch(rambank) {
             case 0x08:
-                printf("MBC3 map to rtc seconds\n");
+                //printf("MBC3 map to rtc seconds\n");
                 break;
             case 0x09:
-                printf("MBC3 map to rtc minutes\n");
+                //printf("MBC3 map to rtc minutes\n");
                 break;
             case 0x0a:
-                printf("MBC3 map to rtc hours\n");
+                //printf("MBC3 map to rtc hours\n");
                 break;
             case 0x0b:
-                printf("MBC3 map to rtc days(low)\n");
+                //printf("MBC3 map to rtc days(low)\n");
                 break;
             case 0x0c:
-                printf("MBC3 map to rtc days(high)\n");
+                //printf("MBC3 map to rtc days(high)\n");
                 break;
             default:
-                printf("MBC map to RAM bank %x\n", rambank);
+                //printf("MBC map to RAM bank %x\n", rambank);
+                break;
         }
     }
     else if(addr < 0x8000) {
         if(*(((uint8_t *)val)) == 1 && !rtc_latch) {
             //TODO: actually latch new data here
-            printf("MBC3 latched registers\n");
+            //printf("MBC3 latched registers\n");
             rtc_latch = true;
         }
         else if(*(((uint8_t *)val)) == 0) {
+            //printf("MBC3 unlatched registers\n");
             rtc_latch = false;
         }
     }
     else if(addr >= 0xa000 && addr < 0xc000) {
         if(rambank > 0x07) {
-            printf("MBC3 write to RTC registers\n");
+            //printf("MBC3 write to %s RTC register %02x = 0x%02x\n", ((rtc_latch)?"latched":"unlatched"), rambank, *(uint8_t *)val);
+            if(rtc_latch) {
+                latched_rtc[rambank-0x08] = *(uint8_t *)val;
+            }
+            else {
+                rtc[rambank-0x08] = *(uint8_t *)val;
+                forward_time();
+            }
+
         }
     }
+}
+Vect<uint8_t> mbc3_rom::read_extra() {
+    //TODO: Write RTC out        printf("Found RTC data with a %d-bit timestamp.\n", (rtc_data.size()==44)?32:64);
+    Vect<uint8_t> retval(48,0);
+    for(int i=0; i<20;i+=4) {
+        retval[i] = rtc[i/4]; 
+    }
+    for(int i=20; i<40;i+=4) {
+        retval[i] = rtc[(i-20)/4]; 
+    }
+    uint64_t mask = 0xff;
+    uint64_t shift = 0;
+    for(int i=0;i<8;i++) {
+        retval[i+40] = ((cur_time & mask)>>shift);
+        mask<<=8;
+        shift+=8;
+    }
+    return retval;
+}
+void mbc3_rom::forward_time() {
 }
 
 

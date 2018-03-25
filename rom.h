@@ -26,6 +26,7 @@ class mapper {
         virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
         virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
         virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
+        virtual Vect<uint8_t> read_extra();
     protected:
         bool has_bat;
         bool has_rtc;
@@ -124,7 +125,9 @@ class mbc3_rom: public mapper {
         virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
         virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
         virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
+        virtual Vect<uint8_t> read_extra();
     private:
+        virtual void forward_time();
         uint8_t rombank;
         uint8_t rambank;
         bool ram_enabled;
@@ -149,10 +152,16 @@ class mbc3_rom: public mapper {
             uint8_t hours;   //0x0a
             rtc_days days;   //0x0b/0x0c
         };
-
+        enum {
+            SEC,
+            MIN,
+            HOUR,
+            DAY_LOW,
+            DAY_HIGH
+        };
         uint8_t rtc[5];
         uint8_t latched_rtc[5];
-        uint64_t load_timestamp; //64-bit Unix timestamp, representing when the file is loaded (save data stores when the file was saved, so that we can simulate the appropriate passage of time)
+        uint64_t cur_time; //64-bit Unix timestamp, representing when the last RTC change occured
 };
 
 class camera_rom: public mapper {

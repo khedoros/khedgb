@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
         ppu->toggle_trace();
     }
 
-    uint64_t cycle = 144*114; //Cycles since the machine started running (the system starts in vblank)
+    uint64_t cycle = 0; //Cycles since the machine started running (the system starts in vblank)
     uint64_t tick_size = 70224/16; //Cycles to run in a batch
     bool continue_running = true;
 
