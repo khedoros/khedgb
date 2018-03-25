@@ -463,11 +463,12 @@ uint32_t mbc3_rom::map_ram(uint32_t addr, uint64_t cycle) {
                 break;
         }
 
-        if(rtc_latch) {
+        if(rtc_latch && ram_enabled) {
             return (uint32_t(latched_rtc[rambank-0x08]) | 0xffffff00);
         }
         else {
-            return (uint32_t(rtc[rambank-0x08]) | 0xffffff00);
+            0xffffff;
+            //return (uint32_t(rtc[rambank-0x08]) | 0xffffff00);
         }
     }
     return 0;
@@ -512,6 +513,10 @@ void mbc3_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
             //TODO: actually latch new data here
             //printf("MBC3 latched registers\n");
             rtc_latch = true;
+            forward_time();
+            for(int i=0;i<5;i++) {
+                latched_rtc[i] = rtc[i];
+            }
         }
         else if(*(((uint8_t *)val)) == 0) {
             //printf("MBC3 unlatched registers\n");
@@ -521,14 +526,10 @@ void mbc3_rom::write(uint32_t addr, void * val, int size, uint64_t cycle) {
     else if(addr >= 0xa000 && addr < 0xc000) {
         if(rambank > 0x07) {
             //printf("MBC3 write to %s RTC register %02x = 0x%02x\n", ((rtc_latch)?"latched":"unlatched"), rambank, *(uint8_t *)val);
-            if(rtc_latch) {
-                latched_rtc[rambank-0x08] = *(uint8_t *)val;
-            }
-            else {
-                rtc[rambank-0x08] = *(uint8_t *)val;
+            if(!(rtc[DAY_HIGH] & 0x40)) { //Timer halted before writing to RTC registers
                 forward_time();
             }
-
+            rtc[rambank-0x08] = *(uint8_t *)val;
         }
     }
 }
@@ -551,6 +552,45 @@ Vect<uint8_t> mbc3_rom::read_extra() {
     return retval;
 }
 void mbc3_rom::forward_time() {
+    time_t now = time(NULL);
+    if(cur_time > now) {
+        printf("Warning, save game says it's from the future!\n");
+        cur_time = now;
+        return;
+    }
+    double diff = difftime(now, cur_time);
+    uint64_t idiff = uint64_t(diff);
+    //extract seconds
+    lldiv_t convert = lldiv(idiff, 60);
+    rtc[SEC] += convert.rem;
+    if(rtc[SEC] >= 60) {
+        rtc[MIN]++;
+        rtc[SEC]%=60;
+    }
+    //extract minutes
+    convert=lldiv(convert.quot, 60);
+    rtc[MIN] += convert.rem;
+    if(rtc[MIN] >= 60) {
+        rtc[HOUR]++;
+        rtc[MIN]%=60;
+    }
+    //extract hours
+    convert=lldiv(convert.quot, 24);
+    rtc[HOUR] += convert.rem;
+    if(rtc[HOUR] >= 24) {
+        rtc[DAY_LOW]++;
+        rtc[HOUR]%=24;
+    }
+
+    convert=lldiv(convert.quot, 256);
+    uint64_t temp = uint64_t(rtc[DAY_LOW]) + convert.rem;
+    rtc[DAY_LOW] = (temp & 0xff);
+    temp/=256;
+    rtc[DAY_HIGH] = (rtc[DAY_HIGH] & 0xfe) + (temp & 1);
+    if(temp >= 2) {
+        rtc[DAY_HIGH] |= 0x80;
+    }
+    cur_time = now;
 }
 
 
