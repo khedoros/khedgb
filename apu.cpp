@@ -220,16 +220,23 @@ void apu::run(uint64_t run_to) {
     uint64_t start_cycle = cycle;
     int32_t left = 0;
     int32_t right = 0;
-    int32_t sample_accum = 0;
+    apu::samples s;
+    int32_t accum = 0;
 
-    for(;cycle < run_to; cycle++) {
+    for(;cycle < run_to; cycle+=4) {
         //Clock the frame sequencer at 512Hz
-        if(cycle%2048 == 0) {
+        if(((cycle%2048)&0x7fc) == 0) {
             clock_sequencer();
         }
 
-        //Clock the frequency counters for each channel
-        clock_freqs();
+        if((cycle&3)==0) {
+            clock_freqs(4);
+            //Clock the frequency counters for each channel
+            render(s);
+            left+=s.l;
+            right+=s.r;
+            accum++;
+        }
 
         //If it's time, apply the current command, and grab the next one, if it exists
         while(!cmd_queue.empty() && cycle >= cur_cmd.cycle) {
@@ -240,22 +247,17 @@ void apu::run(uint64_t run_to) {
             }
         }
 
-        apu::samples s;
-        render(s);
-        left+=s.l;
-        right+=s.r;
-        sample_accum++;
-
         //Figure out if it's time to generate a new sample, and put it into the output buffer if it is
         int sample = int(float(sample_count) * (float(cycle - start_cycle) / float(run_to - start_cycle)));
         if(sample > cur_sample) {
             //printf("L: %d R: %d acc: %d\n", left, right, sample_accum);
-            out_buffer[cur_sample*2] = left/sample_accum;
-            out_buffer[cur_sample*2+1] = right/sample_accum;
+            out_buffer[cur_sample*2] = left/accum;
+            out_buffer[cur_sample*2+1] = right/accum;
             cur_sample++;
-            left=0;
-            right=0;
-            sample_accum=0;
+            left = 0;
+            right = 0;
+            //printf("sample %d accum %d\n", cur_sample, accum);
+            accum = 0;
         }
     }
 
