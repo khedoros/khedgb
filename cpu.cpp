@@ -110,8 +110,8 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     uint8_t int_enable = 0;
 
     bus->update_interrupts(cycle);
-    int_flag = bus->read(0xff0f, cycle);
-    int_enable = bus->read(0xffff, cycle);
+    int_flag = bus->iflag();
+    int_enable = bus->ienab();
     if(interrupts && !stopped) { //IME
         bool was_halted = false; //Exiting halt when jumping to an interrupt takes an extra cycle
         if(halted && (int_flag & int_enable & 0x1f) > 0) {
@@ -555,8 +555,8 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                 uint8_t int_flag = 0;
                 uint8_t int_enable = 0;
                 bus->update_interrupts(cycle);
-                int_flag = bus->read(0xff0f, cycle);
-                int_enable = bus->read(0xffff, cycle);
+                int_flag = bus->iflag();
+                int_enable = bus->ienab();
                 if(!interrupts && ((int_flag & int_enable) & 0x1f) > 0) { //HALT bug: PC is stuck for one instruction after exiting halt mode
                     halt_bug = true;
                 }
@@ -1345,10 +1345,8 @@ const uint8_t cpu::op_times_extra[256] =
      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 void cpu::registers() {
-    uint8_t ienab = bus->read(0xffff, cycle);
-    uint8_t iflag = bus->read(0xff0f, cycle);
     printf("PC: %04x A: %02x B: %02x C: %02x D: %02x E: %02x H: %02x L: %02x SP: %04x F: %02x IME: %d IE: %02x IF: %02x",
-            pc,af.hi,bc.hi,bc.low,de.hi,de.low,hl.hi,hl.low,sp,af.low, interrupts, ienab&0x1f, iflag&0x1f);
+            pc,af.hi,bc.hi,bc.low,de.hi,de.low,hl.hi,hl.low,sp,af.low, interrupts, (bus->ienab())&0x1f, (bus->iflag())&0x1f);
 }
 
 bool cpu::call_interrupts() {

@@ -36,6 +36,8 @@ public:
     void win_resize(unsigned int newx, unsigned int newy);
     bool set_sgb(bool active);
     bool supports_sgb();
+    uint8_t ienab();
+    uint8_t iflag();
     struct int_flags {
         union {
             struct {

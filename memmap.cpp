@@ -95,14 +95,10 @@ uint8_t memmap::read(int addr, uint64_t cycle) {
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
 
     //CARTRIDGE AND RAM
-    if(addr < 0x8000) { //Cartridge 0x0000-0x7fff
+    if(addr < 0x8000 || (addr >= 0xa000 && addr < 0xc000)) { //Cartridge ROM 0x0000-0x7fff, External RAM 0xa000-0xbfff
         retval = cart.read(addr, cycle);
     }
-    else if (addr >= 0xa000 && addr < 0xc000) { //External RAM 0xa000-0xbfff
-        retval = cart.read(addr, cycle);
-        //std::cout<<"Read from external RAM: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
-    }
-    else if ((addr >= 0xc000 && addr < 0xd000) || (addr >= 0xe000 && addr < 0xf000)) { //4KB of memory, c000-cfff, then a mirror of it e000-efff
+    else if ((addr >= 0xc000 && addr < 0xd000) || (addr >= 0xe000 && addr < 0xf000)) { //4KB of working memory (WRAM), c000-cfff, then a mirror of it e000-efff
         retval = wram[addr & 0xfff];
         //printf("read wram0:%04x (%02x)\n", addr, wram[addr & 0xfff]);
     }
@@ -111,19 +107,16 @@ uint8_t memmap::read(int addr, uint64_t cycle) {
         retval = wram[(addr & 0xfff) + tmpbank * 0x1000];
         //printf("read wram%d:%04x (%02x)\n", tmpbank, addr, wram[(addr & 0xfff) + tmpbank * 0x1000]);
     }
-    else if (addr >= 0x8000 && addr < 0xa000) { //VRAM 0x8000-0x9fff
+    else if ((addr >= 0x8000 && addr < 0xa000) || (addr >= 0xfe00 && addr < 0xfea0)) { //VRAM 0x8000-0x9fff, OAM 0xfe00-0xfe9f
         retval = screen.read(addr, cycle2);//memcpy(val, &(vram[addr-0x8000]), size);
-    }
-    else if (addr >= 0xfe00 && addr < 0xfea0) {
-        retval = screen.read(addr, cycle2);
     }
     else if (addr >= 0xfea0 && addr < 0xff00) {
         //"Not useable" RAM area; apparently returns 0 on DMG, 0 and random values on CGB
         retval = 0;
     }
-    else if (addr >= 0xff00 && addr < 0xff80) {
+    else if (addr >= 0xff00 && addr < 0xff80 || addr == 0xffff) { //I/O registers
         switch(addr) {
-        case 0xff00: 
+        case 0xff00: //Joypad register
             {
                 uint8_t keyval = 0xf0;
                 if((joypad & 0x20) == 0) {
@@ -145,11 +138,11 @@ uint8_t memmap::read(int addr, uint64_t cycle) {
             }
             //printf("Stubbed out read to gamepad (not implemented yet)\n");
             break;
-        case 0xff01:
+        case 0xff01: //Serial data
             //printf("Read from serial data: 0x%04x (got 0x%02x, and link_in is 0x%02x)\n", addr, link_data, link_in_data);
             retval = link_data;
             break;
-        case 0xff02:
+        case 0xff02: //Serial control
             retval = (serial_transfer * 0x80) | 0x7e | internal_clock;
             //printf("Read from serial control: 0x%04x (got 0x%02x)\n", addr, (serial_transfer * 0x80) | internal_clock);
             break;
@@ -157,19 +150,19 @@ uint8_t memmap::read(int addr, uint64_t cycle) {
             retval = div;
             //std::cout<<"Read from div timer hardware: 0x"<<std::hex<<addr<<" = 0x"<<uint64_t(div)<<std::endl;
             break;
-        case 0xff05:
+        case 0xff05: //Timer counter
             retval = timer;
             //std::cout<<"Read from timer hardware (time): 0x"<<std::hex<<addr<<" = 0x"<<uint64_t(timer)<<std::endl;
             break;
-        case 0xff06:
+        case 0xff06: //Timer modulus
             retval = timer_modulus;
             //std::cout<<"Read from timer hardware (modulus): 0x"<<std::hex<<addr<<" = 0x"<<uint64_t(timer_modulus)<<std::endl;
             break;
-        case 0xff07:
+        case 0xff07: //Timer control
             retval = timer_control.val;
             //std::cout<<"Read from timer hardware (control): 0x"<<std::hex<<addr<<"= 0x"<<timer_control.val<<std::endl;
             break;
-        case 0xff0f:
+        case 0xff0f: //Active interrupts
             retval = int_requested.reg;
             //std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(int_requested.reg)<<" at cycle "<<std::dec<<cycle<<std::endl;
             break;
@@ -222,24 +215,20 @@ uint8_t memmap::read(int addr, uint64_t cycle) {
                 //BIT7 says whether to increment address on write.
                 //printf("Read from CGB BG palette index\n");
                 retval = screen.read(addr, cycle2);
-                //*(uint8_t *)val = 0;
                 break;
         case 0xff69:
                 //Writes data to specified palette byte
                 //printf("Read from CGB BG palette data port\n");
                 retval = screen.read(addr, cycle2);
-                //*(uint8_t *)val = 0;
                 break;
         case 0xff6a:
                 //OBJ palettes work the same as BG palettes.
                 //printf("Write to CGB OBJ palette index\n");
                 retval = screen.read(addr, cycle2);
-                //*(uint8_t *)val = 0;
                 break;
         case 0xff6b:
                 //printf("Read from CGB OBJ palette data port\n");
                 retval = screen.read(addr, cycle2);
-                //*(uint8_t *)val = 0;
                 break;
         case 0xff70: //CGB WRAM size switch
             if(!cgb) {
@@ -250,6 +239,9 @@ uint8_t memmap::read(int addr, uint64_t cycle) {
             }
             //printf("Read of CGB WRAM bank select register\n");
             break;
+        case 0xffff:
+            retval = int_enabled.reg;
+            break;
         default:
             if(addr > 0xff0f && addr <= 0xff3f) {
                 //std::cout<<"Read from audio hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
@@ -259,7 +251,7 @@ uint8_t memmap::read(int addr, uint64_t cycle) {
                 retval = screen.read(addr, cycle2);
                 //std::cout<<"Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
             }
-            else if(addr > 0xff4e && addr < 0xff6c) {
+            else if(addr > 0xff4e && addr < 0xff6c) { //Covers addresses in that range that aren't handled above
                 //std::cout<<"Read from CGB DMA/RAM: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
                 retval = 0xff;
             }
@@ -271,10 +263,6 @@ uint8_t memmap::read(int addr, uint64_t cycle) {
     }
     else if (addr >= 0xff80 && addr < 0xffff) { //127 bytes High RAM
         retval = hram[addr & 0x7f];
-    }
-    else if (addr == 0xffff) {
-        //std::cerr<<"Attempted read of write-only register?"<<std::endl;
-        retval = int_enabled.reg;
     }
     else {
         retval = 0xff;
@@ -296,17 +284,12 @@ void memmap::writemore(int addr, uint32_t val, int size, uint64_t cycle) {
 void memmap::write(int addr, uint8_t val, uint64_t cycle) {
     uint64_t cycle2 = cycle / 2;
     //std::cout<<"Cycle "<<std::dec<<cycle<<": ";
-    if(addr >= 0 && addr < 0x8000) { //Cartridge ROM
+    if((addr >= 0 && addr < 0x8000) || (addr >= 0xa000 && addr < 0xc000)) { //Cartridge ROM, cartridge RAM
         //std::cout<<"Write to ROM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (mappers not implemented yet)"<<std::endl;
         cart.write(addr,val,cycle);
     }
-    else if (addr >= 0x8000 && addr < 0xa000) { //Video RAM
+    else if ((addr >= 0x8000 && addr < 0xa000) || addr >= 0xfe00 && addr < 0xfea0) { //Video RAM, OAM RAM
         screen.write(addr, val, cycle2);
-        //memcpy(&(vram[addr-0x8000]), val, size);
-    }
-    else if (addr >= 0xa000 && addr < 0xc000) { //Cartridge RAM
-        //std::cout<<"Write to external RAM: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
-        cart.write(addr, val, cycle);
     }
     else if ((addr >= 0xc000 && addr < 0xd000) || (addr >= 0xe000 && addr < 0xf000)) { //4KB of memory, c000-cfff, then a mirror of it e000-efff
         wram[addr&0xfff] = val;
@@ -317,10 +300,7 @@ void memmap::write(int addr, uint8_t val, uint64_t cycle) {
         wram[(addr&0xfff) + tmpbank * 0x1000] = val;
         //printf("write wram%d:%04x = %02x\n", tmpbank, addr, wram[(addr & 0xfff) + tmpbank * 0x1000]);
     }
-    else if (addr >= 0xfe00 && addr < 0xfea0) { //OAM memory
-        screen.write(addr, val, cycle2);
-    }
-    else if (addr >= 0xff00 && addr < 0xff80) { //Hardware IO area
+    else if (addr >= 0xff00 && addr < 0xff80 || addr == 0xffff) { //Hardware IO area
         switch(addr) {
             case 0xff00:
                 joypad = (val & 0x30);
@@ -359,7 +339,7 @@ void memmap::write(int addr, uint8_t val, uint64_t cycle) {
                     //printf("\n");
                 }
                 break;
-            case 0xff01: //Fake implementation, for serial output from Blarg roms
+            case 0xff01:
                 link_data = val;
                 //printf("Write to serial data: 0x%04x = 0x%02x\n", addr, *(uint8_t *)val);
                 break;
@@ -518,6 +498,11 @@ void memmap::write(int addr, uint8_t val, uint64_t cycle) {
                 wram_bank = (val & 7);
                 //printf("Write to CGB WRAM page setting: %02x\n", *(uint8_t *)val);
                 break;
+            case 0xffff: //Interrupt enabled register
+                int_enabled.reg = (0xe0 | val);
+                //printf("Interrupts enabled: %02X\n",int_enabled.reg);
+                //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
+                break;
             default:
                 if(addr > 0xff0f && addr <= 0xff3f) {
                     //std::cout<<"Write to audio hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
@@ -540,14 +525,17 @@ void memmap::write(int addr, uint8_t val, uint64_t cycle) {
     else if (addr >= 0xff80 && addr < 0xffff) { //127 bytes of HRAM
         hram[addr - 0xff80] = val;
     }
-    else if (addr == 0xffff) { //Interrupt enabled register
-        int_enabled.reg = (0xe0 | val);
-        //printf("Interrupts enabled: %02X\n",int_enabled.reg);
-        //std::cout<<"Write to interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
-    }
     else {
         //std::cerr<<"Water fog? Write to 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" bzzzzzzt"<<std::endl;
     }
+}
+
+uint8_t memmap::ienab() {
+    return int_enabled.reg;
+}
+
+uint8_t memmap::iflag() {
+    return int_requested.reg;
 }
 
 void memmap::keydown(SDL_Scancode k) {
