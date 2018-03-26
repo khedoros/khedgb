@@ -213,7 +213,7 @@ void apu::run(uint64_t run_to) {
 
     Arr<int8_t, 690*2> out_buffer;
     memset(out_buffer.data(),0,690*2);
-    int sample_count = 689;
+    int sample_count = 690;
     if(cur_chunk == 15) {
         //sample_count++;
     }

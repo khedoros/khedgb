@@ -86,7 +86,7 @@ private:
     void interpret_vram(Arr<uint8_t, 4096>& vram_data);
     void regen_background();
     std::string lcd_to_string(uint16_t addr, uint8_t val);
-    void update_row_cache(uint16_t);
+    void update_row_cache(uint16_t,uint8_t);
 
     void draw_debug_overlay();
 
@@ -146,6 +146,7 @@ private:
     Arr<Arr<uint8_t, 0x2000>, 2> vram;
     Arr<uint8_t, 0xa0> oam;
     Arr<Arr<uint8_t, 8>, 768*8> row_cache; //pre-calculated cache of tile data
+    Arr<Arr<uint8_t, 8>, 256*256> rows; //The 65k possible tile lines
     uint64_t cycle;      //Last cycle executed during previous invocation of "lcd::run()"
     uint64_t next_line; //Next line to render in frame
     control_reg control; //0xff40

@@ -106,6 +106,16 @@ lcd::lcd() : cgb_mode(false), debug(false), during_dma(false), cycle(0), next_li
     }
     */
 
+    //Precalculate possible tile rows (about 1/2 MB of data)
+    for(int b2=0;b2<256;b2++) {
+        for(int b1=0;b1<256;b1++) {
+            int index = (b2<<8|b1);
+            for(int x = 0; x < 8; x++) {
+                int shift = 128>>(x);
+                rows[index][x] = ((b1&shift)/shift + 2*((b2&shift)/shift));
+            }
+        }
+    }
 }
 
 lcd::~lcd() {
@@ -195,7 +205,7 @@ void lcd::apply(int addr, uint8_t val, uint64_t cycle) {
         uint8_t prev = vram[vram_bank][addr&0x1fff];
         vram[vram_bank][addr & 0x1fff] = val;
         if(addr < 0x9800 && prev != val) {
-            update_row_cache(addr);
+            update_row_cache(addr, val);
         }
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
@@ -312,18 +322,23 @@ void lcd::apply(int addr, uint8_t val, uint64_t cycle) {
     return;
 }
 
-void lcd::update_row_cache(uint16_t addr) {
+void lcd::update_row_cache(uint16_t addr, uint8_t val) {
     addr -= 0x8000;
-    int tilenum = addr / 16;
-    int row = (addr / 2) % 8;
+    int tilenum = addr>>4;
+    int row = ((addr>>1) & 7);
     int index = vram_bank * 3072 + tilenum * 8 + row;
     int data_base = addr & 0xfffe;
-    int b1 = vram[vram_bank][data_base];
-    int b2 = vram[vram_bank][data_base + 1];
-    for(int x = 0; x < 8; x++) {
-        int shift = 128>>(x);
-        row_cache[index][x] = ((b1&shift)/shift + 2*((b2&shift)/shift));
+    int b1 = 0;
+    int b2 = 0;
+    if(addr&1) {
+        b1 = vram[vram_bank][data_base];
+        b2 = val;
     }
+    else {
+        b1 = val;
+        b2 = vram[vram_bank][data_base + 1];
+    }
+    row_cache[index] = rows[b2<<8|b1];
     return;
 }
 
