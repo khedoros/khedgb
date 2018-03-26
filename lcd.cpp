@@ -327,21 +327,13 @@ void lcd::update_row_cache(uint16_t addr) {
     return;
 }
 
-void lcd::write(int addr, void * val, int size, uint64_t cycle) {
-    if(trace) {printf("PPU write : %s @ %ld\n", lcd_to_string(addr, *((uint8_t *)val)).c_str(), cycle);}
-    if(size > 1) {
-        printf("addr: %04x = ", addr);
-        for(int i=0;i<size;i++) {
-            printf(" %02x", ((uint8_t *)val)[i]);
-        }
-        printf(" @ %ld\n", cycle);
-    }
-    ASSERT(size==1);
+void lcd::write(int addr, uint8_t val, uint64_t cycle) {
+    if(trace) {printf("PPU write : %s @ %ld\n", lcd_to_string(addr, val).c_str(), cycle);}
     //printf("PPU: 0x%04X = 0x%02x @ %ld (mode %d)\n", addr, *((uint8_t *)val), cycle, get_mode(cycle));
     if(addr >= 0x8000 && addr < 0xa000) {
         if(get_mode(cycle) != 3 || !cpu_control.display_enable) {
-            memcpy(&(cpu_vram[cpu_vram_bank][addr-0x8000]), val, size);
-            cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+            cpu_vram[cpu_vram_bank][addr-0x8000] = val;
+            cmd_queue.emplace(util::cmd{cycle, addr, val});
         }
         if(debug) {
             uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
@@ -351,8 +343,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
         if(get_mode(cycle) < 2 || !cpu_control.display_enable || cpu_during_dma) {
-            memcpy(&(cpu_oam[addr - 0xfe00]), val, size);
-            cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+            cpu_oam[addr - 0xfe00] = val;
+            cmd_queue.emplace(util::cmd{cycle, addr, val});
         }
         if(debug) {
             uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
@@ -368,7 +360,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff40:
                 {
                     control_reg old_val{.val = cpu_control.val};
-                    cpu_control.val = *((uint8_t *)val);
+                    cpu_control.val = val;
                     //Re-activates STAT interrupts when screen is reenabled
                     if(cpu_control.display_enable && !old_val.display_enable) {
                         cpu_active_cycle = cycle;
@@ -390,7 +382,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                     " window map: "<<cpu_control.window_map<<
                     " display on: "<<cpu_control.display_enable<<std::endl;
                 */
-                cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                cmd_queue.emplace(util::cmd{cycle, addr, val});
 
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
@@ -401,7 +393,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff41: 
                 {
                     uint8_t old_val = cpu_status; 
-                    cpu_status = *((uint8_t *)val)&0x78;
+                    cpu_status = val&0x78;
                     //If status flags are changed and screen is active, update times for newly active/inactive interrupts
                     if(cpu_status != old_val && cpu_control.display_enable) {
                         update_estimates(cycle);
@@ -410,8 +402,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 //printf("LCD status set to %02X\n", cpu_status);
                 break;
             case 0xff42:
-                cpu_bg_scroll_y = *((uint8_t *)val);
-                cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                cpu_bg_scroll_y = val;
+                cmd_queue.emplace(util::cmd{cycle, addr, val});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
@@ -419,8 +411,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 }
                 break;
             case 0xff43:
-                cpu_bg_scroll_x = *((uint8_t *)val);
-                cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                cpu_bg_scroll_x = val;
+                cmd_queue.emplace(util::cmd{cycle, addr, val});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
@@ -430,7 +422,7 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
             case 0xff45:
                 {
                     uint8_t old_val = cpu_lyc;
-                    cpu_lyc = *((uint8_t *)val);
+                    cpu_lyc = val;
                     if(cpu_lyc > 153) { //Out of range to actually trigger
                         lyc_next_cycle = -1;
                     }
@@ -442,15 +434,15 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 break;
             case 0xff46://OAM DMA
                 //Send whether DMA is active or inactive (this is now just a bool, *not* the actual DMA; the DMA is transmitted as a series of writes directly to OAM)
-                cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                cmd_queue.emplace(util::cmd{cycle, addr, val});
                 //Value of DMA addr is set when DMA is first requested, so we don't handle it here
                 break;
             case 0xff47:
-                cpu_bgpal.pal[0] = *((uint8_t *)val) & 0x03;
-                cpu_bgpal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
-                cpu_bgpal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
-                cpu_bgpal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
-                cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                cpu_bgpal.pal[0] = val & 0x03;
+                cpu_bgpal.pal[1] = (val & 0x0c)>>2;
+                cpu_bgpal.pal[2] = (val & 0x30)>>4;
+                cpu_bgpal.pal[3] = (val & 0xc0)>>6;
+                cmd_queue.emplace(util::cmd{cycle, addr, val});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
@@ -458,11 +450,11 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 }
                 break;
             case 0xff48:
-                cpu_obj1pal.pal[0] = *((uint8_t *)val) & 0x03;
-                cpu_obj1pal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
-                cpu_obj1pal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
-                cpu_obj1pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
-                cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                cpu_obj1pal.pal[0] = val & 0x03;
+                cpu_obj1pal.pal[1] = (val & 0x0c)>>2;
+                cpu_obj1pal.pal[2] = (val & 0x30)>>4;
+                cpu_obj1pal.pal[3] = (val & 0xc0)>>6;
+                cmd_queue.emplace(util::cmd{cycle, addr, val});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
@@ -470,11 +462,11 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 }
                 break;
             case 0xff49:
-                cpu_obj2pal.pal[0] = *((uint8_t *)val) & 0x03;
-                cpu_obj2pal.pal[1] = (*((uint8_t *)val) & 0x0c)>>2;
-                cpu_obj2pal.pal[2] = (*((uint8_t *)val) & 0x30)>>4;
-                cpu_obj2pal.pal[3] = (*((uint8_t *)val) & 0xc0)>>6;
-                cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                cpu_obj2pal.pal[0] = val & 0x03;
+                cpu_obj2pal.pal[1] = (val & 0x0c)>>2;
+                cpu_obj2pal.pal[2] = (val & 0x30)>>4;
+                cpu_obj2pal.pal[3] = (val & 0xc0)>>6;
+                cmd_queue.emplace(util::cmd{cycle, addr, val});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
@@ -482,8 +474,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 }
                 break;
             case 0xff4a: //TODO: Actually influences mode3 timing
-                cpu_win_scroll_y = *((uint8_t *)val);
-                cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                cpu_win_scroll_y = val;
+                cmd_queue.emplace(util::cmd{cycle, addr, val});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
@@ -491,8 +483,8 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 }
                 break;
             case 0xff4b: //TODO: influences mode3 timing
-                cpu_win_scroll_x = *((uint8_t *)val);
-                cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                cpu_win_scroll_x = val;
+                cmd_queue.emplace(util::cmd{cycle, addr, val});
                 if(debug) {
                     uint64_t line = ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE;
                     int line_cycle = (cycle - cpu_active_cycle) % CYCLES_PER_LINE;
@@ -500,18 +492,18 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 }
                 break;
             case 0xff4f: //CGB VRAM bank
-                cpu_vram_bank = ((*(uint8_t *)val) & 1);
-                cmd_queue.emplace(util::cmd{cycle, addr, uint8_t((*(uint8_t *)val) & 1)});
+                cpu_vram_bank = (val & 1);
+                cmd_queue.emplace(util::cmd{cycle, addr, uint8_t(val & 1)});
                 break;
             case 0xff68:
-                cpu_cgb_bgpal_index = (*((uint8_t *)val) & 0x3f);
-                cpu_cgb_bgpal_advance = ((*((uint8_t *)val) & 0x80) == 0x80);
-                cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                cpu_cgb_bgpal_index = (val & 0x3f);
+                cpu_cgb_bgpal_advance = ((val & 0x80) == 0x80);
+                cmd_queue.emplace(util::cmd{cycle, addr, val});
                 break;
             case 0xff69:
                 if(get_mode(cycle) != 3 || !cpu_control.display_enable) {
-                    cpu_cgb_bgpal[cpu_cgb_bgpal_index] = *(uint8_t *)val;
-                    cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                    cpu_cgb_bgpal[cpu_cgb_bgpal_index] = val;
+                    cmd_queue.emplace(util::cmd{cycle, addr, val});
                     if(cpu_cgb_bgpal_advance) {
                         cpu_cgb_bgpal_index++;
                         cpu_cgb_bgpal_index %= 0x3f;
@@ -519,14 +511,14 @@ void lcd::write(int addr, void * val, int size, uint64_t cycle) {
                 }
                 break;
             case 0xff6a:
-                cpu_cgb_objpal_index = (*((uint8_t *)val) & 0x3f);
-                cpu_cgb_objpal_advance = ((*((uint8_t *)val) & 0x80) == 0x80);
-                cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                cpu_cgb_objpal_index = (val & 0x3f);
+                cpu_cgb_objpal_advance = ((val & 0x80) == 0x80);
+                cmd_queue.emplace(util::cmd{cycle, addr, val});
                 break;
             case 0xff6b:
                 if(get_mode(cycle) != 3 || !cpu_control.display_enable) {
-                    cpu_cgb_objpal[cpu_cgb_objpal_index] = *(uint8_t *)val;
-                    cmd_queue.emplace(util::cmd{cycle, addr, *((uint8_t *)val)});
+                    cpu_cgb_objpal[cpu_cgb_objpal_index] = val;
+                    cmd_queue.emplace(util::cmd{cycle, addr, val});
                     if(cpu_cgb_objpal_advance) {
                         cpu_cgb_objpal_index++;
                         cpu_cgb_objpal_index %= 0x3f;
@@ -580,47 +572,47 @@ uint64_t lcd::get_active_cycle() {
 }
 
 //Reads the CPU's view of the current state of the PPU
-void lcd::read(int addr, void * val, int size, uint64_t cycle) {
-    if(size > 1 && size != 0x1000) return;
-    //ASSERT(size==1);
+uint8_t lcd::read(int addr, uint64_t cycle) {
+    uint8_t retval = 0;
+    //if(size > 1 && size != 0x1000) return;
     if(addr >= 0x8000 && addr < 0xa000) {
         if(get_mode(cycle) != 3) {
-            memcpy(val, &(cpu_vram[cpu_vram_bank][addr-0x8000]), size);
+            retval = cpu_vram[cpu_vram_bank][addr-0x8000];
         }
-        else *((uint8_t *)val) = 0xff;
+        else retval = 0xff;
     }
     else if(addr >= 0xfe00 && addr < 0xfea0) {
         if(get_mode(cycle) < 2) {
-            memcpy(val, &(cpu_oam[addr-0xfe00]), size);
+            retval = cpu_oam[addr-0xfe00];
         }
-        else *((uint8_t *)val) = 0xff;
+        else retval = 0xff;
     }
     else {
         switch(addr) {
             case 0xff40:
-                *((uint8_t *)val) = cpu_control.val;
+                retval = cpu_control.val;
                 break;
             case 0xff41: 
                 if(!cpu_control.display_enable) {
-                    *((uint8_t *)val) = BIT7|cpu_status; //return current interrupt flags and v-blank mode, if screen is disabled.
+                    retval = BIT7|cpu_status; //return current interrupt flags and v-blank mode, if screen is disabled.
                 }
                 else {
                     int mode = get_mode(cycle);
                     if(cpu_lyc == ((cycle - cpu_active_cycle) % 17556) / CYCLES_PER_LINE) {
                         mode |= BIT2;
                     }
-                    *((uint8_t *)val) = mode | cpu_status | BIT7;
+                    retval = mode | cpu_status | BIT7;
                 }
                 break;
             case 0xff42:
-                *((uint8_t *)val) = cpu_bg_scroll_y;
+                retval = cpu_bg_scroll_y;
                 break;
             case 0xff43:
-                *((uint8_t *)val) = cpu_bg_scroll_x;
+                retval = cpu_bg_scroll_x;
                 break;
             case 0xff44:
                 if(!cpu_control.display_enable) {
-                    *((uint8_t *)val) = 0;
+                    retval = 0;
                 }
                 else {
                     int frame_cycle = (cycle - cpu_active_cycle) % 17556;
@@ -629,53 +621,53 @@ void lcd::read(int addr, void * val, int size, uint64_t cycle) {
                     if(line == 153 && frame_cycle % CYCLES_PER_LINE >= 4) {
                         line = 0;
                     }
-                    *((uint8_t *)val) = line;
+                    retval = line;
                 }
                 break;
             case 0xff45:
-                *((uint8_t *)val) = cpu_lyc;
+                retval = cpu_lyc;
                 break;
             case 0xff46: //This value is now set in lcd::dma
-                *((uint8_t *)val) = cpu_dma_addr;
+                retval = cpu_dma_addr;
                 break;
             case 0xff47:
-                *((uint8_t *)val) = cpu_bgpal.pal[0] | cpu_bgpal.pal[1]<<2 | cpu_bgpal.pal[2]<<4 | cpu_bgpal.pal[3]<<6;
+                retval = cpu_bgpal.pal[0] | cpu_bgpal.pal[1]<<2 | cpu_bgpal.pal[2]<<4 | cpu_bgpal.pal[3]<<6;
                 break;
             case 0xff48:
-                *((uint8_t *)val) = cpu_obj1pal.pal[0] | cpu_obj1pal.pal[1]<<2 | cpu_obj1pal.pal[2]<<4 | cpu_obj1pal.pal[3]<<6;
+                retval = cpu_obj1pal.pal[0] | cpu_obj1pal.pal[1]<<2 | cpu_obj1pal.pal[2]<<4 | cpu_obj1pal.pal[3]<<6;
                 break;
             case 0xff49:
-                *((uint8_t *)val) = cpu_obj2pal.pal[0] | cpu_obj2pal.pal[1]<<2 | cpu_obj2pal.pal[2]<<4 | cpu_obj2pal.pal[3]<<6;
+                retval = cpu_obj2pal.pal[0] | cpu_obj2pal.pal[1]<<2 | cpu_obj2pal.pal[2]<<4 | cpu_obj2pal.pal[3]<<6;
                 break;
             case 0xff4a:
-                *((uint8_t *)val) = cpu_win_scroll_y;
+                retval = cpu_win_scroll_y;
                 break;
             case 0xff4b:
-                *((uint8_t *)val) = cpu_win_scroll_x;
+                retval = cpu_win_scroll_x;
                 break;
             case 0xff4f:
-                *((uint8_t *)val) = (0xfe | cpu_vram_bank);
+                retval = (0xfe | cpu_vram_bank);
                 break;
             case 0xff68:
-                *(uint8_t *)val = cpu_cgb_bgpal_index;
+                retval = cpu_cgb_bgpal_index;
                 break;
             case 0xff69:
-                *(uint8_t *)val = cpu_cgb_bgpal[cpu_cgb_bgpal_index];
+                retval = cpu_cgb_bgpal[cpu_cgb_bgpal_index];
                 break;
             case 0xff6a:
-                *(uint8_t *)val = cpu_cgb_objpal_index;
+                retval = cpu_cgb_objpal_index;
                 break;
             case 0xff6b:
-                *(uint8_t *)val = cpu_cgb_objpal[cpu_cgb_objpal_index];
+                retval = cpu_cgb_objpal[cpu_cgb_objpal_index];
                 break;
             default:
                 //std::cout<<"PPU: Read from video hardware: 0x"<<std::hex<<addr<<" (not implemented yet)"<<std::endl;
-                *((uint8_t *)val) = 0xff;
+                retval = 0xff;
                 break;
         }
     }
-    if(trace) printf("PPU read: %s\n", lcd_to_string(addr, *((uint8_t *)val)).c_str());
-    return;
+    if(trace) printf("PPU read: %s\n", lcd_to_string(addr, retval).c_str());
+    return retval;
 }
 
 void lcd::get_tile_row(int tilenum, int row, bool reverse, Arr<uint8_t, 8>& pixels, int bank/*=0*/) {
@@ -1324,7 +1316,7 @@ void lcd::dma(bool during_dma, uint64_t cycle, uint8_t dma_addr) {
     uint8_t temp = during_dma;
     cpu_during_dma = during_dma;
     cpu_dma_addr = dma_addr;
-    write(0xff46, &temp, 1, cycle);
+    write(0xff46, temp, cycle);
 }
 
 void lcd::draw_debug_overlay() {

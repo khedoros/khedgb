@@ -21,8 +21,10 @@ public:
     memmap(const std::string& filename, const std::string& fw_file);
     //read: rw==false, write: rw==true
 //    void map(int addr, void * val, int size, bool rw);
-    void read(int addr, void * val, int size, uint64_t cycle);
-    void write(int addr, void * val, int size, uint64_t cycle);
+    uint8_t read(int addr, uint64_t cycle);
+    uint32_t readmore(int addr, int size, uint64_t cycle);
+    void write(int addr, uint8_t val, uint64_t cycle);
+    void writemore(int addr, uint32_t val, int size, uint64_t cycle);
     void keydown(SDL_Scancode k);
     void keyup(SDL_Scancode k);
     INT_TYPE get_interrupt();

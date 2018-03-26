@@ -25,7 +25,7 @@ class mapper {
         virtual ~mapper();
         virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
         virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
-        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
+        virtual void write(uint32_t addr, uint8_t val, uint64_t cycle);
         virtual Vect<uint8_t> read_extra();
     protected:
         bool has_bat;
@@ -38,8 +38,8 @@ class rom {
     public:
         rom(const std::string& rom_filename, const std::string& firmware_filename);
         ~rom();
-        virtual void read(uint32_t addr, void * val, int size, uint64_t cycle);
-        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
+        virtual uint8_t read(uint32_t addr, uint64_t cycle);
+        virtual void write(uint32_t addr, uint8_t val, uint64_t cycle);
         bool supports_sgb();
         bool needs_color();
         bool supports_color();
@@ -85,7 +85,7 @@ class mbc1_rom: public mapper {
         mbc1_rom(int rom_size, int ram_size, bool has_bat);
         virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
         virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
-        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
+        virtual void write(uint32_t addr, uint8_t val, uint64_t cycle);
     private:
         bool ram_enabled;
         bool mode; //0=rom banking, 1=ram banking
@@ -113,7 +113,7 @@ class mbc2_rom: public mapper {
         mbc2_rom(uint32_t rom_size, bool has_bat);
         virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
         virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
-        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
+        virtual void write(uint32_t addr, uint8_t val, uint64_t cycle);
     private:
         bool ram_enabled;
         unsigned banknum:4;
@@ -124,7 +124,7 @@ class mbc3_rom: public mapper {
         mbc3_rom(int rom_size, int ram_size, bool has_bat, bool has_rtc, Vect<uint8_t>& rtc_data);
         virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
         virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
-        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
+        virtual void write(uint32_t addr, uint8_t val, uint64_t cycle);
         virtual Vect<uint8_t> read_extra();
     private:
         virtual void forward_time();
@@ -169,7 +169,7 @@ class camera_rom: public mapper {
         camera_rom(int rom_size, int ram_size, bool has_bat, uint8_t * cram);
         virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
         virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
-        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
+        virtual void write(uint32_t addr, uint8_t val, uint64_t cycle);
     private:
         uint8_t rombank;
         uint8_t rambank;
@@ -217,7 +217,7 @@ class mbc5_rom: public mapper {
         mbc5_rom(int rom_size, int ram_size, bool has_bat, bool has_rumble);
         virtual uint32_t map_rom(uint32_t addr, uint64_t cycle);
         virtual uint32_t map_ram(uint32_t addr, uint64_t cycle);
-        virtual void write(uint32_t addr, void * val, int size, uint64_t cycle);
+        virtual void write(uint32_t addr, uint8_t val, uint64_t cycle);
     private:
         union rom_bank {
             struct {

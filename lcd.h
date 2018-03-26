@@ -47,8 +47,8 @@ class lcd {
 public:
     lcd();
     ~lcd();
-    void write(int addr, void * val, int size, uint64_t cycle);
-    void read(int addr, void * val, int size, uint64_t cycle);
+    void write(int addr, uint8_t val, uint64_t cycle);
+    uint8_t read(int addr, uint64_t cycle);
     bool interrupt_triggered(uint64_t cycle);
     uint64_t get_active_cycle();
     uint64_t run(uint64_t cycle_count);
