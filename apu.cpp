@@ -82,7 +82,7 @@ void apu::init() {
 
 void null_callback(void * userdata, Uint8* stream, int len) {}
 
-apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_chunk(0)
+apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_chunk(0), debug(false), buffer(NULL), texture(NULL), renderer(NULL), screen(NULL)
 {
     ASSERT(sizeof(sweep_reg) == 1);
     ASSERT(sizeof(wave_on_reg) == 1);
@@ -163,6 +163,8 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_c
     }
     //out_wav.open("audio.out");
     //out_ch3.open("ch3_audio.out");
+    debug_window(true);
+    buffer = SDL_CreateRGBSurface(0,690,512,32,0,0,0,0);
 }
 
 apu::~apu() {
@@ -229,6 +231,15 @@ void apu::run(uint64_t run_to) {
             clock_sequencer();
         }
 
+                //If it's time, apply the current command, and grab the next one, if it exists
+        while(!cmd_queue.empty() && cycle >= cur_cmd.cycle) {
+            apply(cur_cmd);
+            cmd_queue.pop();
+            if(!cmd_queue.empty()) {
+                cur_cmd = cmd_queue.front();
+            }
+        }
+
         if((cycle&3)==0) {
             clock_freqs(4);
             //Clock the frequency counters for each channel
@@ -236,15 +247,6 @@ void apu::run(uint64_t run_to) {
             left+=s.l;
             right+=s.r;
             accum++;
-        }
-
-        //If it's time, apply the current command, and grab the next one, if it exists
-        while(!cmd_queue.empty() && cycle >= cur_cmd.cycle) {
-            apply(cur_cmd);
-            cmd_queue.pop();
-            if(!cmd_queue.empty()) {
-                cur_cmd = cmd_queue.front();
-            }
         }
 
         //Figure out if it's time to generate a new sample, and put it into the output buffer if it is
@@ -258,6 +260,17 @@ void apu::run(uint64_t run_to) {
             right = 0;
             //printf("sample %d accum %d\n", cur_sample, accum);
             accum = 0;
+            if(debug && cur_sample < 690 && buffer) {
+                uint32_t pitch = buffer->pitch/4;
+                uint32_t * pixels = ((uint32_t *)buffer->pixels);
+                pixels[128 * pitch + cur_sample] = SDL_MapRGB(buffer->format, 0,0,0);
+                pixels[256 * pitch + cur_sample] = SDL_MapRGB(buffer->format, 0,0,0);
+                pixels[384 * pitch + cur_sample] = SDL_MapRGB(buffer->format, 0,0,0);
+                pixels[(s.ch1+64) * pitch + cur_sample] = SDL_MapRGB(buffer->format, 255,255,0);
+                pixels[(s.ch2+128+64) * pitch + cur_sample] = SDL_MapRGB(buffer->format, 255,0,255);
+                pixels[(s.ch3+256+64) * pitch + cur_sample] = SDL_MapRGB(buffer->format, 0,255,255);
+                pixels[(s.ch4+384+64) * pitch + cur_sample] = SDL_MapRGB(buffer->format, 255,255,255);
+            }
         }
     }
 
@@ -266,6 +279,19 @@ void apu::run(uint64_t run_to) {
         //printf("%d ", SDL_GetQueuedAudioSize(devid));
         //out_wav.write(reinterpret_cast<const char *>(out_buffer.data()), sample_count * CHANNELS * SAMPLE_SIZE);
         SDL_QueueAudio(devid, out_buffer.data(), sample_count * CHANNELS * SAMPLE_SIZE);
+        if(debug && texture && buffer && renderer) {
+            if(texture) {
+                SDL_DestroyTexture(texture);
+                texture = NULL;
+            }
+            texture = SDL_CreateTextureFromSurface(renderer, buffer);
+            SDL_RenderCopy(renderer, texture, NULL, NULL);
+            SDL_RenderPresent(renderer);
+            SDL_FillRect(buffer, NULL, SDL_MapRGB(buffer->format, 150,150,150));
+        }
+        else {
+            printf("debug: %d, texture: %d buffer: %d renderer: %d\n", debug,texture,buffer,renderer);
+        }
     }
 
     //Every 16 chunks, we need to generate 690 samples, instead of 689.
@@ -288,7 +314,13 @@ void apu::render(apu::samples& s) {
 
     int32_t chan4 = chan4_active * chan4_level * lfsr_value;
     ASSERT(chan4 > -129 && chan4 < 128);
+    ASSERT(chan4 > -129 && chan4 < 128);
     //printf("ch4: %02x \n", chan4&0xff);
+
+    s.ch1 = chan1;
+    s.ch2 = chan2;
+    s.ch3 = chan3;
+    s.ch4 = chan4;
 
     s.l = output_map.ch1_to_so1 * chan1;
     s.l += output_map.ch2_to_so1 * chan2;
@@ -706,4 +738,13 @@ void apu::apply(util::cmd& c) {
                 //APRINTF("apu: unknown, addr=0x%04x, c.val=0x%02x\n", addr, c.val);
             }
     }
+}
+
+void apu::debug_window(bool on) {
+    if(on==debug) return;
+
+    if(on) {
+        util::reinit_sdl_screen(&screen, &renderer, &texture, 690, 512);
+    }
+    debug = on;
 }

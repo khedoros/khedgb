@@ -93,10 +93,15 @@ public:
     void run(uint64_t run_to);
     std::ofstream out_wav;
     std::ofstream out_ch3;
+    void debug_window(bool);
 private:
     struct samples {
         int8_t l;
         int8_t r;
+        int8_t ch1;
+        int8_t ch2;
+        int8_t ch3;
+        int8_t ch4;
     };
 
     void apply(util::cmd& c);
@@ -318,6 +323,13 @@ private:
     const static int CHANNELS = 2;
     const static int SAMPLE_SIZE = 1;
     int cur_chunk; //Number between 0 and 15 to help track how many samples must be provided for this "frame" of audio
+
+    bool debug; //Display debug window?
+    SDL_Window * screen;
+    SDL_Renderer * renderer;
+    SDL_Surface * buffer; //Output buffer
+    SDL_Texture * texture; //Texture used for output
+
 };
 
 void null_callback(void * userdata, Uint8* stream, int len);
