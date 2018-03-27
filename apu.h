@@ -94,6 +94,7 @@ public:
     std::ofstream out_wav;
     std::ofstream out_ch3;
     void debug_window(bool);
+    void toggle_debug();
 private:
     struct samples {
         int8_t l;

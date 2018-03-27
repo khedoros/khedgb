@@ -163,8 +163,7 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_c
     }
     //out_wav.open("audio.out");
     //out_ch3.open("ch3_audio.out");
-    debug_window(true);
-    buffer = SDL_CreateRGBSurface(0,690,512,32,0,0,0,0);
+    //debug_window(true);
 }
 
 apu::~apu() {
@@ -216,9 +215,6 @@ void apu::run(uint64_t run_to) {
     Arr<int8_t, 690*2> out_buffer;
     memset(out_buffer.data(),0,690*2);
     int sample_count = 690;
-    if(cur_chunk == 15) {
-        //sample_count++;
-    }
     uint64_t start_cycle = cycle;
     int32_t left = 0;
     int32_t right = 0;
@@ -259,18 +255,36 @@ void apu::run(uint64_t run_to) {
             left = 0;
             right = 0;
             //printf("sample %d accum %d\n", cur_sample, accum);
-            accum = 0;
             if(debug && cur_sample < 690 && buffer) {
                 uint32_t pitch = buffer->pitch/4;
                 uint32_t * pixels = ((uint32_t *)buffer->pixels);
-                pixels[128 * pitch + cur_sample] = SDL_MapRGB(buffer->format, 0,0,0);
-                pixels[256 * pitch + cur_sample] = SDL_MapRGB(buffer->format, 0,0,0);
-                pixels[384 * pitch + cur_sample] = SDL_MapRGB(buffer->format, 0,0,0);
-                pixels[(s.ch1+64) * pitch + cur_sample] = SDL_MapRGB(buffer->format, 255,255,0);
-                pixels[(s.ch2+128+64) * pitch + cur_sample] = SDL_MapRGB(buffer->format, 255,0,255);
-                pixels[(s.ch3+256+64) * pitch + cur_sample] = SDL_MapRGB(buffer->format, 0,255,255);
-                pixels[(s.ch4+384+64) * pitch + cur_sample] = SDL_MapRGB(buffer->format, 255,255,255);
+                SDL_Rect r = {cur_sample,0,1,0};
+                s.ch1/=accum; s.ch2/=accum; s.ch3/=accum; s.ch4/=accum;
+                r.h = abs(2*s.ch1);
+                r.y = 64;
+                if(s.ch1 > 0) r.y -= r.h;
+                SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 255,255,0));
+
+                r.h = abs(2*s.ch2);
+                r.y = 192;
+                if(s.ch2 > 0) r.y -= r.h;
+                SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 255,0,255));
+
+                r.h = abs(2*s.ch3);
+                r.y = 320;
+                if(s.ch3 > 0) r.y -= r.h;
+                SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,255,255));
+
+                r.h = abs(2*s.ch4);
+                r.y = 448;
+                if(s.ch4 > 0) r.y -= r.h;
+                SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 255,255,255));
             }
+            accum = 0;
+            s.ch1 = 0;
+            s.ch2 = 0;
+            s.ch3 = 0;
+            s.ch4 = 0;
         }
     }
 
@@ -288,15 +302,23 @@ void apu::run(uint64_t run_to) {
             SDL_RenderCopy(renderer, texture, NULL, NULL);
             SDL_RenderPresent(renderer);
             SDL_FillRect(buffer, NULL, SDL_MapRGB(buffer->format, 150,150,150));
-        }
-        else {
-            printf("debug: %d, texture: %d buffer: %d renderer: %d\n", debug,texture,buffer,renderer);
+            SDL_Rect r = {0,128,690,1};
+            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
+            r = {0,256,690,1};
+            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
+            r = {0,384,690,1};
+            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
+
+            r = {0,64,690,1};
+            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
+            r = {0,128+64,690,1};
+            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
+            r = {0,256+64,690,1};
+            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
+            r = {0,384+64,690,1};
+            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
         }
     }
-
-    //Every 16 chunks, we need to generate 690 samples, instead of 689.
-    cur_chunk++;
-    cur_chunk &= 0x0f; //mod by 16
 }
 
 void apu::render(apu::samples& s) {
@@ -317,10 +339,10 @@ void apu::render(apu::samples& s) {
     ASSERT(chan4 > -129 && chan4 < 128);
     //printf("ch4: %02x \n", chan4&0xff);
 
-    s.ch1 = chan1;
-    s.ch2 = chan2;
-    s.ch3 = chan3;
-    s.ch4 = chan4;
+    s.ch1 += chan1;
+    s.ch2 += chan2;
+    s.ch3 += chan3;
+    s.ch4 += chan4;
 
     s.l = output_map.ch1_to_so1 * chan1;
     s.l += output_map.ch2_to_so1 * chan2;
@@ -744,7 +766,35 @@ void apu::debug_window(bool on) {
     if(on==debug) return;
 
     if(on) {
-        util::reinit_sdl_screen(&screen, &renderer, &texture, 690, 512);
+        buffer = SDL_CreateRGBSurface(0,690,512,32,0,0,0,0);
+        util::reinit_sdl_screen(&screen, &renderer, &texture, 690/2, 512/2);
     }
     debug = on;
+}
+
+void apu::toggle_debug() {
+    if(debug) {
+        debug = false;
+        if(screen) {
+            SDL_DestroyWindow(screen);
+            screen = NULL;
+        }
+        if(renderer) {
+            SDL_DestroyRenderer(renderer);
+            renderer = NULL;
+        }
+        if(texture) {
+            SDL_DestroyTexture(texture);
+            texture = NULL;
+        }
+        if(buffer) {
+            SDL_FreeSurface(buffer);
+            buffer = NULL;
+        }
+    }
+    else {
+        debug = true;
+        buffer = SDL_CreateRGBSurface(0,690,512,32,0,0,0,0);
+        util::reinit_sdl_screen(&screen, &renderer, &texture, 690/2, 512/2);
+    }
 }
