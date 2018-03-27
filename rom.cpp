@@ -289,7 +289,7 @@ void rom::write(uint32_t addr, uint8_t val, uint64_t cycle) {
             map->write(orig_addr, val, cycle);
         }
     }
-    else if(addr == 0xff50) memcpy(&rom_data[0], &rom_backup[0], rom_backup.size());
+    else if(addr == 0xff50) std::copy(rom_backup.begin(), rom_backup.end(), rom_data.begin());
     else {
         map->write(addr, val, cycle);
     }
@@ -467,7 +467,7 @@ uint32_t mbc3_rom::map_ram(uint32_t addr, uint64_t cycle) {
             return (uint32_t(latched_rtc[rambank-0x08]) | 0xffffff00);
         }
         else {
-            0xffffff;
+            return 0xffffff;
             //return (uint32_t(rtc[rambank-0x08]) | 0xffffff00);
         }
     }

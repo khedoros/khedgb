@@ -209,7 +209,7 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     //Print a CPU trace
     if(trace) {
         registers();
-        printf("\t");
+        printf("\t%02x\t",op);
         decode(prefix,x,y,z,data);
         if(halted || stopped) {
                 printf(" (not executed)\n");
@@ -228,41 +228,41 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     return cycles;
 }
 
-const cpu_op cpu::cpu_ops[256] = {&cpu::nop,      &cpu::ld_bc_d16,&cpu::ld_bc_a, &cpu::inc_bc,&cpu::inc_b,     &cpu::dec_b,     &cpu::nop,&cpu::nop,
-                                  &cpu::ld_a16_sp,&cpu::add_hl_bc,&cpu::ld_a_bc, &cpu::dec_bc,&cpu::inc_c,     &cpu::dec_c,     &cpu::nop,&cpu::nop,
-                                  &cpu::stop,     &cpu::ld_de_d16,&cpu::ld_de_a, &cpu::inc_de,&cpu::inc_d,     &cpu::dec_d,     &cpu::nop,&cpu::nop,
-                                  &cpu::jr_r8,    &cpu::add_hl_de,&cpu::ld_a_de, &cpu::dec_de,&cpu::inc_e,     &cpu::dec_e,     &cpu::nop,&cpu::nop,
-                                  &cpu::jr_nz_r8, &cpu::ld_hl_d16,&cpu::ld_hlp_a,&cpu::inc_hl,&cpu::inc_h,     &cpu::dec_h,     &cpu::nop,&cpu::nop,
-                                  &cpu::jr_z_r8,  &cpu::add_hl_hl,&cpu::ld_a_hlp,&cpu::dec_hl,&cpu::inc_l,     &cpu::dec_l,     &cpu::nop,&cpu::nop,
-                                  &cpu::jr_nc_r8, &cpu::ld_sp_d16,&cpu::ld_hlm_a,&cpu::inc_sp,&cpu::inc_hladdr,&cpu::dec_hladdr,&cpu::nop,&cpu::nop,
-                                  &cpu::jr_c_r8,  &cpu::add_hl_sp,&cpu::ld_a_hlm,&cpu::dec_sp,&cpu::inc_a,     &cpu::dec_a,     &cpu::nop,&cpu::nop,
+const cpu_op cpu::cpu_ops[256] = {&cpu::nop,      &cpu::ld_bc_d16,&cpu::ld_bcaddr_a, &cpu::inc_bc,&cpu::inc_b,     &cpu::dec_b,     &cpu::ld_b_d8,     &cpu::rlca,
+                                  &cpu::ld_a16_sp,&cpu::add_hl_bc,&cpu::ld_a_bcaddr, &cpu::dec_bc,&cpu::inc_c,     &cpu::dec_c,     &cpu::ld_c_d8,     &cpu::rrca,
+                                  &cpu::stop,     &cpu::ld_de_d16,&cpu::ld_deaddr_a, &cpu::inc_de,&cpu::inc_d,     &cpu::dec_d,     &cpu::ld_d_d8,     &cpu::rla,
+                                  &cpu::jr_r8,    &cpu::add_hl_de,&cpu::ld_a_deaddr, &cpu::dec_de,&cpu::inc_e,     &cpu::dec_e,     &cpu::ld_e_d8,     &cpu::rra,
+                                  &cpu::jr_nz_r8, &cpu::ld_hl_d16,&cpu::ld_hlpaddr_a,&cpu::inc_hl,&cpu::inc_h,     &cpu::dec_h,     &cpu::ld_h_d8,     &cpu::daa,
+                                  &cpu::jr_z_r8,  &cpu::add_hl_hl,&cpu::ld_a_hlpaddr,&cpu::dec_hl,&cpu::inc_l,     &cpu::dec_l,     &cpu::ld_l_d8,     &cpu::cpl,
+                                  &cpu::jr_nc_r8, &cpu::ld_sp_d16,&cpu::ld_hlmaddr_a,&cpu::inc_sp,&cpu::inc_hladdr,&cpu::dec_hladdr,&cpu::ld_hladdr_d8,&cpu::scf,
+                                  &cpu::jr_c_r8,  &cpu::add_hl_sp,&cpu::ld_a_hlmaddr,&cpu::dec_sp,&cpu::inc_a,     &cpu::dec_a,     &cpu::ld_a_d8,     &cpu::ccf,
 
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
                                   
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
                                   
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
-                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop};
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop,
+                                  &cpu::nop,      &cpu::nop,      &cpu::nop,         &cpu::nop,   &cpu::nop,       &cpu::nop,       &cpu::nop,         &cpu::nop};
 
 uint64_t cpu::nop(int data) {return 0;}
 uint64_t cpu::ld_a16_sp(int data) {
@@ -411,38 +411,38 @@ uint64_t cpu::add_hl_sp(int data) {
     clear(SUB_FLAG);
     return 0;
 }
-uint64_t cpu::ld_bc_a(int data) {
+uint64_t cpu::ld_bcaddr_a(int data) {
     bus->write(bc.pair, af.hi, cycle+1);
     return 0;
 }
-uint64_t cpu::ld_a_bc(int data) {
+uint64_t cpu::ld_a_bcaddr(int data) {
     af.hi = bus->read(bc.pair, cycle+1);
     return 0;
 }
-uint64_t cpu::ld_de_a(int data) {
+uint64_t cpu::ld_deaddr_a(int data) {
     bus->write(de.pair, af.hi, cycle+1);
     return 0;
 }
-uint64_t cpu::ld_a_de(int data) {
+uint64_t cpu::ld_a_deaddr(int data) {
     af.hi = bus->read(de.pair, cycle+1);
     return 0;
 }
-uint64_t cpu::ld_hlp_a(int data) {
+uint64_t cpu::ld_hlpaddr_a(int data) {
     bus->write(hl.pair, af.hi, cycle+1);
     hl.pair++;
     return 0;
 }
-uint64_t cpu::ld_a_hlp(int data) {
+uint64_t cpu::ld_a_hlpaddr(int data) {
     af.hi = bus->read(hl.pair, cycle+1);
     hl.pair++;
     return 0;
 }
-uint64_t cpu::ld_hlm_a(int data) {
+uint64_t cpu::ld_hlmaddr_a(int data) {
     bus->write(hl.pair, af.hi, cycle+1);
     hl.pair--;
     return 0;
 }
-uint64_t cpu::ld_a_hlm(int data) {
+uint64_t cpu::ld_a_hlmaddr(int data) {
     af.hi = bus->read(hl.pair, cycle+1);
     hl.pair--;
     return 0;
@@ -627,6 +627,157 @@ uint64_t cpu::dec_a(int data) {
     set(SUB_FLAG);
     return 0;
 }
+uint64_t cpu::ld_b_d8(int data) {
+    bc.hi = data;
+    return 0;
+}
+uint64_t cpu::ld_c_d8(int data) {
+    bc.low = data;
+    return 0;
+}
+uint64_t cpu::ld_d_d8(int data) {
+    de.hi = data;
+    return 0;
+}
+uint64_t cpu::ld_e_d8(int data) {
+    de.low = data;
+    return 0;
+}
+uint64_t cpu::ld_h_d8(int data) {
+    hl.hi = data;
+    return 0;
+}
+uint64_t cpu::ld_l_d8(int data) {
+    hl.low = data;
+    return 0;
+}
+uint64_t cpu::ld_hladdr_d8(int data) {
+    bus->write(hl.pair, data&0xff, cycle+2);
+    return 0;
+}
+uint64_t cpu::ld_a_d8(int data) {
+    af.hi = data;
+    return 0;
+}
+uint64_t cpu::rlca(int data) {
+    if(af.hi & BIT7) {
+        set(CARRY_FLAG);
+    }
+    else {
+        clear(CARRY_FLAG);
+    }
+    clear(ZERO_FLAG);
+    clear(SUB_FLAG);
+    clear(HALF_CARRY_FLAG);
+    af.hi<<=(1);
+    af.hi+=carry();
+    return 0;
+}
+uint64_t cpu::rrca(int data) {
+    if(af.hi & BIT0) {
+        set(CARRY_FLAG);
+    }
+    else {
+        clear(CARRY_FLAG);
+    }
+    clear(ZERO_FLAG);
+    clear(SUB_FLAG);
+    clear(HALF_CARRY_FLAG);
+    af.hi>>=(1);
+    af.hi+=carry()*BIT7;
+    return 0;
+}
+uint64_t cpu::rla(int data) {
+    data = carry();
+    if(af.hi & BIT7) {
+        set(CARRY_FLAG);
+    }
+    else {
+        clear(CARRY_FLAG);
+    }
+    clear(ZERO_FLAG);
+    clear(SUB_FLAG);
+    clear(HALF_CARRY_FLAG);
+    af.hi<<=(1);
+    af.hi+=data;
+    return 0;
+}
+uint64_t cpu::rra(int data) {
+    data = carry();
+    if(af.hi & BIT0) {
+        set(CARRY_FLAG);
+    }
+    else {
+        clear(CARRY_FLAG);
+    }
+    clear(ZERO_FLAG);
+    clear(SUB_FLAG);
+    clear(HALF_CARRY_FLAG);
+    af.hi>>=(1);
+    af.hi+=data*BIT7;
+    return 0;
+}
+uint64_t cpu::daa(int data) {
+    //Third version of this code, shamelessly grabbed from someone's nesdev.com post. 
+    //Didn't pass Blargg until I fixed some other instructions, came back, and realized I'd screwed up my adaptation of the post.
+    //This is one of the ones that's well-defined for expected inputs, and deviates from behavior of other CPUs for unexpected inputs.
+    //
+    // note: assumes a is a uint8_t and wraps from 0xff to 0
+    if (!sub()) {  // after an addition, adjust if (half-)carry occurred or if result is out of bounds
+        if (carry() || af.hi > 0x99) {
+            af.hi += 0x60;
+            set(CARRY_FLAG);
+        }
+        if (hc() || (af.hi & 0x0f) > 0x09) {
+            af.hi += 0x6;
+        }
+    }
+    else {  // after a subtraction, only adjust if (half-)carry occurred
+        if (carry()) {
+            af.hi -= 0x60;
+            set(CARRY_FLAG);
+        }
+        if (hc()) {
+            af.hi -= 0x6;
+        }
+    }
+    // these flags are always updated
+    if(af.hi) clear(ZERO_FLAG); // the usual z flag
+    else set(ZERO_FLAG);
+    clear(HALF_CARRY_FLAG); // h flag is always cleared
+
+    //printf("DAA\n");
+    return 0;
+}
+uint64_t cpu::cpl(int data) {
+    set(HALF_CARRY_FLAG);
+    set(SUB_FLAG);
+    af.hi= ~(af.hi);
+    //printf("CPL\n");
+    return 0;
+}
+uint64_t cpu::scf(int data) {
+    clear(HALF_CARRY_FLAG);
+    clear(SUB_FLAG);
+    set(CARRY_FLAG);
+    //printf("SCF\n");
+    return 0;
+}
+uint64_t cpu::ccf(int data) {
+    clear(HALF_CARRY_FLAG);
+    clear(SUB_FLAG);
+    if(carry()) {
+        clear(CARRY_FLAG);
+    }
+    else {
+        set(CARRY_FLAG);
+    }
+    //printf("CCF\n");
+    return 0;
+}
+
+
+
 uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
     //char r_name[][5]  =    {     "B",      "C",   "D",      "E",   "H",   "L","(HL)",  "A"};
     //char rp_name[][3] =    {    "BC",     "DE",  "HL",     "SP"};
@@ -638,9 +789,8 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
     p=y/2;
     q=y%2;
     uint64_t extra_cycles = 0;
-    if(!pre && !x && z<6) {
+    if(!pre && !x) {
         extra_cycles = CALL_MEMBER_FN(*this, cpu_ops[x<<6|y<<3|z])(data);
-        extra_cycles += op_times_extra[(x<<(6))+(y<<(3))+z];
     }
     bool condition=false;
     if(!pre) {
@@ -652,132 +802,31 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
                 break;
             case 0x2:
                 break;
-            case 0x3: //16-bit increments and decrements, 0x03, 0x0b, 0x13, 0x1b, 0x23, 0x2b, 0x3a, 0x3b
+            case 0x3:
                 break;
-            case 0x4: //8-bit increments, 0x04, 0x0c, 0x14, 0x1c, 0x24, 0x2c, 0x34, 0x3c
+            case 0x4:
                 break;
-            case 0x5: //8-bit memory decrements, 0x05, 0x0d, 0x15, 0x1d, 0x25, 0x2d, 0x35, 0x3d
+            case 0x5:
                 break;
-            case 0x6: //8-bit immediate value loads, 0x06,0x0e,0x16,0x1e,0x26,0x2e,0x36,0x3e
-                *r[y] = data;
-                if(y==6) {
-                    bus->write(hl.pair, dummy, cycle+2);
-                }
-                //printf("LD %s, $%02x\n", r[y],data);
+            case 0x6:
                 break;
             case 0x7: 
-                switch(y) { //Some rotates and random flag operations, 0x07, 0x0f, 0x17, 0x1f, 0x27, 0x2f, 0x37, 0x3f
-                case 0x0: //RLCA: rotate left, putting bit7 into carry, 0x07
-                    if(af.hi & BIT7) {
-                        set(CARRY_FLAG);
-                    }
-                    else {
-                        clear(CARRY_FLAG);
-                    }
-                    clear(ZERO_FLAG);
-                    clear(SUB_FLAG);
-                    clear(HALF_CARRY_FLAG);
-                    af.hi<<=(1);
-                    af.hi+=carry();
-                    //printf("RLCA\n");
+                switch(y) {
+                case 0x0:
                     break;
-                case 0x1: //RRCA: rotate right, putting bit0 into carry, 0x0f
-                    if(af.hi & BIT0) {
-                        set(CARRY_FLAG);
-                    }
-                    else {
-                        clear(CARRY_FLAG);
-                    }
-                    clear(ZERO_FLAG);
-                    clear(SUB_FLAG);
-                    clear(HALF_CARRY_FLAG);
-                    af.hi>>=(1);
-                    af.hi+=carry()*BIT7;
-                    //printf("RRCA\n");
+                case 0x1:
                     break;
-                case 0x2: //RLA: rotate left, taking carry into bit0, and putting bit7 into carry, 0x17
-                    data = carry();
-                    if(af.hi & BIT7) {
-                        set(CARRY_FLAG);
-                    }
-                    else {
-                        clear(CARRY_FLAG);
-                    }
-                    clear(ZERO_FLAG);
-                    clear(SUB_FLAG);
-                    clear(HALF_CARRY_FLAG);
-                    af.hi<<=(1);
-                    af.hi+=data;
-                    //printf("RLA\n");
+                case 0x2:
                     break;
-                case 0x3: //RRA: rotate right, taking carry into bit7, and putting bit0 into carry, 0x1f
-                    data = carry();
-                    if(af.hi & BIT0) {
-                        set(CARRY_FLAG);
-                    }
-                    else {
-                        clear(CARRY_FLAG);
-                    }
-                    clear(ZERO_FLAG);
-                    clear(SUB_FLAG);
-                    clear(HALF_CARRY_FLAG);
-                    af.hi>>=(1);
-                    af.hi+=data*BIT7;
-                    //printf("RRA\n");
+                case 0x3:
                     break;
-                case 0x4: //DAA: assuming last add/sub op was done on packed BCD values, correct the sum back to BCD, 0x27
-                    //Third version of this code, shamelessly grabbed from someone's nesdev.com post. 
-                    //Didn't pass Blargg until I fixed some other instructions, came back, and realized I'd screwed up my adaptation of the post.
-                    //This is one of the ones that's well-defined for expected inputs, and deviates from behavior of other CPUs for unexpected inputs.
-                    //
-                    // note: assumes a is a uint8_t and wraps from 0xff to 0
-                    if (!sub()) {  // after an addition, adjust if (half-)carry occurred or if result is out of bounds
-                        if (carry() || af.hi > 0x99) {
-                            af.hi += 0x60;
-                            set(CARRY_FLAG);
-                        }
-                        if (hc() || (af.hi & 0x0f) > 0x09) {
-                            af.hi += 0x6;
-                        }
-                    }
-                    else {  // after a subtraction, only adjust if (half-)carry occurred
-                        if (carry()) {
-                            af.hi -= 0x60;
-                            set(CARRY_FLAG);
-                        }
-                        if (hc()) {
-                            af.hi -= 0x6;
-                        }
-                    }
-                    // these flags are always updated
-                    if(af.hi) clear(ZERO_FLAG); // the usual z flag
-                    else set(ZERO_FLAG);
-                    clear(HALF_CARRY_FLAG); // h flag is always cleared
-
-                    //printf("DAA\n");
+                case 0x4:
                     break;
                 case 0x5: //CPL, complement A register, 0x2f
-                    set(HALF_CARRY_FLAG);
-                    set(SUB_FLAG);
-                    af.hi= ~(af.hi);
-                    //printf("CPL\n");
                     break;
                 case 0x6: //SCF, set carry flag, 0x37
-                    clear(HALF_CARRY_FLAG);
-                    clear(SUB_FLAG);
-                    set(CARRY_FLAG);
-                    //printf("SCF\n");
                     break;
                 case 0x7: //CCF, complement carry flag, 0x3f
-                    clear(HALF_CARRY_FLAG);
-                    clear(SUB_FLAG);
-                    if(carry()) {
-                        clear(CARRY_FLAG);
-                    }
-                    else {
-                        set(CARRY_FLAG);
-                    }
-                    //printf("CCF\n");
                     break;
                 }
                 break;

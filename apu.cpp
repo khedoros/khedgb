@@ -307,10 +307,10 @@ void apu::display_surface() {
 
 void apu::draw_sample(int cur_sample, samples& s, int accum) {
     if(buffer) {
-        uint32_t pitch = buffer->pitch/4;
-        uint32_t * pixels = ((uint32_t *)buffer->pixels);
+        //uint32_t pitch = buffer->pitch/4;
+        //uint32_t * pixels = ((uint32_t *)buffer->pixels);
         SDL_Rect r = {cur_sample,0,1,0};
-        SDL_Rect r2 = {0,0,10,10};
+        //SDL_Rect r2 = {0,0,10,10};
         s.ch1/=accum; s.ch2/=accum; s.ch3/=accum; s.ch4/=accum;
         r.h = abs(2*s.ch1);
         r.y = 64;
@@ -325,7 +325,7 @@ void apu::draw_sample(int cur_sample, samples& s, int accum) {
         if(s.ch2 > 0) r.y -= r.h;
         SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 255,0,255));
         if(chan2_active) {
-            r2.y = 128;
+            //r2.y = 128;
             //SDL_FillRect(buffer, &r2, SDL_MapRGB(buffer->format, 255,0,0));
         }
         r.h = abs(2*s.ch3);
@@ -333,7 +333,7 @@ void apu::draw_sample(int cur_sample, samples& s, int accum) {
         if(s.ch3 > 0) r.y -= r.h;
         SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,255,255));
         if(chan3_active) {
-            r2.y = 256;
+            //r2.y = 256;
             //SDL_FillRect(buffer, &r2, SDL_MapRGB(buffer->format, 0,0,255));
         }
         r.h = abs(2*s.ch4);
@@ -341,7 +341,7 @@ void apu::draw_sample(int cur_sample, samples& s, int accum) {
         if(s.ch4 > 0) r.y -= r.h;
         SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 255,255,255));
         if(chan4_active) {
-            r2.y = 384;
+            //r2.y = 384;
             //SDL_FillRect(buffer, &r2, SDL_MapRGB(buffer->format, 0,0,0));
         }
     }
