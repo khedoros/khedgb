@@ -228,6 +228,405 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
     return cycles;
 }
 
+const cpu_op cpu::cpu_ops[256] = {&cpu::nop,      &cpu::ld_bc_d16,&cpu::ld_bc_a, &cpu::inc_bc,&cpu::inc_b,     &cpu::dec_b,     &cpu::nop,&cpu::nop,
+                                  &cpu::ld_a16_sp,&cpu::add_hl_bc,&cpu::ld_a_bc, &cpu::dec_bc,&cpu::inc_c,     &cpu::dec_c,     &cpu::nop,&cpu::nop,
+                                  &cpu::stop,     &cpu::ld_de_d16,&cpu::ld_de_a, &cpu::inc_de,&cpu::inc_d,     &cpu::dec_d,     &cpu::nop,&cpu::nop,
+                                  &cpu::jr_r8,    &cpu::add_hl_de,&cpu::ld_a_de, &cpu::dec_de,&cpu::inc_e,     &cpu::dec_e,     &cpu::nop,&cpu::nop,
+                                  &cpu::jr_nz_r8, &cpu::ld_hl_d16,&cpu::ld_hlp_a,&cpu::inc_hl,&cpu::inc_h,     &cpu::dec_h,     &cpu::nop,&cpu::nop,
+                                  &cpu::jr_z_r8,  &cpu::add_hl_hl,&cpu::ld_a_hlp,&cpu::dec_hl,&cpu::inc_l,     &cpu::dec_l,     &cpu::nop,&cpu::nop,
+                                  &cpu::jr_nc_r8, &cpu::ld_sp_d16,&cpu::ld_hlm_a,&cpu::inc_sp,&cpu::inc_hladdr,&cpu::dec_hladdr,&cpu::nop,&cpu::nop,
+                                  &cpu::jr_c_r8,  &cpu::add_hl_sp,&cpu::ld_a_hlm,&cpu::dec_sp,&cpu::inc_a,     &cpu::dec_a,     &cpu::nop,&cpu::nop,
+
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,
+                                  &cpu::nop,      &cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop,&cpu::nop};
+
+uint64_t cpu::nop(int data) {return 0;}
+uint64_t cpu::ld_a16_sp(int data) {
+    bus->writemore(data, sp, 2, cycle+2);
+    return 0;
+}
+uint64_t cpu::stop(int data) {
+    if(cgb && bus->feel_the_need) {
+        bus->speed_switch();
+        if(high_speed) {
+            high_speed = false;
+            speed_mult = 2;
+            return 32;
+        }
+        else {
+            high_speed = true;
+            speed_mult = 1;
+            return 16;
+        }
+    }
+    else {
+        stopped = true;
+    }
+    return 0;
+}
+uint64_t cpu::jr_r8(int data) {
+    data = extend(data);
+    pc += data;
+    return 0;
+}
+
+uint64_t cpu::jr_nz_r8(int data) {
+    data = extend(data);
+    if(!zero()) {
+        pc += data;
+        return 1;
+    }
+    return 0;
+}
+uint64_t cpu::jr_z_r8(int data) {
+    data = extend(data);
+    if(zero()) {
+        pc += data;
+        return 1;
+    }
+    return 0;
+}
+uint64_t cpu::jr_nc_r8(int data) {
+    data = extend(data);
+    if(!carry()) {
+        pc += data;
+        return 1;
+    }
+    return 0;
+}
+uint64_t cpu::jr_c_r8(int data) {
+    data = extend(data);
+    if(carry()) {
+        pc += data;
+        return 1;
+    }
+    return 0;
+}
+uint64_t cpu::ld_bc_d16(int data) {
+    bc.pair = data;
+    return 0;
+}
+uint64_t cpu::ld_de_d16(int data) {
+    de.pair = data;
+    return 0;
+}
+uint64_t cpu::ld_hl_d16(int data) {
+    hl.pair = data;
+    return 0;
+}
+uint64_t cpu::ld_sp_d16(int data) {
+    sp = data;
+    return 0;
+}
+
+uint64_t cpu::add_hl_bc(int data) {
+    if((hl.pair & 0xfff) + (bc.pair & 0xfff) >= 0x1000) {
+        set(HALF_CARRY_FLAG);
+    }
+    else {
+        clear(HALF_CARRY_FLAG);
+    }
+    if(uint32_t(uint32_t(hl.pair) + uint32_t(bc.pair)) >= 0x10000) {
+        set(CARRY_FLAG);
+    }
+    else {
+        clear(CARRY_FLAG);
+    }
+    hl.pair += bc.pair;
+    clear(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::add_hl_de(int data) {
+    if((hl.pair & 0xfff) + (de.pair & 0xfff) >= 0x1000) {
+        set(HALF_CARRY_FLAG);
+    }
+    else {
+        clear(HALF_CARRY_FLAG);
+    }
+    if(uint32_t(uint32_t(hl.pair) + uint32_t(de.pair)) >= 0x10000) {
+        set(CARRY_FLAG);
+    }
+    else {
+        clear(CARRY_FLAG);
+    }
+    hl.pair += de.pair;
+    clear(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::add_hl_hl(int data) {
+    if((hl.pair & 0xfff) + (hl.pair & 0xfff) >= 0x1000) {
+        set(HALF_CARRY_FLAG);
+    }
+    else {
+        clear(HALF_CARRY_FLAG);
+    }
+    if(uint32_t(uint32_t(hl.pair) + uint32_t(hl.pair)) >= 0x10000) {
+        set(CARRY_FLAG);
+    }
+    else {
+        clear(CARRY_FLAG);
+    }
+    hl.pair += hl.pair;
+    clear(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::add_hl_sp(int data) {
+    if((hl.pair & 0xfff) + (sp & 0xfff) >= 0x1000) {
+        set(HALF_CARRY_FLAG);
+    }
+    else {
+        clear(HALF_CARRY_FLAG);
+    }
+    if(uint32_t(uint32_t(hl.pair) + uint32_t(sp)) >= 0x10000) {
+        set(CARRY_FLAG);
+    }
+    else {
+        clear(CARRY_FLAG);
+    }
+    hl.pair += sp;
+    clear(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::ld_bc_a(int data) {
+    bus->write(bc.pair, af.hi, cycle+1);
+    return 0;
+}
+uint64_t cpu::ld_a_bc(int data) {
+    af.hi = bus->read(bc.pair, cycle+1);
+    return 0;
+}
+uint64_t cpu::ld_de_a(int data) {
+    bus->write(de.pair, af.hi, cycle+1);
+    return 0;
+}
+uint64_t cpu::ld_a_de(int data) {
+    af.hi = bus->read(de.pair, cycle+1);
+    return 0;
+}
+uint64_t cpu::ld_hlp_a(int data) {
+    bus->write(hl.pair, af.hi, cycle+1);
+    hl.pair++;
+    return 0;
+}
+uint64_t cpu::ld_a_hlp(int data) {
+    af.hi = bus->read(hl.pair, cycle+1);
+    hl.pair++;
+    return 0;
+}
+uint64_t cpu::ld_hlm_a(int data) {
+    bus->write(hl.pair, af.hi, cycle+1);
+    hl.pair--;
+    return 0;
+}
+uint64_t cpu::ld_a_hlm(int data) {
+    af.hi = bus->read(hl.pair, cycle+1);
+    hl.pair--;
+    return 0;
+}
+uint64_t cpu::inc_bc(int data) {
+    bc.pair++;
+    return 0;
+}
+uint64_t cpu::dec_bc(int data) {
+    bc.pair--;
+    return 0;
+}
+uint64_t cpu::inc_de(int data) {
+    de.pair++;
+    return 0;
+}
+uint64_t cpu::dec_de(int data) {
+    de.pair--;
+    return 0;
+}
+uint64_t cpu::inc_hl(int data) {
+    hl.pair++;
+    return 0;
+}
+uint64_t cpu::dec_hl(int data) {
+    hl.pair--;
+    return 0;
+}
+uint64_t cpu::inc_sp(int data) {
+    sp++;
+    return 0;
+}
+uint64_t cpu::dec_sp(int data) {
+    sp--;
+    return 0;
+}
+uint64_t cpu::inc_b(int data) {
+    bc.hi++;
+    if(bc.hi == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((bc.hi & 0xf) == 0) set(HALF_CARRY_FLAG); //0xf+1=0x10, so the bottom nibble produced a carry during the increment
+    else                     clear(HALF_CARRY_FLAG);
+    clear(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::dec_b(int data) {
+    bc.hi--;
+    if(bc.hi == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((bc.hi & 0xf) == 0xf) set(HALF_CARRY_FLAG); //0x10-1=0x0f, so the bottom nibble needed to borrow during the decrement
+    else                       clear(HALF_CARRY_FLAG);
+    set(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::inc_c(int data) {
+    bc.low++;
+    if(bc.low == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((bc.low & 0xf) == 0) set(HALF_CARRY_FLAG); //0xf+1=0x10, so the bottom nibble produced a carry during the increment
+    else                     clear(HALF_CARRY_FLAG);
+    clear(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::dec_c(int data) {
+    bc.low--;
+    if(bc.low == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((bc.low & 0xf) == 0xf) set(HALF_CARRY_FLAG); //0x10-1=0x0f, so the bottom nibble needed to borrow during the decrement
+    else                       clear(HALF_CARRY_FLAG);
+    set(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::inc_d(int data) {
+    de.hi++;
+    if(de.hi == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((de.hi & 0xf) == 0) set(HALF_CARRY_FLAG); //0xf+1=0x10, so the bottom nibble produced a carry during the increment
+    else                     clear(HALF_CARRY_FLAG);
+    clear(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::dec_d(int data) {
+    de.hi--;
+    if(de.hi == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((de.hi & 0xf) == 0xf) set(HALF_CARRY_FLAG); //0x10-1=0x0f, so the bottom nibble needed to borrow during the decrement
+    else                       clear(HALF_CARRY_FLAG);
+    set(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::inc_e(int data) {
+    de.low++;
+    if(de.low == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((de.low & 0xf) == 0) set(HALF_CARRY_FLAG); //0xf+1=0x10, so the bottom nibble produced a carry during the increment
+    else                     clear(HALF_CARRY_FLAG);
+    clear(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::dec_e(int data) {
+    de.low--;
+    if(de.low == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((de.low & 0xf) == 0xf) set(HALF_CARRY_FLAG); //0x10-1=0x0f, so the bottom nibble needed to borrow during the decrement
+    else                       clear(HALF_CARRY_FLAG);
+    set(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::inc_h(int data) {
+    hl.hi++;
+    if(hl.hi == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((hl.hi & 0xf) == 0) set(HALF_CARRY_FLAG); //0xf+1=0x10, so the bottom nibble produced a carry during the increment
+    else                     clear(HALF_CARRY_FLAG);
+    clear(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::dec_h(int data) {
+    hl.hi--;
+    if(hl.hi == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((hl.hi & 0xf) == 0xf) set(HALF_CARRY_FLAG); //0x10-1=0x0f, so the bottom nibble needed to borrow during the decrement
+    else                       clear(HALF_CARRY_FLAG);
+    set(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::inc_l(int data) {
+    hl.low++;
+    if(hl.low == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((hl.low & 0xf) == 0) set(HALF_CARRY_FLAG); //0xf+1=0x10, so the bottom nibble produced a carry during the increment
+    else                     clear(HALF_CARRY_FLAG);
+    clear(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::dec_l(int data) {
+    hl.low--;
+    if(hl.low == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((hl.low & 0xf) == 0xf) set(HALF_CARRY_FLAG); //0x10-1=0x0f, so the bottom nibble needed to borrow during the decrement
+    else                       clear(HALF_CARRY_FLAG);
+    set(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::inc_hladdr(int data) {
+    uint8_t dummy = bus->read(hl.pair, cycle+1); //0x34 (x=0,y=6,z=4) is a memory increment
+    dummy++;
+    if(dummy == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((dummy & 0xf) == 0) set(HALF_CARRY_FLAG); //0xf+1=0x10, so the bottom nibble produced a carry during the increment
+    else                     clear(HALF_CARRY_FLAG);
+    clear(SUB_FLAG);
+    bus->write(hl.pair, dummy, cycle+2); //0x34 (x=0,y=6,z=4) is a memory increment
+    return 0;
+}
+uint64_t cpu::dec_hladdr(int data) {
+    uint8_t dummy = bus->read(hl.pair, cycle+1); //0x34 (x=0,y=6,z=4) is a memory increment
+    dummy--;
+    if(dummy == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((dummy & 0xf) == 0xf) set(HALF_CARRY_FLAG); //0x10-1=0x0f, so the bottom nibble needed to borrow during the decrement
+    else                       clear(HALF_CARRY_FLAG);
+    set(SUB_FLAG);
+    bus->write(hl.pair, dummy, cycle+2); //0x34 (x=0,y=6,z=4) is a memory increment
+    return 0;
+}
+uint64_t cpu::inc_a(int data) {
+    af.hi++;
+    if(af.hi == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((af.hi & 0xf) == 0) set(HALF_CARRY_FLAG); //0xf+1=0x10, so the bottom nibble produced a carry during the increment
+    else                     clear(HALF_CARRY_FLAG);
+    clear(SUB_FLAG);
+    return 0;
+}
+uint64_t cpu::dec_a(int data) {
+    af.hi--;
+    if(af.hi == 0) set(ZERO_FLAG);
+    else             clear(ZERO_FLAG);
+    if((af.hi & 0xf) == 0xf) set(HALF_CARRY_FLAG); //0x10-1=0x0f, so the bottom nibble needed to borrow during the decrement
+    else                       clear(HALF_CARRY_FLAG);
+    set(SUB_FLAG);
+    return 0;
+}
 uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
     //char r_name[][5]  =    {     "B",      "C",   "D",      "E",   "H",   "L","(HL)",  "A"};
     //char rp_name[][3] =    {    "BC",     "DE",  "HL",     "SP"};
@@ -239,190 +638,25 @@ uint64_t cpu::execute(int pre,int x,int y,int z,int data) {
     p=y/2;
     q=y%2;
     uint64_t extra_cycles = 0;
+    if(!pre && !x && z<6) {
+        extra_cycles = CALL_MEMBER_FN(*this, cpu_ops[x<<6|y<<3|z])(data);
+        extra_cycles += op_times_extra[(x<<(6))+(y<<(3))+z];
+    }
     bool condition=false;
     if(!pre) {
         if(x==0) { //0x00 - 0x3f
             switch(z) {
             case 0x0:
-                switch(y) {
-                case 0x0: //NOP 0x00
-                    //printf("NOP\n");
-                    break;
-                case 0x1: //0x08
-                    //Different than Z80
-                    bus->writemore(data, sp, 2, cycle+2);
-                    //printf("LD ($%04x), SP\n",data);
-                    break;
-                case 0x2: //0x10
-                    //Different than Z80
-                    if(cgb && bus->feel_the_need) {
-                        bus->speed_switch();
-                        if(high_speed) {
-                            extra_cycles = 32;
-                            high_speed = false;
-                            speed_mult = 2;
-                        }
-                        else {
-                            extra_cycles = 16;
-                            high_speed = true;
-                            speed_mult = 1;
-                        }
-                    }
-                    else {
-                        stopped = true;
-                    }
-                    //printf("STOP 0\n");
-                    //TODO: Implement CGB speed switching, using this instruction
-                    break;
-                case 0x3: //0x18
-                    data = extend(data);
-                    pc += data;
-                    //printf("JR $%02x\n",data);
-                    break;
-                default: // 4..7 conditional relative jumps, 0x20, 0x28, 0x30, 0x38
-                    data = extend(data);
-                    switch(y-4) {
-                    case 0: //0x20
-                        if(!zero()) {
-                            condition = true;
-                        }
-                        break;
-                    case 1: //0x28
-                        if(zero()) {
-                            condition = true;
-                        }
-                        break;
-                    case 2: //0x30
-                        if(!carry()) {
-                            condition = true;
-                        }
-                        break;
-                    case 3: //0x38
-                        if(carry()) {
-                            condition = true;
-                        }
-                        break;
-                    }
-                    if(condition) {
-                        pc = pc + data;
-                        extra_cycles = op_times_extra[(x<<(6))+(y<<(3))+z];
-                    }
-                    //printf("JR %s, $%02x\n", cc[y-4], data);
-                    break;
-                }
                 break;
             case 0x1:
-                if(!q) { //16-bit loads, 0x01, 0x11, 0x21, 0x31
-                    *rp[p] = data;
-                    //printf("LD %s, $%04x\n",rp[p],data);
-                }
-                else { //16-bit adds, 0x09, 0x19, 0x29, 0x39
-                    if((hl.pair & 0xfff) + (*(rp[p]) & 0xfff) >= 0x1000) {
-                        set(HALF_CARRY_FLAG);
-                    }
-                    else {
-                        clear(HALF_CARRY_FLAG);
-                    }
-                    if(uint32_t(uint32_t(hl.pair) + uint32_t(*(rp[p]))) >= 0x10000) {
-                        set(CARRY_FLAG);
-                    }
-                    else {
-                        clear(CARRY_FLAG);
-                    }
-                    hl.pair += *(rp[p]);
-
-                    clear(SUB_FLAG);
-
-                    //printf("ADD HL, %s\n",rp[p]);
-                }
                 break;
             case 0x2:
-                switch(p) { //Memory reads+writes, 0x02, 0x0a, 0x12, 0x1a, 0x22, 0x2a, 0x32, 0x3a
-                case 0x0: 
-                    if(!q) { //0x02
-                        bus->write(bc.pair, af.hi, cycle+1);
-                        //printf("LD (BC), A\n");
-                    }
-                    else { //0x0a
-                        af.hi = bus->read(bc.pair, cycle+1);
-                        //printf("LD A, (BC)\n");
-                    }
-                    break;
-                case 0x1:
-                    if(!q) { //0x12
-                        bus->write(de.pair, af.hi, cycle+1);
-                        //printf("LD (DE), A\n");
-                    }
-                    else { //0x1a
-                        af.hi = bus->read(de.pair, cycle+1);
-                        //printf("LD A, (DE)\n");
-                    }
-                    break;
-                case 0x2:
-                    if(!q) { //0x22
-                        //Different than z80
-                        //printf("LD (nn), HL\n");
-                        bus->write(hl.pair, af.hi, cycle+1);
-                        hl.pair++;
-                        //printf("LDI (HL), A\n");
-                    }
-                    else { //0x2a
-                        //Different than z80
-                        //printf("LD HL, (nn)\n");
-                        af.hi = bus->read(hl.pair, cycle+1);
-                        hl.pair++;
-                        //printf("LDI A, (HL)\n");
-                    }
-                    break;
-                case 0x3:
-                    if(!q) { //0x32
-                        //Different than z80
-                        //printf("LD (nn), A\n");
-                        bus->write(hl.pair, af.hi, cycle+1);
-                        hl.pair--;
-                        //printf("LDD (HL), A\n");
-                    }
-                    else { //0x3a
-                        //Different than z80
-                        //printf("LD A, (nn)\n");
-                        af.hi = bus->read(hl.pair, cycle+1);
-                        hl.pair--;
-                        //printf("LDD A, (HL)\n");
-                    }
-                    break;
-                }
                 break;
             case 0x3: //16-bit increments and decrements, 0x03, 0x0b, 0x13, 0x1b, 0x23, 0x2b, 0x3a, 0x3b
-                if(!q) { //increments, 0x03, 0x13, 0x23, 0x33
-                    (*rp[p])++;
-                    //printf("INC %s\n", rp[p]);
-                }
-                else { //decrements, 0x0b, 0x1b, 0x2b, 0x3b
-                    (*rp[p])--;
-                    //printf("DEC %s\n", rp[p]);
-                }
                 break;
             case 0x4: //8-bit increments, 0x04, 0x0c, 0x14, 0x1c, 0x24, 0x2c, 0x34, 0x3c
-                if(y==6) dummy = bus->read(hl.pair, cycle+1); //0x34 (x=0,y=6,z=4) is a memory increment
-                (*r[y])++;
-                if((*r[y]) == 0) set(ZERO_FLAG);
-                else             clear(ZERO_FLAG);
-                if(((*r[y]) & 0xf) == 0) set(HALF_CARRY_FLAG); //0xf+1=0x10, so the bottom nibble produced a carry during the increment
-                else                     clear(HALF_CARRY_FLAG);
-                clear(SUB_FLAG);
-                if(y==6) bus->write(hl.pair, dummy, cycle+2); //0x34 (x=0,y=6,z=4) is a memory increment
-                //printf("INC %s\n", r[y]);
                 break;
             case 0x5: //8-bit memory decrements, 0x05, 0x0d, 0x15, 0x1d, 0x25, 0x2d, 0x35, 0x3d
-                if(y==6) dummy = bus->read(hl.pair, cycle+1); //0x35 (x=0,y=6,z=5) is a memory decrement
-                (*r[y])--;
-                if((*r[y]) == 0) set(ZERO_FLAG);
-                else             clear(ZERO_FLAG);
-                if(((*r[y]) & 0xf) == 0xf) set(HALF_CARRY_FLAG); //0x10-1=0x0f, so the bottom nibble needed to borrow during the decrement
-                else                       clear(HALF_CARRY_FLAG);
-                set(SUB_FLAG);
-                if(y==6) bus->write(hl.pair, dummy, cycle+2); //0x35 (x=0,y=6,z=5) is a memory decrement
-                //printf("DEC %s\n", r[y]);
                 break;
             case 0x6: //8-bit immediate value loads, 0x06,0x0e,0x16,0x1e,0x26,0x2e,0x36,0x3e
                 *r[y] = data;

@@ -11,6 +11,8 @@
  *                    0060: Joypad interrupt (bit 4 of IF register)
  */
 
+typedef uint64_t (cpu::*cpu_op)(int data);
+#define CALL_MEMBER_FN(obj, ptr) ((obj).*(ptr))
 
 class cpu {
 public:
@@ -26,6 +28,7 @@ private:
     uint64_t dec_and_exe(uint32_t opcode);
     uint64_t execute(int pre,int x,int y,int z,int data);
     void registers();
+    //static const Arr<cpu_op, 256> cpu_ops;
 
     INT_TYPE check_interrupts();
     bool call_interrupts(); //Returns true if an interrupt is called
@@ -56,6 +59,55 @@ private:
     bool cgb;              //Run in CGB mode
     bool high_speed;       //Run in CGB high-speed mode
     int speed_mult;
+
+public:
+    static const cpu_op cpu_ops[256];
+    uint64_t nop(int data);
+    uint64_t ld_a16_sp(int data);
+    uint64_t stop(int data);
+    uint64_t jr_r8(int data);
+    uint64_t jr_nz_r8(int data);
+    uint64_t jr_z_r8(int data);
+    uint64_t jr_nc_r8(int data);
+    uint64_t jr_c_r8(int data);
+    uint64_t ld_bc_d16(int data);
+    uint64_t ld_de_d16(int data);
+    uint64_t ld_hl_d16(int data);
+    uint64_t ld_sp_d16(int data);
+    uint64_t add_hl_bc(int data);
+    uint64_t add_hl_de(int data);
+    uint64_t add_hl_hl(int data);
+    uint64_t add_hl_sp(int data);
+    uint64_t ld_bc_a(int data);
+    uint64_t ld_a_bc(int data);
+    uint64_t ld_de_a(int data);
+    uint64_t ld_a_de(int data);
+    uint64_t ld_hlp_a(int data);
+    uint64_t ld_a_hlp(int data);
+    uint64_t ld_hlm_a(int data);
+    uint64_t ld_a_hlm(int data);
+    uint64_t inc_bc(int data);
+    uint64_t dec_bc(int data);
+    uint64_t inc_de(int data);
+    uint64_t dec_de(int data);
+    uint64_t inc_hl(int data);
+    uint64_t dec_hl(int data);
+    uint64_t inc_sp(int data);
+    uint64_t dec_sp(int data);
+    uint64_t inc_b(int data);
+    uint64_t dec_b(int data);
+    uint64_t inc_c(int data);
+    uint64_t dec_c(int data);
+    uint64_t inc_d(int data);
+    uint64_t dec_d(int data);
+    uint64_t inc_e(int data);
+    uint64_t dec_e(int data);
+    uint64_t inc_h(int data);
+    uint64_t dec_h(int data);
+    uint64_t inc_l(int data);
+    uint64_t dec_l(int data);
+    uint64_t inc_hladdr(int data);
+    uint64_t dec_hladdr(int data);
+    uint64_t inc_a(int data);
+    uint64_t dec_a(int data);
 };
-
-

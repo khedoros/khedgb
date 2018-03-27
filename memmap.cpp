@@ -349,7 +349,7 @@ void memmap::write(int addr, uint8_t val, uint64_t cycle) {
                     if(cmd == 0x81) { //Immediate output for Blarg/debug stuff
                         if(link_data >= 32 && link_data <= 126) {
                             //NOTE: Turn this on for serial output from the 
-                            //std::cout<<"Blarg: "<<link_data<<std::endl;
+                            std::cout<<"Blarg: "<<link_data<<std::endl;
                         }
                         //link_data = 0xff;
                         link_in_data = p.send(link_data);
