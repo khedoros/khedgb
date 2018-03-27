@@ -105,6 +105,8 @@ private:
         int8_t ch4;
     };
 
+    void draw_sample(int sample, samples& s, int accum);
+    void display_surface();
     void apply(util::cmd& c);
     void clear(); //Clear CPU-side values
     void clear_regs(); //Clears rendering-side registers
@@ -323,14 +325,10 @@ private:
     bool audio_open;         //Whether we successfully opened an audio device
     const static int CHANNELS = 2;
     const static int SAMPLE_SIZE = 1;
-    int cur_chunk; //Number between 0 and 15 to help track how many samples must be provided for this "frame" of audio
 
     bool debug; //Display debug window?
     SDL_Window * screen;
     SDL_Renderer * renderer;
     SDL_Surface * buffer; //Output buffer
     SDL_Texture * texture; //Texture used for output
-
 };
-
-void null_callback(void * userdata, Uint8* stream, int len);

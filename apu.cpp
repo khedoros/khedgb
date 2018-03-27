@@ -80,9 +80,7 @@ void apu::init() {
     clear_regs();
 }
 
-void null_callback(void * userdata, Uint8* stream, int len) {}
-
-apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_chunk(0), debug(false), buffer(NULL), texture(NULL), renderer(NULL), screen(NULL)
+apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), debug(false), buffer(NULL), texture(NULL), renderer(NULL), screen(NULL)
 {
     ASSERT(sizeof(sweep_reg) == 1);
     ASSERT(sizeof(wave_on_reg) == 1);
@@ -97,6 +95,7 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_c
     ASSERT(sizeof(channel_status) == 1);
     clear();
     clear_regs();
+    init();
     int num_drivers = SDL_GetNumAudioDrivers();
     unsigned int chosen_driver = 255;
     unsigned int driver_desirability = 255;
@@ -132,7 +131,7 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), cur_c
                     want.silence=0;
                     want.samples=/*8192*/ 689;
                     want.size=0;
-                    want.callback=NULL;//null_callback;
+                    want.callback=NULL;
                     want.userdata=NULL;
 
                 SDL_AudioSpec got;
@@ -251,40 +250,18 @@ void apu::run(uint64_t run_to) {
             //printf("L: %d R: %d acc: %d\n", left, right, sample_accum);
             out_buffer[cur_sample*2] = left/accum;
             out_buffer[cur_sample*2+1] = right/accum;
+            if(debug) {
+                draw_sample(cur_sample, s, accum);
+            }
             cur_sample++;
             left = 0;
             right = 0;
-            //printf("sample %d accum %d\n", cur_sample, accum);
-            if(debug && cur_sample < 690 && buffer) {
-                uint32_t pitch = buffer->pitch/4;
-                uint32_t * pixels = ((uint32_t *)buffer->pixels);
-                SDL_Rect r = {cur_sample,0,1,0};
-                s.ch1/=accum; s.ch2/=accum; s.ch3/=accum; s.ch4/=accum;
-                r.h = abs(2*s.ch1);
-                r.y = 64;
-                if(s.ch1 > 0) r.y -= r.h;
-                SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 255,255,0));
-
-                r.h = abs(2*s.ch2);
-                r.y = 192;
-                if(s.ch2 > 0) r.y -= r.h;
-                SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 255,0,255));
-
-                r.h = abs(2*s.ch3);
-                r.y = 320;
-                if(s.ch3 > 0) r.y -= r.h;
-                SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,255,255));
-
-                r.h = abs(2*s.ch4);
-                r.y = 448;
-                if(s.ch4 > 0) r.y -= r.h;
-                SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 255,255,255));
-            }
             accum = 0;
             s.ch1 = 0;
             s.ch2 = 0;
             s.ch3 = 0;
             s.ch4 = 0;
+            //printf("sample %d accum %d\n", cur_sample, accum);
         }
     }
 
@@ -293,30 +270,79 @@ void apu::run(uint64_t run_to) {
         //printf("%d ", SDL_GetQueuedAudioSize(devid));
         //out_wav.write(reinterpret_cast<const char *>(out_buffer.data()), sample_count * CHANNELS * SAMPLE_SIZE);
         SDL_QueueAudio(devid, out_buffer.data(), sample_count * CHANNELS * SAMPLE_SIZE);
-        if(debug && texture && buffer && renderer) {
-            if(texture) {
-                SDL_DestroyTexture(texture);
-                texture = NULL;
-            }
-            texture = SDL_CreateTextureFromSurface(renderer, buffer);
-            SDL_RenderCopy(renderer, texture, NULL, NULL);
-            SDL_RenderPresent(renderer);
-            SDL_FillRect(buffer, NULL, SDL_MapRGB(buffer->format, 150,150,150));
-            SDL_Rect r = {0,128,690,1};
-            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
-            r = {0,256,690,1};
-            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
-            r = {0,384,690,1};
-            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
+        if(debug) {
+            display_surface();
+        }
+            
+    }
+}
 
-            r = {0,64,690,1};
-            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
-            r = {0,128+64,690,1};
-            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
-            r = {0,256+64,690,1};
-            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
-            r = {0,384+64,690,1};
-            SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
+void apu::display_surface() {
+    if(texture && buffer && renderer) {
+        if(texture) {
+            SDL_DestroyTexture(texture);
+            texture = NULL;
+        }
+        texture = SDL_CreateTextureFromSurface(renderer, buffer);
+        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        SDL_RenderPresent(renderer);
+        SDL_FillRect(buffer, NULL, SDL_MapRGB(buffer->format, 100,100,100));
+        SDL_Rect r = {0,128,690,1};
+        SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
+        r = {0,256,690,1};
+        SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
+        r = {0,384,690,1};
+        SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,0,0));
+
+        r = {0,64,690,1};
+        SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 75,75,75));
+        r = {0,128+64,690,1};
+        SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 75,75,75));
+        r = {0,256+64,690,1};
+        SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 75,75,75));
+        r = {0,384+64,690,1};
+        SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 75,75,75));
+    }
+}
+
+void apu::draw_sample(int cur_sample, samples& s, int accum) {
+    if(buffer) {
+        uint32_t pitch = buffer->pitch/4;
+        uint32_t * pixels = ((uint32_t *)buffer->pixels);
+        SDL_Rect r = {cur_sample,0,1,0};
+        SDL_Rect r2 = {0,0,10,10};
+        s.ch1/=accum; s.ch2/=accum; s.ch3/=accum; s.ch4/=accum;
+        r.h = abs(2*s.ch1);
+        r.y = 64;
+        if(s.ch1 > 0) r.y -= r.h;
+        SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 255,255,0));
+        if(chan1_active) {
+            //SDL_FillRect(buffer, &r2, SDL_MapRGB(buffer->format, 0,255,0));
+        }
+
+        r.h = abs(2*s.ch2);
+        r.y = 192;
+        if(s.ch2 > 0) r.y -= r.h;
+        SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 255,0,255));
+        if(chan2_active) {
+            r2.y = 128;
+            //SDL_FillRect(buffer, &r2, SDL_MapRGB(buffer->format, 255,0,0));
+        }
+        r.h = abs(2*s.ch3);
+        r.y = 320;
+        if(s.ch3 > 0) r.y -= r.h;
+        SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 0,255,255));
+        if(chan3_active) {
+            r2.y = 256;
+            //SDL_FillRect(buffer, &r2, SDL_MapRGB(buffer->format, 0,0,255));
+        }
+        r.h = abs(2*s.ch4);
+        r.y = 448;
+        if(s.ch4 > 0) r.y -= r.h;
+        SDL_FillRect(buffer, &r, SDL_MapRGB(buffer->format, 255,255,255));
+        if(chan4_active) {
+            r2.y = 384;
+            //SDL_FillRect(buffer, &r2, SDL_MapRGB(buffer->format, 0,0,0));
         }
     }
 }
@@ -447,6 +473,7 @@ void apu::clock_sequencer() {
                 }
                 chan1_env_counter = chan1_env.period;
                 if(!chan1_env_counter) chan1_env_counter = 8;
+                if(!chan1_level) chan1_active = false;
             }
         }
         if(chan2_active && chan2_level > 0 && chan2_env.period) {
@@ -463,6 +490,7 @@ void apu::clock_sequencer() {
                 }
                 chan2_env_counter = chan2_env.period;
                 if(!chan2_env_counter) chan2_env_counter = 8;
+                if(!chan2_level) chan2_active = false;
             }
         }
         if(chan4_active && chan4_level > 0 && chan4_env.period) {
@@ -479,6 +507,7 @@ void apu::clock_sequencer() {
                 }
                 chan4_env_counter = chan4_env.period;
                 if(!chan4_env_counter) chan4_env_counter = 8;
+                if(!chan4_level) chan4_active = false;
             }
         }
     }
