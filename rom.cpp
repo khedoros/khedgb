@@ -190,7 +190,10 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
         }
     }
 
-    if(h.rom_size != h.filesize) {
+    if(h.rom_size > h.filesize) {
+        std::cerr<<"Filesize: "<<std::dec<<h.filesize<<" Claimed rom size: "<<h.rom_size<<" (don't be surprised if it crashes!)"<<std::endl;
+    }
+    else if(h.rom_size < h.filesize) {
         std::cerr<<"Filesize: "<<std::dec<<h.filesize<<" Claimed rom size: "<<h.rom_size<<" (oopsie!)"<<std::endl;
         return;
     }

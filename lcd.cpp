@@ -965,7 +965,7 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     bw = ww;
                     bh = ((ww*144)/160);
                 }
-                SDL_Rect dontstretch{(ww-bw)>>1, 0, bw, bh};
+                SDL_Rect dontstretch{(ww-bw)>>1, (wh-bh)>>1, bw, bh};
                 SDL_RenderCopy(renderer,texture,NULL,&dontstretch);
 
                 SDL_RenderPresent(renderer);
@@ -1208,7 +1208,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 SDL_GetWindowSize(screen, &ww, &wh);
                 int bh = 0;
                 int bw = 0;
-                if(bw >= bh) {
+                if(ww >= wh) {
                     bh = wh;
                     bw = ((wh*160)/144);
                 }
@@ -1217,7 +1217,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     bh = ((ww*144)/160);
                 }
 
-                SDL_Rect dontstretch{(ww-bw)>>1, 0, bw, bh};
+                SDL_Rect dontstretch{(ww-bw)>>1, (wh-bh)>>1, bw, bh};
                 SDL_RenderCopy(renderer,texture,NULL,&dontstretch);
             }
             SDL_RenderPresent(renderer);
