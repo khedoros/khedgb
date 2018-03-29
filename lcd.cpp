@@ -1090,7 +1090,6 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
             if(output_sdl /*&& c != 0*/) {
                 pixels[render_line * SCREEN_WIDTH + x_out_pix] = sys_bgpal[a.palette][tile_line[x_tile_pix]];
                 if(tile_line[x_tile_pix]) {
-
                     bgmap[x_out_pix] = tile_priority;
                 }
             }
@@ -1153,7 +1152,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
                 int sprite_size = 8 + (control.sprite_size * 8);
 
-                tile_priority = sprite_dat.priority * -2 + 3;
+                tile_priority = ((sprite_dat.priority)?1:3);
 
                 //If sprite isn't displayed on this line...
                 if(sprite_y > render_line || sprite_y + sprite_size <= render_line) {
@@ -1170,21 +1169,17 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 }
                 get_tile_row(tile, y_i, sprite_dat.xflip, tile_line, sprite_dat.tilebank);
 
-                for(int x=0;x!=8;x++) {
+                int ycoord = render_line;
+                for(int x=0;x<8;x++) {
                     uint8_t col = tile_line[x];
-                    if(!col) continue;
-
                     int xcoord = sprite_x + x;
-                    int ycoord = render_line;
-
-                    if(xcoord > 159 || xcoord < 0) continue;
+                    if(!col || xcoord > 159 || xcoord < 0) continue;
 
                     if(tile_priority > bgmap[xcoord]) {
                         pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_obj1pal[pal_index][col];
                     }
                 }
             }
-
         }
 
         if(output_sdl && render_line == LAST_RENDER_LINE) {
