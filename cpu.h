@@ -15,6 +15,7 @@
 class cpu {
 public:
     cpu(memmap * bus, bool cgb_mode, bool has_firmware=false);
+    ~cpu();
     uint64_t run(uint64_t run_to);
     bool halted;
     bool halt_bug;
@@ -56,6 +57,7 @@ private:
     bool cgb;              //Run in CGB mode
     bool high_speed;       //Run in CGB high-speed mode
     int speed_mult;
+    uint64_t tracking[512]; //Track which opcodes were run, and how many times
 };
 
 

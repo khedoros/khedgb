@@ -77,6 +77,19 @@ cpu::cpu(memmap * b, bool cgb_mode, bool has_firmware/*=false*/): bus(b),
     }
 }
 
+cpu::~cpu() {
+    for(int i=0;i<256;i++) {
+        if(tracking[i]) {
+            printf("Op   %02x: %ld\n", i, tracking[i]);
+        }
+    }
+    for(int i=0;i<256;i++) {
+        if(tracking[i+256]) {
+            printf("Op cb%02x: %ld\n", i, tracking[i+256]);
+        }
+    }
+}
+
 uint64_t cpu::run(uint64_t run_to) {
     ASSERT(cycle/2 < run_to);
     uint32_t opcode=0;
@@ -223,6 +236,8 @@ uint64_t cpu::dec_and_exe(uint32_t opcode) {
         pc += bytes;
         //Branches and such need extra time, so execute returns any extra time that was necessary
         cycles += execute(prefix,x,y,z,data);
+        if(prefix == 0xcb) op += 256;
+        tracking[op]++;
     }
 
     return cycles;

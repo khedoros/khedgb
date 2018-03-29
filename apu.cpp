@@ -387,7 +387,7 @@ void apu::render(apu::samples& s) {
 bool apu::sweep_overflow() {
     int16_t freq = chan1_freq_shadow;
     int16_t delta = (freq>>chan1_sweep.shift);
-    if(chan1_sweep.direction) delta *=-1;
+    if(!chan1_sweep.direction) delta *=-1;
     freq+=delta;
     if(freq>=2048) return true;
     return false;
@@ -586,9 +586,9 @@ void apu::apply(util::cmd& c) {
             break;
         case 0xff14: //sound 1 high-order frequency + start
             chan1_freq.freq_high = c.val;
+            chan1_freq_shadow = 2048 - chan1_freq.freq;
             if(chan1_freq.initial) {
                 APRINTF(" (ch1 trigger)\n");
-                chan1_freq_shadow = 2048 - chan1_freq.freq;
                 chan1_sweep_counter = chan1_sweep.period;
                 if(!chan1_sweep_counter) chan1_sweep_counter = 8;
                 chan1_active = true;
