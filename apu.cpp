@@ -194,7 +194,7 @@ uint8_t apu::read(uint16_t addr, uint64_t cycle) {
     //printf("Read %04x\n", addr);
     if(addr == 0xff26) {
         //Not super accurate, timing-wise, but should be within 1/64th of a second of correct.
-        return ((chan4_active<<3)|(chan3_active<<2)|(chan2_active<<1)|chan1_active);
+        return 0;//((chan4_active<<3)|(chan3_active<<2)|(chan2_active<<1)|chan1_active);
     }
     return written_values[addr - 0xff10] | or_values[addr - 0xff10];
     //TODO: Calculate status for NR52
