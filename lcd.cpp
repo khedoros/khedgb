@@ -1026,7 +1026,6 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
     uint32_t * pixels = NULL;
 
-    Vect<uint8_t> bgmap(SCREEN_WIDTH, 0);
 
     if(!screen||!texture||!renderer) {
         printf("PPU: problem!\n");
@@ -1038,6 +1037,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
     //printf("Render starting conditions: startline: %lld endline: %lld\n", start_frame_line, end_frame_line);
     for(unsigned int line=start_frame_line;line <= end_frame_line; line++) {
+        Vect<uint8_t> bgmap(SCREEN_WIDTH, 0);
         //printf("Running line: %d\n", line);
         int render_line = line % LINES_PER_FRAME;
         if(debug && render_line == 153 && output_sdl) {
@@ -1088,8 +1088,9 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
             }
 
             if(output_sdl /*&& c != 0*/) {
-                pixels[render_line * SCREEN_WIDTH + x_out_pix] = sys_bgpal[a.palette][tile_line[x_tile_pix]];
-                if(tile_line[x_tile_pix]) {
+                int col_num = tile_line[x_tile_pix];
+                pixels[render_line * SCREEN_WIDTH + x_out_pix] = sys_bgpal[a.palette][col_num];
+                if(col_num) {
                     bgmap[x_out_pix] = tile_priority;
                 }
             }
@@ -1130,8 +1131,9 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                         int xcoord = tile_x * 8 + x_tile_pix + (win_scroll_x - 7);
 
                         if(output_sdl && xcoord >= 0) {
-                            pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_bgpal[a.palette][tile_line[x_tile_pix]];
-                            if(tile_line[x_tile_pix]) {
+                            int col_num = tile_line[x_tile_pix];
+                            pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_bgpal[a.palette][col_num];
+                            if(col_num) {
                                 bgmap[xcoord] = tile_priority;
                             }
                         }
@@ -1171,10 +1173,9 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
                 int ycoord = render_line;
                 for(int x=0;x<8;x++) {
-                    uint8_t col = tile_line[x];
+                    int col = tile_line[x];
                     int xcoord = sprite_x + x;
                     if(!col || xcoord > 159 || xcoord < 0) continue;
-
                     if(tile_priority > bgmap[xcoord]) {
                         pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_obj1pal[pal_index][col];
                     }
