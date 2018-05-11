@@ -6,7 +6,7 @@ ifeq "$(BUILD)" "debug"
 else ifeq "$(BUILD)" "profile"
     CXXFLAGS:=-g -pg -std=c++11
 else
-    CXXFLAGS:=-std=c++11 -O3 -march=native
+    CXXFLAGS:=-std=c++11 -O3 -march=native -flto
 endif
 
 ifeq "$(CAMERA)" "yes"

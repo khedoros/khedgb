@@ -147,6 +147,7 @@ private:
     Arr<uint8_t, 0xa0> oam;
     Arr<Arr<uint8_t, 8>, 768*8> row_cache; //pre-calculated cache of tile data
     Arr<Arr<uint8_t, 8>, 256*256> rows; //The 65k possible tile lines
+    Arr<uint32_t, 160*144> out_buf; //Graphics output buffer
     uint64_t cycle;      //Last cycle executed during previous invocation of "lcd::run()"
     uint64_t next_line; //Next line to render in frame
     control_reg control; //0xff40

@@ -745,7 +745,7 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
     Arr<uint8_t, 8> tile_line;
 
-    uint32_t * pixels = NULL;
+    //uint32_t * pixels = NULL;
 
     Vect<uint8_t> bgmap(SCREEN_WIDTH, 0);
 
@@ -754,7 +754,8 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
         output_sdl = false;
     }
     else {
-        pixels = ((uint32_t *)buffer->pixels);
+        //pixels = ((uint32_t *)buffer->pixels);
+        //pixels = &out_buf[0];
     }
 
     //printf("Render starting conditions: startline: %lld endline: %lld\n", start_frame_line, end_frame_line);
@@ -802,7 +803,7 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 }
 
                 if(output_sdl /*&& c != 0*/) {
-                    pixels[render_line * SCREEN_WIDTH + x_out_pix] = sys_bgpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
+                    out_buf[render_line * SCREEN_WIDTH + x_out_pix] = sys_bgpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
                     bgmap[x_out_pix] = tile_line[x_tile_pix];
                 }
             }
@@ -834,7 +835,7 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                         }
 
                         if(output_sdl && xcoord >= 0) {
-                            pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_winpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
+                            out_buf[ycoord * SCREEN_WIDTH + xcoord] = sys_winpal[pal_index][bgpal.pal[tile_line[x_tile_pix]]];
                             bgmap[xcoord] = tile_line[x_tile_pix];
                         }
                     }
@@ -897,7 +898,7 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     if(xcoord > 159 || xcoord < 0) continue;
 
                     if(xcoord >= 0 && xcoord < SCREEN_WIDTH && (bgmap[xcoord] == 0 || !sprite_dat.priority)) {
-                        pixels[ycoord * SCREEN_WIDTH + xcoord] = color;
+                        out_buf[ycoord * SCREEN_WIDTH + xcoord] = color;
                     }
                 }
             }
@@ -924,6 +925,7 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 prev_texture = texture;
             }
 
+            memcpy(buffer->pixels, &out_buf[0], 160*144*4);
             texture = SDL_CreateTextureFromSurface(renderer, buffer);
 
             if(sgb_mode) { //Super GameBoy has a few modes that mask video output
@@ -1024,7 +1026,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
     Arr<uint8_t, 8> tile_line;
 
-    uint32_t * pixels = NULL;
+    //uint32_t * pixels = NULL;
 
 
     if(!screen||!texture||!renderer) {
@@ -1032,7 +1034,8 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
         output_sdl = false;
     }
     else {
-        pixels = ((uint32_t *)buffer->pixels);
+        //pixels = ((uint32_t *)buffer->pixels);
+        //pixels = &out_buf[0];
     }
 
     //printf("Render starting conditions: startline: %lld endline: %lld\n", start_frame_line, end_frame_line);
@@ -1089,7 +1092,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
             if(output_sdl /*&& c != 0*/) {
                 int col_num = tile_line[x_tile_pix];
-                pixels[render_line * SCREEN_WIDTH + x_out_pix] = sys_bgpal[a.palette][col_num];
+                out_buf[render_line * SCREEN_WIDTH + x_out_pix] = sys_bgpal[a.palette][col_num];
                 if(col_num) {
                     bgmap[x_out_pix] = tile_priority;
                 }
@@ -1132,7 +1135,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
 
                         if(output_sdl && xcoord >= 0) {
                             int col_num = tile_line[x_tile_pix];
-                            pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_bgpal[a.palette][col_num];
+                            out_buf[ycoord * SCREEN_WIDTH + xcoord] = sys_bgpal[a.palette][col_num];
                             if(col_num) {
                                 bgmap[xcoord] = tile_priority;
                             }
@@ -1177,7 +1180,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     int xcoord = sprite_x + x;
                     if(!col || xcoord > 159 || xcoord < 0) continue;
                     if(tile_priority > bgmap[xcoord]) {
-                        pixels[ycoord * SCREEN_WIDTH + xcoord] = sys_obj1pal[pal_index][col];
+                        out_buf[ycoord * SCREEN_WIDTH + xcoord] = sys_obj1pal[pal_index][col];
                     }
                 }
             }
@@ -1193,6 +1196,7 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 prev_texture = texture;
             }
 
+            memcpy(buffer->pixels, &out_buf[0], 160*144*4);
             texture = SDL_CreateTextureFromSurface(renderer, buffer);
 
             if(debug) {
