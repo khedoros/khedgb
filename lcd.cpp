@@ -955,6 +955,7 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     bh = ((ww*144)/160);
                 }
                 SDL_Rect dontstretch{(ww-bw)>>1, (wh-bh)>>1, bw, bh};
+                SDL_RenderClear(renderer);
                 SDL_RenderCopy(renderer,texture,NULL,&dontstretch);
 
                 SDL_RenderPresent(renderer);

@@ -223,7 +223,7 @@ bool reinit_sdl_screen(SDL_Window ** screen, SDL_Renderer ** renderer, SDL_Textu
         return false;
     }
 
-    *texture = SDL_CreateTexture(*renderer, SDL_PIXELFORMAT_ARGB8888,SDL_TEXTUREACCESS_STREAMING,xres,yres);
+    *texture = SDL_CreateTexture(*renderer, SDL_PIXELFORMAT_ARGB8888,SDL_TEXTUREACCESS_STREAMING,160,144);
     if(!(*texture)) {
         fprintf(stderr, "lcd::Couldn't create a texture: %s\nStarting without video output.\n", SDL_GetError());
         SDL_DestroyRenderer(*renderer);
