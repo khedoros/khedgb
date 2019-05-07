@@ -1,8 +1,6 @@
 #pragma once
 #include<cstdint>
-//#include<list>
 #include<queue>
-#include<SDL2/SDL_audio.h>
 #include "util.h"
 #include<iostream>
 #include<fstream>
