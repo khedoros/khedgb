@@ -174,7 +174,7 @@ int read(const std::string& filename, Vect<uint8_t>& output, size_t min_size, si
         in.seekg(0, std::ios::beg);
         //printf("Opened %s, found a file of %ld bytes.\n", filename.c_str(), size);
         output.resize(size);
-        in.read(reinterpret_cast<char *>(&(output[0])), size);
+        in.read(reinterpret_cast<char *>(&output[0]), size);
         in.close();
     }
     else {

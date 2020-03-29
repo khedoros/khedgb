@@ -718,7 +718,7 @@ void camera_rom::write(uint32_t addr, uint8_t val, uint64_t cycle) {
                 }
             }
         }
-        cam.write(addr, *((uint8_t *)val),cycle);
+        cam.write(addr, val,cycle);
 #else
         const uint8_t image[0x1000] = {
 #include "image.hex"
