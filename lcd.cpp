@@ -24,8 +24,6 @@ lcd::lcd() : cgb_mode(false), debug(false), during_dma(false), cycle(0), next_li
     cur_x_res=SCREEN_WIDTH;
     cur_y_res=SCREEN_HEIGHT;
 
-    prev_texture = NULL;
-
     bool success = util::reinit_sdl_screen(&screen, &renderer, &texture, cur_x_res, cur_y_res);
     if(!success) {
         fprintf(stderr, "Something failed while init'ing video.\n");
@@ -130,10 +128,6 @@ lcd::~lcd() {
     if(texture) {
         SDL_DestroyTexture(texture);
         texture = NULL;
-    }
-    if(prev_texture) {
-        SDL_DestroyTexture(prev_texture);
-        prev_texture = NULL;
     }
     if(buffer) {
         SDL_FreeSurface(buffer);
@@ -916,17 +910,10 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                 do_vram_transfer();
                 sgb_vram_transfer_type = 0;
             }
-            if(prev_texture) {
-                SDL_DestroyTexture(prev_texture);
-                prev_texture = NULL;
-            }
 
             if(texture) {
-                prev_texture = texture;
+                SDL_UpdateTexture(texture, NULL, out_buf.data(), 160*4);
             }
-
-            memcpy(buffer->pixels, &out_buf[0], 160*144*4);
-            texture = SDL_CreateTextureFromSurface(renderer, buffer);
 
             if(sgb_mode) { //Super GameBoy has a few modes that mask video output
                 if(sgb_mask_mode == 0) {
@@ -968,6 +955,7 @@ uint64_t lcd::dmg_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
                     bh = ((ww*144)/160);
                 }
                 SDL_Rect dontstretch{(ww-bw)>>1, (wh-bh)>>1, bw, bh};
+                SDL_RenderClear(renderer);
                 SDL_RenderCopy(renderer,texture,NULL,&dontstretch);
 
                 SDL_RenderPresent(renderer);
@@ -1032,10 +1020,6 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
     if(!screen||!texture||!renderer) {
         printf("PPU: problem!\n");
         output_sdl = false;
-    }
-    else {
-        //pixels = ((uint32_t *)buffer->pixels);
-        //pixels = &out_buf[0];
     }
 
     //printf("Render starting conditions: startline: %lld endline: %lld\n", start_frame_line, end_frame_line);
@@ -1187,17 +1171,10 @@ uint64_t lcd::cgb_render(int frame, uint64_t start_cycle, uint64_t end_cycle) {
         }
 
         if(output_sdl && render_line == LAST_RENDER_LINE) {
-            if(prev_texture) {
-                SDL_DestroyTexture(prev_texture);
-                prev_texture = NULL;
-            }
 
             if(texture) {
-                prev_texture = texture;
+                SDL_UpdateTexture(texture, NULL, out_buf.data(), 160*4);
             }
-
-            memcpy(buffer->pixels, &out_buf[0], 160*144*4);
-            texture = SDL_CreateTextureFromSurface(renderer, buffer);
 
             if(debug) {
                 SDL_Rect debug_space{CYCLES_PER_LINE,0,SCREEN_WIDTH,SCREEN_HEIGHT};

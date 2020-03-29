@@ -392,6 +392,7 @@ void memmap::write(int addr, uint8_t val, uint64_t cycle) {
             case 0xff46: //OAM DMA, decomposed into a set of individual writes
                 {
                     uint16_t src_addr = uint16_t(val) * 0x100;
+                    //printf("DMA from 0x%04x\n", src_addr);
                     if(src_addr < 0xf100) {
                         //dat is between 0x00 and 0xf1, so that covers: ROM (00 to 7f), vram (80 to 9f), cram (a0-bf), wram (c0-df), wram_echo (e0-f1)
                         screen.dma(true, cycle2, val);
@@ -1061,10 +1062,10 @@ void memmap::sgb_exec(Vect<uint8_t>& s_b, uint64_t cycle) {
 
 void memmap::speed_switch() {
     if(be_speedy) {
-        printf("Switch from fast to slow\n");
+        //printf("Switch from fast to slow\n");
     }
     else {
-        printf("Switch from slow to fast\n");
+        //printf("Switch from slow to fast\n");
     }
     be_speedy = !be_speedy;
     feel_the_need = false; //Don't feel the need for speed
@@ -1098,7 +1099,7 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
     //uint64_t scrline = ((cycle2 - screen.get_active_cycle()) % 17556) / 114;
     uint8_t val = 0;
     if(hdma_general) {
-        //printf("\t GDMA: transfer %d from %04x to %04x @ %ld (mode %d, line %d)\n", hdma_chunks, hdma_src, hdma_dest, cycle2, mode, scrline);
+        //printf("\t GDMA: transfer %d from %04x to %04x @ %ld (mode %d)\n", hdma_chunks, hdma_src, hdma_dest, cycle2, mode);
         for(int c = 0; c < hdma_chunks; c++) {
             for(int byte=0;byte<16;byte++) {
                 val = read(hdma_src, cycle + byte + c*16);
@@ -1117,7 +1118,7 @@ uint64_t memmap::handle_hdma(uint64_t cycle) {
     else if(hdma_hblank) {
         bool transferred = false;
         if(hdma_first || (hdma_last_mode != 0 && mode == 0)) {
-            //printf("\t HDMA: transfer 16 from %04x to %04x @ %ld (%d chunks left), mode %d, line %d\n", hdma_src, hdma_dest, cycle2, hdma_chunks-1, mode, scrline);
+            //printf("\t HDMA: transfer 16 from %04x to %04x @ %ld (%d chunks left), mode %d\n", hdma_src, hdma_dest, cycle2, hdma_chunks-1, mode);
             for(int byte=0;byte<16;byte++) {
                 val = read(hdma_src + byte, cycle + byte);
                 write(hdma_dest + byte, val, cycle + byte);

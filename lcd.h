@@ -222,7 +222,6 @@ private:
 
     SDL_Surface * buffer; //Output buffer
     SDL_Texture * texture; //Texture used for output
-    SDL_Texture * prev_texture; //Texture used for output
 
     SDL_Surface * overlay; //overlay surface (if I want to render non-game info)
     SDL_Surface * lps; //Low-priority sprite compositing buffer
