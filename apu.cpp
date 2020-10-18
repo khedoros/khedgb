@@ -120,31 +120,25 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), debug
             fprintf(stderr, "Error init'ing driver: %s", SDL_GetError());
         }
 
-        int num_playback_devices = SDL_GetNumAudioDevices(0);
-        printf("Audio Devices: \n\tPlayback:\n");
-        for(int i=0; i<num_playback_devices;i++) {
-            printf("\t\tDevice %d: %s\n", i, SDL_GetAudioDeviceName(i,0));
-            if(!devid) {
-                SDL_AudioSpec want;
-                    want.freq=44100;
-                    want.format=AUDIO_S8;
-                    want.channels=CHANNELS;
-                    want.silence=0;
-                    want.samples=/*8192*/ 689;
-                    want.size=0;
-                    want.callback=NULL;
-                    want.userdata=NULL;
+	SDL_AudioSpec want;
+	want.freq=44100;
+	want.format=AUDIO_S8;
+	want.channels=CHANNELS;
+	want.silence=0;
+	want.samples=/*8192*/ 689;
+	want.size=0;
+	want.callback=NULL;
+	want.userdata=NULL;
 
-                SDL_AudioSpec got;
-                devid = SDL_OpenAudioDevice(SDL_GetAudioDeviceName(i,0), 0, &want, &got, 0);
-                if(!devid) {
-                    fprintf(stderr, "Error opening device %s: %s\n", SDL_GetAudioDeviceName(i,0), SDL_GetError());
-                }
-                else {
-                    printf("Freq: %d format: %d (%d) ch: %d sil: %d samp: %d size: %d\n", got.freq, got.format, want.format, got.channels, got.silence, got.samples, got.size);
-                }
-            }
-        }
+	SDL_AudioSpec got;
+	devid = SDL_OpenAudioDevice(NULL, 0, &want, &got, 0);
+	if(!devid) {
+		fprintf(stderr, "Error opening audio device: %s\n", SDL_GetError());
+	}
+	else {
+		printf("Freq: %d format: %d (%d) ch: %d sil: %d samp: %d size: %d\n", got.freq, got.format, want.format, got.channels, got.silence, got.samples, got.size);
+	}
+
         if(!devid) {
             fprintf(stderr, "No audio device opened.\n");
         }

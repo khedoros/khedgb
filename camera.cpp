@@ -49,7 +49,8 @@ void camera::capture(uint64_t cycle, uint8_t * camera_frame) {
     cv::Mat sub_image;
     int height = image.size().height;
     int width = image.size().width;
-    cv::cvtColor(image, gray_image, CV_BGR2GRAY);
+    //cv::cvtColor(image, gray_image, CV_BGR2GRAY);
+    cv::cvtColor(image, gray_image, cv::COLOR_BGR2GRAY);
     cv::getRectSubPix(gray_image, cv::Size{(2*height)/3, (2*height)/3}, cv::Point2f{float(width)/float(2),float(height)/float(2)}, sub_image);
     cv::Mat shrunk_image;
     cv::resize(sub_image, shrunk_image, cv::Size{128,128}, 0, 0);
