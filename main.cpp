@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
     bool continue_running = true;
 
     uint64_t cycle_offset = 0;
-    uint64_t start = SDL_GetTicks();
+    uint64_t start = SDL_GetTicks64();
     while(continue_running) {
         //printf("Running CPU and PPU until cycle %ld (%ld for CPU)\n", cycle+tick_size, 2*(cycle+tick_size));
         continue_running = util::process_events(&proc, &bus);
@@ -143,7 +143,7 @@ int main(int argc, char *argv[]) {
 
         //Frame delay
         if(cur_output_cycle != 0) {
-            uint64_t now = SDL_GetTicks();
+            uint64_t now = SDL_GetTicks64();
             uint64_t time_elapsed = now - start;
             uint64_t simulated_time = (1000 * (cycle + tick_size - cycle_offset)) / (1024 * 1024);
             if(time_elapsed < simulated_time) {
@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
                     SDL_Delay(simulated_time - time_elapsed);
                 }
                 else {
-                    start = SDL_GetTicks();
+                    start = SDL_GetTicks64();
                     cycle_offset = cycle + tick_size;
                 }
             }

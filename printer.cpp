@@ -92,7 +92,7 @@ uint8_t printer::send(uint8_t incoming) {
                 case PRINT:
                     outval = status;
                     status = 4;
-                    print_start_time = SDL_GetTicks();
+                    print_start_time = SDL_GetTicks64();
                     assert(data_buffer.size() == 4);
                     assert(data_buffer[0] == 1);
                     start_margin = (data_buffer[1] & 0xf0)>>4;
@@ -112,7 +112,7 @@ uint8_t printer::send(uint8_t incoming) {
                     break;
                 case READ_STATUS:
                     outval = status;
-                    if(status==2 && print_start_time + 10000 > SDL_GetTicks()) outval|=2; //pretend that it takes 10 seconds to print
+                    if(status==2 && print_start_time + 10000 > SDL_GetTicks64()) outval|=2; //pretend that it takes 10 seconds to print
                     break;
                 default:
                     break;
@@ -154,7 +154,7 @@ void printer::print_buffer() {
         if((i+1)%160 == 0) printf("\n");
     }
     */
-    std::string filename = std::to_string(SDL_GetTicks()) + ".png";
+    std::string filename = std::to_string(SDL_GetTicks64()) + ".png";
     util::output_png(filename, 160,graphics_ptr/40, output);
     printf("Output printer image to %s.\n", filename.c_str());
 }

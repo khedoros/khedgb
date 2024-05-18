@@ -125,7 +125,7 @@ apu::apu() : writes_enabled(false), cycle(0), devid(0), audio_open(false), debug
 	want.format=AUDIO_S8;
 	want.channels=CHANNELS;
 	want.silence=0;
-	want.samples=/*8192*/ 689;
+	want.samples=/*8192*/ 690;
 	want.size=0;
 	want.callback=NULL;
 	want.userdata=NULL;
@@ -262,7 +262,7 @@ void apu::run(uint64_t run_to) {
     }
 
     //Push the sample to the output device.
-    if(audio_open && SDL_GetQueuedAudioSize(devid) < 4000) {
+    if(audio_open && SDL_GetQueuedAudioSize(devid) < out_buffer.size() * 4) {
         //printf("%d ", SDL_GetQueuedAudioSize(devid));
         //out_wav.write(reinterpret_cast<const char *>(out_buffer.data()), sample_count * CHANNELS * SAMPLE_SIZE);
         SDL_QueueAudio(devid, out_buffer.data(), sample_count * CHANNELS * SAMPLE_SIZE);

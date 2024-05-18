@@ -60,18 +60,25 @@ lcd::lcd() : cgb_mode(false), debug(false), during_dma(false), cycle(0), next_li
     //    uint8_t default_palette[] =
     //         0              1              2              3
     //*bg*/  {255, 255, 255, 170, 170, 170,  85,  85,  85,   0,   0,   0, //B+W, going from white to black
-    //*win*/  255, 210, 210, 175, 140, 140,  95,  70,  70,  15,   0,   0, //Light pink to deep, dark red
-    //*ob1*/  210, 255, 210, 140, 175, 140,  70,  95,  70,   0,  15,   0, //Seafoam green to Schwarzwald at midnight
-    //*ob2*/  210, 210, 255, 140, 140, 175,  70,  70,  95,   0,   0,  15}; //Powder blue to Mariana trench
+    //*win*/  255, 210, 210, 200, 140, 140,  120,  70,  70,  30,   0,   0, //Light pink to deep, dark red
+    //*ob1*/  210, 255, 210, 140, 200, 140,  70,  120,  70,   0,  30,   0, //Seafoam green to Schwarzwald at midnight
+    //*ob2*/  210, 210, 255, 140, 140, 200,  70,  70,  120,   0,   0,  30}; //Powder blue to Mariana trench
+
+    //DMG inspired palette
+    uint default_palette[] =
+    /*bg*/  {155, 188, 15, 139, 172, 15,  48,  98,  48,  15,   56,   15,
+    /*win*/  155, 188, 15, 139, 172, 15,  48,  98,  48,  15,   56,   15,
+    /*ob1*/  155, 188, 15, 139, 172, 15,  48,  98,  48,  15,   56,   15,
+    /*ob2*/  155, 188, 15, 139, 172, 25,  48,  98,  48,  15,   56,   15};
 
 
     //GB Pocket inspired palette
-        uint8_t default_palette[] =
+    //    uint8_t default_palette[] =
     //         0              1              2              3
-    /*bg*/  {224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38, //B+W, going from white to black
-    /*win*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38, //Light pink to deep, dark red
-    /*ob1*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38, //Seafoam green to Schwarzwald at midnight
-    /*ob2*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38}; //Powder blue to Mariana trench
+    //*bg*/  {224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38,
+    //*win*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38,
+    //*ob1*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38,
+    //*ob2*/  224, 219, 205, 168, 159, 148, 112, 107, 102,  43,  43,  38};
 
 
     for(int i=0; buffer && i<4; i++) {
@@ -117,17 +124,12 @@ lcd::lcd() : cgb_mode(false), debug(false), during_dma(false), cycle(0), next_li
 }
 
 lcd::~lcd() {
+    //std::ofstream dump("screen_dump.dat");
+    //dump.write(reinterpret_cast<char*>(vram[0].data()), 0x2000);
+    //dump.write(reinterpret_cast<char*>(vram[1].data()), 0x2000);
     if(screen) {
         SDL_DestroyWindow(screen);
         screen = NULL;
-    }
-    if(renderer) {
-        SDL_DestroyRenderer(renderer);
-        renderer = NULL;
-    }
-    if(texture) {
-        SDL_DestroyTexture(texture);
-        texture = NULL;
     }
     if(buffer) {
         SDL_FreeSurface(buffer);
@@ -368,6 +370,7 @@ void lcd::write(int addr, uint8_t val, uint64_t cycle) {
         switch(addr) {
             case 0xff40:
                 {
+                    // printf("FF40: %02x\n", val & 0x04);
                     control_reg old_val{.val = cpu_control.val};
                     cpu_control.val = val;
                     //Re-activates STAT interrupts when screen is reenabled

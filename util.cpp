@@ -185,17 +185,17 @@ int read(const std::string& filename, Vect<uint8_t>& output, size_t min_size, si
 }
 
 bool reinit_sdl_screen(SDL_Window ** screen, SDL_Renderer ** renderer, SDL_Texture ** texture, unsigned int xres, unsigned int yres) {
-    if(*screen) {
+    if(screen && *screen) {
         SDL_DestroyWindow(*screen);
         *screen = NULL;
     }
-    if(*renderer) {
-        SDL_DestroyRenderer(*renderer);
-        *renderer = NULL;
-    }
-    if(*texture) {
+    if(texture && *texture) {
         SDL_DestroyTexture(*texture);
         *texture = NULL;
+    }
+    if(renderer && *renderer) {
+        SDL_DestroyRenderer(*renderer);
+        *renderer = NULL;
     }
 
     /* Initialize the SDL library */

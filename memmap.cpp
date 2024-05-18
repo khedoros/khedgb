@@ -405,11 +405,11 @@ void memmap::write(int addr, uint8_t val, uint64_t cycle) {
                 }
                 break;
             case 0xff4d: //KEY1 Prepare speed switch
-                //printf("Write to CGB speed-switching register: %02x\n", *(uint8_t *)val);
+                //printf("Write to CGB speed-switching register: %02x\n", val);
                 if(cgb && val & 0x01) feel_the_need = true;
                 break;
             case 0xff4f: //VBK (CGB VRAM bank)
-                //printf("Write to CGB VRAM bank register: %02x\n", *(uint8_t *)val);
+                //printf("Write to CGB VRAM bank register: %02x\n", val);
                 screen.write(addr, val, cycle2);
                 break;
             case 0xff50: //disables CPU firmware
@@ -508,6 +508,7 @@ void memmap::write(int addr, uint8_t val, uint64_t cycle) {
                 if(addr > 0xff0f && addr <= 0xff3f) {
                     //std::cout<<"Write to audio hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(*((uint8_t *)val))<<" (not implemented yet)"<<std::endl;
                     sound.write(addr, val, cycle2);
+                    //std::cout<<std::dec<<cycle2<<" "<<std::hex<<addr<<" "<<uint16_t(val)<<'\n';
                 }
                 else if(addr > 0xff3f && addr < 0xff4c) {
                     screen.write(addr, val, cycle2);

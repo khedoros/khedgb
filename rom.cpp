@@ -195,7 +195,7 @@ rom::rom(const std::string& rom_filename, const std::string& firmware_filename =
     }
     else if(h.rom_size < h.filesize) {
         std::cerr<<"Filesize: "<<std::dec<<h.filesize<<" Claimed rom size: "<<h.rom_size<<" (oopsie!)"<<std::endl;
-        return;
+        // return;
     }
 
     h.rom_ver = rom_data[0x14c];
@@ -470,7 +470,7 @@ uint32_t mbc3_rom::map_ram(uint32_t addr, uint64_t cycle) {
             return (uint32_t(latched_rtc[rambank-0x08]) | 0xffffff00);
         }
         else {
-            0xffffff;
+            return 0xffffff;
             //return (uint32_t(rtc[rambank-0x08]) | 0xffffff00);
         }
     }
