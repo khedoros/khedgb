@@ -1450,7 +1450,7 @@ void lcd::sgb_set_attrib_from_file(uint8_t attr_file, bool cancel_mask) {
 
 }
 void lcd::sgb_pal_transfer(uint16_t pal0, uint16_t pal1, uint16_t pal2, uint16_t pal3, uint8_t attr_file, bool use_attr, bool cancel_mask) {
-    uint16_t pals[] = {pal0, pal1, pal2, pal3};
+    uint16_t pals[] = {pal0 & 0x1ff, pal1 & 0x1ff, pal2 & 0x1ff, pal3 & 0x1ff};
     if(cancel_mask) sgb_mask_mode = 0;
     if(use_attr) {
         for(int byte=0; byte<90;byte++) {

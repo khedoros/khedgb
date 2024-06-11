@@ -190,12 +190,12 @@ bool reinit_sdl_screen(SDL_Window ** screen, SDL_Renderer ** renderer, SDL_Textu
         *screen = NULL;
     }
     if(texture && *texture) {
-        SDL_DestroyTexture(*texture);
-        *texture = NULL;
+        //SDL_DestroyTexture(*texture);
+        //*texture = NULL;
     }
     if(renderer && *renderer) {
-        SDL_DestroyRenderer(*renderer);
-        *renderer = NULL;
+        //SDL_DestroyRenderer(*renderer);
+        //*renderer = NULL;
     }
 
     /* Initialize the SDL library */
