@@ -75,19 +75,27 @@ cpu::cpu(memmap * b, bool cgb_mode, bool has_firmware/*=false*/): bus(b),
         de.pair = 0xff56;
         hl.pair = 0x000d;
     }
+
+    for(int i = 0; i < 512; i++) {
+        tracking[i] = 0;
+    }
 }
 
 cpu::~cpu() {
+    int total = 0;
     for(int i=0;i<256;i++) {
         if(tracking[i]) {
             printf("Op   %02x: %ld\n", i, tracking[i]);
+            total += tracking[i];
         }
     }
     for(int i=0;i<256;i++) {
         if(tracking[i+256]) {
             printf("Op cb%02x: %ld\n", i, tracking[i+256]);
+            total += tracking[i+256];
         }
     }
+    printf("Total instructions run: %ld\n", total);
 }
 
 uint64_t cpu::run(uint64_t run_to) {

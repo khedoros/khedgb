@@ -146,16 +146,21 @@ int main(int argc, char *argv[]) {
             uint64_t now = SDL_GetTicks64();
             uint64_t time_elapsed = now - start;
             uint64_t simulated_time = (1000 * (cycle + tick_size - cycle_offset)) / (1024 * 1024);
-            if(time_elapsed < simulated_time) {
-                if(simulated_time - time_elapsed < 17) {
-                    SDL_Delay(simulated_time - time_elapsed);
+            uint64_t idle_time = (time_elapsed < simulated_time) ? simulated_time - time_elapsed : 0;
+            printf("Simtime: %lld elapsed: %lld\n", simulated_time, time_elapsed);
+            if(time_elapsed < simulated_time) { // Normal case, frame took less time to calculate than the simulation did
+                if(idle_time < 17) {
+                    printf("Delay %lld\n", idle_time);
+                    SDL_Delay(idle_time);
                 }
                 else {
+                    printf("Reset start, delay 16ms\n");
+                    SDL_Delay(16);
                     start = SDL_GetTicks64();
                     cycle_offset = cycle + tick_size;
                 }
             }
-            else if(time_elapsed > simulated_time + 1000) {
+            else if(time_elapsed > simulated_time + 1000) { // Don't do any slowdown; we're already showing as slower than realtime
                 printf("Seeing consistent slowdown.\n");
             }
         }
