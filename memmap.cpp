@@ -167,7 +167,7 @@ uint8_t memmap::read(int addr, uint64_t cycle) {
             //std::cout<<"Read from interrupt hardware: 0x"<<std::hex<<addr<<" = 0x"<<int(int_requested.reg)<<" at cycle "<<std::dec<<cycle<<std::endl;
             break;
         case 0xff4d: //CGB KEY1 speed switch register
-            retval = (0x7f | (be_speedy * 0x80));
+            retval = (be_speedy * 0x80) | 0x7e | feel_the_need;
             //printf("Read from unimplemented KEY1 speed switch register\n");
             break;
         case 0xff4f: //VBK (CGB VRAM bank)
